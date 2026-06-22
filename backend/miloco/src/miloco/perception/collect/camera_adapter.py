@@ -12,6 +12,7 @@ buffer handles time-windowed A/V alignment automatically.
 from __future__ import annotations
 
 import logging
+import inspect
 import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Callable
@@ -261,6 +262,18 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                     (now_ms - state.last_video_frame_ms) / 1000,
                 )
             await self.disconnect_device(did)
+            await self._rebuild_camera_stream_manager(did)
+
+    async def _rebuild_camera_stream_manager(self, did: str) -> None:
+        rebuild = getattr(self._miot_proxy, "rebuild_camera_stream_manager", None)
+        if not inspect.iscoroutinefunction(rebuild):
+            return
+        try:
+            rebuilt = await rebuild(did)
+            if rebuilt:
+                logger.warning("Camera %s manager rebuilt after stream health drop", did)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Camera %s manager rebuild failed: %s", did, e)
 
     async def connect_device(
         self, did: str, source: PerceptionDevice | None = None

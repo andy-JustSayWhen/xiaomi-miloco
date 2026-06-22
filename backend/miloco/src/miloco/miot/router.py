@@ -70,9 +70,9 @@ def _truncate_ws_reason(reason: str) -> str:
 # 首帧看门狗:WS 注册成功(reg_id≥0)后,若摄像头在这么多秒内一帧都没出,判定为
 # "连不上"(典型:摄像头跟 backend 不在同一局域网且 PPCS 中继也没建起来 / 摄像头离线 /
 # 休眠)。给前端发一条明确的 error 信令再关,而不是让它永远停在"正在连接摄像头…"。
-# 12s:米家 IPC 冷启动 + PPCS 握手 + 首个 IDR 通常 2-6s,12s 给弱网足够余量又不会让
-# 真连不上的住户干等太久。
-_FIRST_FRAME_TIMEOUT_S = 12.0
+# 60s:实测部分米家 IPC/PPCS 弱网或冷连接首帧可能超过 12s;过早关闭会造成
+# "正在连接"后被误判为离线,甚至阻断后续重连。仍保留超时,避免真不可达时无限等待。
+_FIRST_FRAME_TIMEOUT_S = 60.0
 
 
 async def _first_frame_watchdog(
@@ -678,7 +678,7 @@ async def video_stream_websocket(
         #
         # late-joiner 优化:摄像头已在出帧(_camera_seen_keyframe 已含该 tag,即已向
         # 某个 WS 广播过首帧)时,说明它显然可达,本连接不可能"连不上",起看门狗纯属
-        # 白烧一个 12s noop task——高频刷新页时尤其浪费。此处无锁读 has_emitted_frame
+        # 白烧一个 60s noop task——高频刷新页时尤其浪费。此处无锁读 has_emitted_frame
         # 与 new_connection 内部的 lock 不同步,有极小 TOCTOU 窗口,但最坏后果仅是
         # "该起没起/不该起起了"一个 noop task,无正确性影响。
         # 注:recorder-only 窗口(只在录制、无 WS)keyframe 尚未向任何 WS 广播过,

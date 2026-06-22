@@ -57,6 +57,7 @@ class TestConnectDeviceManagerMissing:
         proxy.start_camera_decode_video_stream = AsyncMock(return_value=7)
         proxy.start_camera_decode_audio_stream = AsyncMock(return_value=-1)
         proxy.stop_camera_decode_video_stream = AsyncMock()
+        proxy.rebuild_camera_stream_manager = AsyncMock(return_value=True)
         adapter = CameraDeviceAdapter(miot_proxy=proxy)
         clock = [100_000]
         monkeypatch.setattr(
@@ -67,18 +68,20 @@ class TestConnectDeviceManagerMissing:
         asyncio.run(adapter.connect_device("cam1", source=_source()))
         assert "cam1" in adapter._devices
 
-        clock[0] = 112_000
+        clock[0] = 160_000
         asyncio.run(adapter._drop_unhealthy_devices())
 
         assert "cam1" not in adapter._devices
-        assert adapter._last_connect_fail_ms["cam1"] == 112_000
+        assert adapter._last_connect_fail_ms["cam1"] == 160_000
         proxy.stop_camera_decode_video_stream.assert_awaited_once_with("cam1", 0, 7)
+        proxy.rebuild_camera_stream_manager.assert_awaited_once_with("cam1")
 
     def test_no_first_frame_device_kept_before_timeout(self, monkeypatch):
         proxy = MagicMock()
         proxy.start_camera_decode_video_stream = AsyncMock(return_value=7)
         proxy.start_camera_decode_audio_stream = AsyncMock(return_value=-1)
         proxy.stop_camera_decode_video_stream = AsyncMock()
+        proxy.rebuild_camera_stream_manager = AsyncMock(return_value=True)
         adapter = CameraDeviceAdapter(miot_proxy=proxy)
         clock = [100_000]
         monkeypatch.setattr(
@@ -87,15 +90,17 @@ class TestConnectDeviceManagerMissing:
         )
 
         asyncio.run(adapter.connect_device("cam1", source=_source()))
-        clock[0] = 111_999
+        clock[0] = 159_999
         asyncio.run(adapter._drop_unhealthy_devices())
 
         assert "cam1" in adapter._devices
         proxy.stop_camera_decode_video_stream.assert_not_awaited()
+        proxy.rebuild_camera_stream_manager.assert_not_awaited()
 
     def test_stale_video_device_dropped(self, monkeypatch):
         proxy = MagicMock()
         proxy.stop_camera_decode_video_stream = AsyncMock()
+        proxy.rebuild_camera_stream_manager = AsyncMock(return_value=True)
         adapter = CameraDeviceAdapter(miot_proxy=proxy)
         state = _CameraDeviceState(did="cam1")
         state.decoded_video_reg_id = 9
@@ -113,6 +118,7 @@ class TestConnectDeviceManagerMissing:
         assert "cam1" not in adapter._devices
         assert adapter._last_connect_fail_ms["cam1"] == 130_000
         proxy.stop_camera_decode_video_stream.assert_awaited_once_with("cam1", 0, 9)
+        proxy.rebuild_camera_stream_manager.assert_awaited_once_with("cam1")
 
 
 class TestSyncDevicesOnDemandRefresh:

@@ -712,6 +712,36 @@ async def test_create_camera_img_manager_denied_by_home_filter_valid_instance_bu
 
 
 @pytest.mark.asyncio
+async def test_rebuild_camera_stream_manager_recreates_existing_manager(_scope_proxy_env):
+    proxy, kv, miot_client = _scope_proxy_env
+    kv.set(ScopeConfigKeys.HOME_WHITE_LIST_KEY, json.dumps(["H1"]))
+
+    cam = _camera("c1", home_id="H1")
+    proxy._camera_info_dict = {"c1": cam}
+
+    old_handler = MagicMock()
+    old_handler.destroy = AsyncMock()
+    proxy._camera_img_managers["c1"] = old_handler
+
+    new_handler = MagicMock()
+
+    async def _create(cam_info):
+        proxy._camera_img_managers[cam_info.did] = new_handler
+        return new_handler
+
+    proxy._create_camera_img_manager = AsyncMock(side_effect=_create)
+
+    rebuilt = await proxy.rebuild_camera_stream_manager("c1")
+
+    assert rebuilt is True
+    miot_client.unregister_lan_device_changed_async.assert_awaited_once_with(did="c1")
+    old_handler.destroy.assert_awaited_once()
+    proxy._create_camera_img_manager.assert_awaited_once_with(cam)
+    miot_client.register_lan_device_changed_async.assert_awaited_once()
+    assert proxy._camera_img_managers["c1"] is new_handler
+
+
+@pytest.mark.asyncio
 async def test_refresh_cameras_keeps_scope_denied_existing_manager(_scope_proxy_env):
     """先有 manager + 后写停用集 + refresh → 历史 manager 保活(不销毁)。
 

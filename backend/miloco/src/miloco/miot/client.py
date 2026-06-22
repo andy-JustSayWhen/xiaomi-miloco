@@ -574,6 +574,59 @@ class MiotProxy:
             logger.error("Failed to get camera instance: %s", e)
             return None
 
+    async def rebuild_camera_stream_manager(self, did: str) -> bool:
+        """Destroy and recreate one camera manager after a stream stalls.
+
+        Re-subscribing decoded callbacks is not enough when the native camera
+        instance itself is stuck in DISCONNECTED/no-frame state. This path evicts
+        the SDK _camera_map entry via ``CameraVisionHandler.destroy()`` and then
+        creates a fresh instance for the same did.
+        """
+        async with self._refresh_cameras_lock:
+            camera_info = self._camera_info_dict.get(did)
+            if camera_info is None:
+                cameras = await self._miot_client.get_cameras_async()
+                self._camera_info_dict = copy.deepcopy(cameras)
+                camera_info = self._camera_info_dict.get(did)
+
+            if camera_info is None:
+                logger.warning("Cannot rebuild camera %s: not found in account", did)
+                return False
+            if not is_home_allowed(self._kv_repo, camera_info.home_id):
+                logger.warning("Cannot rebuild camera %s: home is not allowed", did)
+                return False
+
+            existing = self._camera_img_managers.pop(did, None)
+            if existing is not None:
+                await self._miot_client.unregister_lan_device_changed_async(did=did)
+                try:
+                    await existing.destroy()
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(
+                        "Camera %s manager destroy failed during rebuild: %s",
+                        did,
+                        e,
+                    )
+                    try:
+                        await self._miot_client._camera_client.destroy_camera_async(
+                            did=did
+                        )
+                    except Exception as inner:  # noqa: BLE001
+                        logger.warning(
+                            "Camera %s SDK cache eviction fallback failed: %s",
+                            did,
+                            inner,
+                        )
+
+            manager = await self._create_camera_img_manager(camera_info)
+            if manager is None:
+                return False
+            await self._miot_client.register_lan_device_changed_async(
+                did=did, callback=self._on_lan_device_changed
+            )
+            logger.warning("Camera %s stream manager rebuilt", did)
+            return True
+
     async def get_cameras(self) -> dict[str, MIoTCameraInfo]:
         if not self._camera_info_dict:
             logger.warning("No camera info dict found, refreshing cameras")
