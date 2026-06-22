@@ -1,8 +1,10 @@
-<h1 align="center">Xiaomi Miloco</h1>
+<h1 align="center">easy-miloco</h1>
 
 <p align="center"><a href="README.md">English</a> | 简体中文</p>
 
-小米面向未来的全屋智能 AI 开源方案，以米家摄像头的画面与声音为全模态感知入口，以自研 MiMo 大模型为智能大脑，以 Agent 插件形式运行在 [OpenClaw](https://openclaw.ai) 之上，联动全屋设备带来主动智能体验。
+本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库主要提供一键部署包、源码优化和面向小白的 Miloco 系列教程。
+
+Xiaomi Miloco 是小米面向未来的全屋智能 AI 开源方案，以米家摄像头的画面与声音为全模态感知入口，以自研 MiMo 大模型为智能大脑，以 Agent 插件形式运行在 [OpenClaw](https://openclaw.ai) 之上，联动全屋设备带来主动智能体验。
 
 Miloco 2.0 能感知家中发生的事件，能基于常识主动判断并操控设备，能将"模糊又长期"的目标拆解成可追踪的家庭任务，能识别家庭成员、依托家庭记忆为每位成员提供个性化服务——查询和控制设备、把家调到成员舒适的状态，或在合适的时机给出有用的提醒。
 
@@ -41,14 +43,12 @@ Miloco 2.0 能感知家中发生的事件，能基于常识主动判断并操控
 向 OpenClaw 发送以下指令即可自动完成安装：
 
 ```text
-帮我安装 Miloco 插件：https://raw.githubusercontent.com/XiaoMi/xiaomi-miloco/main/scripts/install-guide.md
+请为我一键部署 Miloco，按照：https://github.com/andy-JustSayWhen/easy-miloco/blob/main/docs/install-guide.md
 ```
 
-### 方式二：命令行一键安装
+### 方式二：用户自己动
 
-```bash
-curl -LsSf https://github.com/XiaoMi/xiaomi-miloco/releases/latest/download/install.sh | bash
-```
+打开 https://github.com/andy-JustSayWhen/easy-miloco/releases ，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，双击文件夹根目录内的 `install.ps1`。
 
 ### 方式三：从源码构建
 

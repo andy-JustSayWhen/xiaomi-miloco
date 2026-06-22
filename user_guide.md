@@ -161,7 +161,7 @@ This project is for non-commercial use only. Without written authorization from 
 
 ## 5.2 Resources
 
-- Code repository: [github.com/XiaoMi/xiaomi-miloco](https://github.com/XiaoMi/xiaomi-miloco)
+- Code repository: [github.com/andy-JustSayWhen/easy-miloco](https://github.com/andy-JustSayWhen/easy-miloco)
 - OpenClaw website: [openclaw.ai](https://openclaw.ai)
 - MiMo model platform: [platform.xiaomimimo.com](https://platform.xiaomimimo.com)
 

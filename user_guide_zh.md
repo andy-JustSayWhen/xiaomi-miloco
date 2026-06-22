@@ -161,7 +161,7 @@ miloco-cli scope camera list        # 摄像头黑白名单
 
 ## 2. 相关资源
 
-- 代码仓库：[github.com/XiaoMi/xiaomi-miloco](https://github.com/XiaoMi/xiaomi-miloco)
+- 代码仓库：[github.com/andy-JustSayWhen/easy-miloco](https://github.com/andy-JustSayWhen/easy-miloco)
 - OpenClaw 官网：[openclaw.ai](https://openclaw.ai)
 - MiMo 模型平台：[platform.xiaomimimo.com](https://platform.xiaomimimo.com)
 

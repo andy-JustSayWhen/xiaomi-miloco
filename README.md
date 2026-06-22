@@ -1,157 +1,123 @@
-<h1 align="center">Xiaomi Miloco</h1>
+# easy-miloco
 
-<p align="center">English | <a href="README.zh.md">简体中文</a></p>
+本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库做的工作主要为：1. 提供一键部署包，适配 WIN、macOS、NAS 和云服务器；2. 提供教程，面向小白，长期更新 Miloco 系列教程；3. 其他见 [项目说明](#项目说明)。
 
-Xiaomi's open-source AI solution for the future of whole-home intelligence. It uses the video and audio from Mi Home cameras as a full-modal perception gateway, the in-house MiMo large model as its intelligent brain, and runs as an Agent plugin on top of [OpenClaw](https://openclaw.ai) to orchestrate whole-home devices for a proactive, intelligent experience.
+## 一键部署
 
-Miloco 2.0 perceives what happens at home, makes proactive decisions and controls devices based on common sense, breaks down "vague and long-term" goals into trackable household tasks, recognizes family members, and—drawing on home memory—delivers personalized service to each member: querying and controlling devices, tuning the home to each member's comfort, or offering useful reminders at the right moment.
+### Agent 全自动
 
-<p align="center"><a href="https://www.bilibili.com/video/BV1p4jw6nEVX"><img src="assets/video_cover_en.jpeg" width="600" alt="Xiaomi Miloco video intro" /></a></p>
-
-## What's New
-
-- **2026-06-18** — Miloco 2.0 officially released: re-architected as an OpenClaw plugin, adding general common sense, identity recognition, home memory, household tasks, proactive intelligence, and a home dashboard. See [Core Features](#core-features) below.
-
-## Core Features
-
-- **General Common Sense** — No preset rules required. Built-in common sense automatically detects hazards and raises tiered alerts (e.g. a child playing with knives, an elderly person falling).
-- **Identity Recognition** — Fuses identity signals such as faces and body posture, with the large model recognizing family members. Supports proactively registering new members and identity-based personalized operations.
-- **Home Memory** — Distills long-term habits and preferences of family members from perception and interaction, used as a reference when the Agent makes proactive decisions. Stable long-term habits can also trigger proactive reminders or be promoted into automatically executed household tasks.
-- **Household Tasks** — Upgrades from single "condition-triggered rules" to complex, long-running household tasks: conditional automation ("turn on the lights when someone enters"), scheduled reminders ("remind me to take medicine every day"), habit tracking ("exercise half an hour daily"), and more. Once triggered, the Agent understands the intent and executes autonomously.
-- **Proactive Intelligence** — Built on the four foundational capabilities—general common sense, identity recognition, home memory, and household tasks—the system observes, reasons, and intervenes at the right time like a butler with common sense who knows the family and can plan ahead, getting things done before the user even asks.
-- **Home Dashboard** — A user-facing web dashboard for viewing a real-time overview of the home, Mi Home devices, family members and profiles, and the history of past events.
-
-> [!TIP]
-> **Raise your own Miloco.** Its out-of-the-box behavior won't always match your taste—just tell Miloco through OpenClaw (e.g. "don't remind me when the place is messy"), and it remembers your preference and adjusts what it does proactively. Every remark "raises" a Miloco that's tuned to your home, and it knows you better the longer you live with it.
-
-## Prerequisites
-
-- **Hardware**: ≥ 4GB RAM and ≥ 256GB storage recommended, running 24/7. A Mac mini is recommended.
-- **Operating System**: macOS / Linux (run under WSL on Windows).
-- **Xiaomi account** + devices already added to Mi Home.
-- **Multimodal large model API key** — [Xiaomi MiMo](https://platform.xiaomimimo.com) is recommended: MiMo-v2.5 for perception, MiMo-v2.5-pro for the Agent (configured in OpenClaw).
-
-> [!CAUTION]
-> **Cost note**: Miloco 2.0's perception and Agent rely primarily on cloud-based large models and will incur ongoing API usage costs—keep an eye on your usage. You can review token consumption on the "Models" page of the home dashboard.
-
-## Install
-
-### Option 1: Install via the Agent (recommended)
-
-Send the following instruction to OpenClaw to complete the installation automatically:
+把下面这句话丢给 Agent，让 Agent 全程代劳：
 
 ```text
-Please install the Miloco plugin for me: https://raw.githubusercontent.com/XiaoMi/xiaomi-miloco/main/scripts/install-guide.md
+请为我一键部署 Miloco，按照：https://github.com/andy-JustSayWhen/easy-miloco/blob/main/docs/install-guide.md
 ```
 
-### Option 2: One-line command-line install
+### 用户自己动
 
-```bash
-curl -LsSf https://github.com/XiaoMi/xiaomi-miloco/releases/latest/download/install.sh | bash
-```
+打开 [GitHub Release](https://github.com/andy-JustSayWhen/easy-miloco/releases)，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，双击文件夹根目录内的 `install.ps1`。
 
-### Option 3: Build from source
+## 环境依赖
 
-From the project root, run:
+下载 release 包后，用户可能遇到以下依赖或系统能力要求：
 
-```bash
-bash scripts/install.sh --dev   # build from source (scripts/build.sh), then install locally
-```
+| 依赖 | 是否需要 | 原因 |
+| --- | --- | --- |
+| 操作系统 | 必须 | Windows 建议 Windows 11 22H2+；低于该版本不保证完整兼容。macOS、Linux 后续按对应一键包说明执行 |
+| WSL2 | 必须 | Miloco 当前不作为 Windows 原生后端运行，通过 WSL2 承载 Linux 后端 |
+| Ubuntu 24.04 WSL | 必须 | 当前 Windows 部署默认使用 Ubuntu-24.04，便于统一脚本、路径和排障 |
+| 管理员权限 | 必须 | 首次安装可能需要启用 WSL、VirtualMachinePlatform、Hyper-V 防火墙入站规则 |
+| 网络访问 GitHub Release | 必须 | 官方版本基准和更新包以 GitHub Release 为准 |
+| 夸克网盘 | 可选 | 中国大陆用户 GitHub 下载慢时使用副本；仍需 SHA256 校验 |
+| 小米账号 | 必须 | 用于绑定米家设备、读取家庭和设备列表 |
+| MiMo API Key | 必须 | 用于 Miloco 视觉/多模态感知推理 |
+| 米家摄像头 | 必须 | 用于让 Miloco 获取家中画面并做视觉理解；摄像头需已绑定米家 App，且在米家 App 里能正常打开画面。支持型号见 `docs/cameras.md` |
+| OpenClaw | 必须 | Miloco 以 OpenClaw 插件/技能形式接入 Agent 对话和自动化 |
+| Python / Node / uv | 可选 | 用户无需预装，一键包会自动准备；如果自动安装失败，诊断报告会指出失败层 |
 
----
+兼容声明：
 
-### Windows (WSL)
+Miloco for Windows v0.1 仅对 Windows 11 22H2 及以上版本提供完整一键部署保证。低于该版本的 Windows 可能可以运行基础服务，但不保证摄像头实时流、WSL mirrored networking、Hyper-V 防火墙、OpenClaw/Miloco 联动稳定可用。
 
-Whichever method you choose above, native Windows is not supported—install and run everything inside [WSL](https://learn.microsoft.com/en-us/windows/wsl/install).
+## 项目说明
 
-> [!IMPORTANT]
-> **Local camera streaming requires extra WSL networking setup.** The dashboard's live "right now at home" view pulls camera streams over the LAN, and WSL's default NAT mode blocks the UDP packets cameras send—so the feed won't load until you enable mirrored networking and allow the Hyper-V firewall.
+### 目录树
 
-1. **On Windows** — Add the following to `%USERPROFILE%\.wslconfig` (i.e. `C:\Users\<you>\.wslconfig`; create the file if missing), then run `wsl --shutdown` in PowerShell to restart WSL:
-
-   ```ini
-   [wsl2]
-   networkingMode=mirrored
-   ```
-
-2. **On Windows (elevated PowerShell)** — Allow inbound traffic to WSL:
-
-   ```powershell
-   Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -DefaultInboundAction Allow
-   ```
-
-3. **In WSL** — Once Miloco is installed, verify with `miloco-cli doctor` (it checks both the firewall and WSL networking).
-
-## Quick Start
-
-After installation, restart the OpenClaw gateway so the plugin takes effect:
-
-```bash
-openclaw gateway restart
-```
-
-Then open the home dashboard to complete the initial setup:
-
-```bash
-miloco-cli dashboard   # open the home dashboard in your browser (or visit http://<host>:1810/ directly)
-```
-
-Get started in three steps from the dashboard:
-
-1. **Configure the model** — On the "Models" page, enter your MiMo `api_key` (skip if already filled in during installation). The model name and Base URL default to MiMo and need no changes.
-2. **Bind your Xiaomi account** — Mi Home devices are pulled in automatically once bound.
-3. **Enable camera perception** — On the "Overview" page, turn on the switch for cameras you want perceived (the rest stay off and are not analyzed).
-
-You can also do this from the command line:
-
-```bash
-miloco-cli config set model.omni.api_key sk-xxx   # configure the model key (defaults to MiMo; usually the only thing needed)
-miloco-cli account bind                           # bind your Xiaomi account
-miloco-cli scope camera enable <did>              # enable perception for a specific camera
-```
-
-Once it's running, see the [User Manual](user_guide.md) for how to use Miloco day to day.
-
-## Project Structure
+仓库目录树：
 
 ```text
-miloco-plugin/
-├── backend/             # uv workspace
-│   ├── miloco/          # main service: perception engine, rules, MIoT gateway
-│   └── miot/            # MIoT SDK (standalone subpackage)
-├── cli/                 # miloco-cli command-line tool
-├── plugins/
-│   ├── openclaw/        # OpenClaw plugin (TypeScript)
-│   └── skills/          # Agent Skill docs
-├── web/                 # home dashboard (React 19 + Vite)
-├── scripts/             # build.sh / install.sh / manifest.json
-└── knowledge/           # project knowledge base
+.
+├── backend/              # Miloco 后端
+├── cli/                  # miloco-cli
+├── plugins/              # OpenClaw 插件和 skills
+├── web/                  # Miloco WebUI
+├── scripts/              # 官方安装/构建脚本
+├── windows/              # 本 fork 新增：一键部署包源码、打包、更新、回滚
+├── docs/                 # 本 fork 新增：用户/Agent 文档、FAQ、runbook、release 说明
+├── knowledge/            # 项目知识库
+├── README.md
+└── LICENSE.md
 ```
 
-## Further Documentation
+Release 包目录树：
 
-- [Backend service](backend/README.md) — FastAPI + perception engine + rules + MIoT gateway
-- [Command-line miloco-cli](cli/README.md) — service, device, and config management
-- [Home dashboard web](web/README.md) — deployment architecture and local development
-- [Full knowledge base](knowledge/README.md) — architecture / modules / features / API quick reference
+```text
+miloco-windows-v0.1/
+├── README.md
+├── install.ps1
+├── manifest.json
+├── release-notes.md
+├── SHA256SUMS.txt
+├── bin/
+├── scripts/
+│   ├── windows/
+│   └── wsl/
+├── assets/
+├── docs/
+└── payload/
+```
 
-## Community
+### 差异对比
 
-Run into issues, want to give feedback, or just chat about use cases? Scan the QR code to join our Feishu user group (the QR code never expires):
+本节按三个层次对比：先看代码层面，再看实现方式，最后看用户视角。对比项不是按目录树机械罗列，而是只列会影响功能、部署、分发、排障或用户使用路径的差异。
 
-<img src="assets/Xiaomi_Miloco_Feishu_Group.png" width="240" alt="Xiaomi Miloco user group" />
+#### 代码层面
 
-## Acknowledgements
+| 对比项 | 与官方一致 | 本仓库变化 | 证据 |
+| --- | --- | --- | --- |
+| 大部分核心代码 | ☑️ | `cli/`、`plugins/`、WebUI 产品代码未作为当前差异重点改写 | `git diff` 未显示这些目录的产品代码差异 |
+| 摄像头在线判定 | ❌ | 云端在线但 `lan_online` 陈旧为 false 时，允许先尝试连接；已有本地视频流时优先认为摄像头在线 | `backend/miloco/src/miloco/perception/collect/camera_adapter.py`、`backend/miloco/src/miloco/miot/service.py` |
+| 按需视觉感知 | ❌ | OpenClaw 请求摄像头画面时，会刷新摄像头在线元数据，并等待目标画面源短时间重连和缓冲 | `backend/miloco/src/miloco/perception/service.py` |
+| 摄像头音频流 | ❌ | 默认不订阅摄像头音频解码流，避免部分设备的音频帧影响后端稳定性；当前家庭视觉感知优先依赖视频帧 | `backend/miloco/src/miloco/perception/collect/camera_adapter.py` |
+| 摄像头测试 | ❌ | 增加/调整 stale LAN、已连接摄像头、按需重连、关闭音频订阅等测试 | `backend/miloco/tests/perception/`、`backend/miloco/tests/test_miot_filter_and_cameras.py` |
 
-Miloco stands on the shoulders of the following open-source projects:
+#### 实现方式
 
-- [OpenClaw](https://openclaw.ai) — AI Agent runtime and plugin platform
-- [jMuxer](https://github.com/samirkumardas/jmuxer) (MIT) — real-time video stream muxing for the home dashboard
-- [BGE / bge-small-zh-v1.5](https://huggingface.co/BAAI/bge-small-zh-v1.5) (BAAI, MIT) — text embedding model
-- [Silero VAD](https://github.com/snakers4/silero-vad) (Silero Team, MIT) — voice activity detection, gating the perceived speech field
+| 对比项 | 与官方一致 | 本仓库做法 | 状态 |
+| --- | --- | --- | --- |
+| Agent 安装入口 | ❌ | README 保留一句话入口，真实指南放在 `docs/install-guide.md`；`scripts/install-guide.md` 仅保留官方路径习惯的兼容入口 | 已落盘 |
+| Windows 部署路线 | ❌ | 不做 Windows 原生后端；Windows 通过 WSL2 承载 Miloco 后端，并由一键包隐藏复杂步骤 | 规划中 |
+| 一键部署包 | ❌ | 普通用户从 GitHub Release 下载对应系统 `.zip`，解压后双击根目录 `install.ps1` | v0.1 待实现 |
+| 更新与回滚 | ❌ | 以 GitHub Release 为唯一版本基准；更新前只备份本项目相关状态，失败或后悔时一键回滚 | v0.1 待实现 |
+| 国内下载副本 | ❌ | GitHub Release 仍是版本基准；维护者可同步夸克网盘副本，用户下载后校验 SHA256 | v0.1 待实现 |
+| Agent/FAQ/runbook 文档 | ❌ | 新增 `docs/AGENT.md`、`docs/faq/`、`docs/runbooks/`，让 Agent 能按文档部署、诊断和沉淀问题 | 文档骨架已落盘 |
 
-## License
+#### 用户视角
 
-See [LICENSE.md](LICENSE.md) for the full license terms.
+| 用户关心的问题 | 官方仓库 | 本仓库目标 | 状态 |
+| --- | --- | --- | --- |
+| 怎么安装 | 按官方安装方式执行，Windows 需用户理解 WSL | 复制一句话给 Agent，或下载 `.zip` 后双击安装入口 | 文档已写，包待实现 |
+| 摄像头为什么离线 | 更依赖 MiOT 返回的在线和 LAN 状态 | 对已连接或可尝试连接的摄像头减少“假离线”判断 | 代码已改 |
+| OpenClaw 能不能看到摄像头画面 | 取决于摄像头源是否已经活跃 | 请求时主动刷新并等待画面源准备，降低第一次请求失败率 | 代码已改 |
+| 出问题怎么处理 | 用户需要看日志和命令排查 | 通过诊断报告、FAQ 和 runbook 分层处理，并把新问题沉淀回 docs | 文档骨架已落盘 |
+| 能不能更新/回滚 | 官方未提供本 fork 的懒人包更新/回滚体验 | 显示更新说明，用户确认后更新；失败或后悔可回滚 | v0.1 待实现 |
 
-**Important notice**: This project is for non-commercial use only. Without written authorization from Xiaomi Inc., it may not be used to develop applications (apps), web services, or other forms of software.
+### 其他
+
+本仓库遵循以下原则：
+
+- GitHub Release 是唯一版本基准。
+- Release 包是构建产物，不手工修改。
+- 用户问题优先通过诊断报告定位，不盲目重装。
+- 更新前只备份本项目相关状态，不默认导出整个 WSL。
+- 失败经验和成功经验必须沉淀到 `docs/faq/known-issues.md` 或对应 runbook。
+- Windows v0.1 先保证 Windows 11 22H2+；macOS、NAS、云服务器在 Windows 稳定后再展开。
