@@ -751,8 +751,8 @@ async def test_refresh_cameras_primes_lan_overrides(_scope_proxy_env):
 
 
 @pytest.mark.asyncio
-async def test_refresh_camera_online_status_primes_lan_override_without_sdk_hit(
-    _scope_proxy_env,
+async def test_refresh_camera_online_status_ignores_lan_override_without_sdk_hit(
+    _scope_proxy_env, caplog
 ):
     proxy, _kv, miot_client = _scope_proxy_env
     lan_path = get_settings().directories.workspace_dir / "camera_lan_overrides.json"
@@ -766,14 +766,16 @@ async def test_refresh_camera_online_status_primes_lan_override_without_sdk_hit(
         get_devices_async=AsyncMock(return_value={}),
     )
 
-    cameras = await proxy.refresh_camera_online_status()
+    with caplog.at_level("WARNING"):
+        cameras = await proxy.refresh_camera_online_status()
 
     assert cameras is not None
     miot_client._lan_client.ping_async.assert_awaited_once_with(
         target_ip="192.168.31.104"
     )
-    assert cameras["c1"].lan_online is True
-    assert cameras["c1"].local_ip == "192.168.31.104"
+    assert cameras["c1"].lan_online is False
+    assert cameras["c1"].local_ip is None
+    assert "Camera LAN override ignored because SDK LAN table has no hit" in caplog.text
 
 
 def test_get_camera_lan_overrides_ignores_invalid_values(_scope_proxy_env, caplog):
@@ -894,8 +896,8 @@ async def test_rebuild_camera_stream_manager_recreates_existing_manager(
 
 
 @pytest.mark.asyncio
-async def test_rebuild_camera_stream_manager_primes_cached_lan_override(
-    _scope_proxy_env,
+async def test_rebuild_camera_stream_manager_ignores_cached_lan_override_without_sdk_hit(
+    _scope_proxy_env, caplog
 ):
     proxy, kv, miot_client = _scope_proxy_env
     kv.set(ScopeConfigKeys.HOME_WHITE_LIST_KEY, json.dumps(["H1"]))
@@ -918,11 +920,13 @@ async def test_rebuild_camera_stream_manager_primes_cached_lan_override(
 
     proxy._create_camera_img_manager = AsyncMock(side_effect=_create)
 
-    rebuilt = await proxy.rebuild_camera_stream_manager("c1")
+    with caplog.at_level("WARNING"):
+        rebuilt = await proxy.rebuild_camera_stream_manager("c1")
 
     assert rebuilt is True
-    assert created["camera"].lan_online is True
-    assert created["camera"].local_ip == "192.168.31.104"
+    assert created["camera"].lan_online is False
+    assert created["camera"].local_ip is None
+    assert "Camera LAN override ignored because SDK LAN table has no hit" in caplog.text
 
 
 @pytest.mark.asyncio

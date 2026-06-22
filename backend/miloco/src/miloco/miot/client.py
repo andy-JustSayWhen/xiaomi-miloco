@@ -661,15 +661,12 @@ class MiotProxy:
                 continue
             lan_info = lan_devices.get(did)
             if lan_info is None:
-                if bool(getattr(cam, "online", False)):
-                    cam.lan_online = True
-                    cam.local_ip = ip
-                    logger.warning(
-                        "Camera LAN override used without SDK LAN table hit: "
-                        "did=%s ip=%s",
-                        did,
-                        ip,
-                    )
+                logger.warning(
+                    "Camera LAN override ignored because SDK LAN table has no hit: "
+                    "did=%s ip=%s",
+                    did,
+                    ip,
+                )
                 continue
             cam.lan_online = bool(lan_info.online) or bool(getattr(cam, "online", False))
             cam.local_ip = lan_info.ip or ip
