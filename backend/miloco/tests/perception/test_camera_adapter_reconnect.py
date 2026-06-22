@@ -35,6 +35,7 @@ class TestConnectDeviceManagerMissing:
         asyncio.run(adapter.connect_device("cam1", source=_source()))
 
         assert "cam1" not in adapter._devices
+        proxy.start_camera_decode_audio_stream.assert_not_awaited()
 
     def test_video_ok_device_kept(self):
         # 至少一路订上 = manager 存在，保留 device。
@@ -46,6 +47,8 @@ class TestConnectDeviceManagerMissing:
         asyncio.run(adapter.connect_device("cam1", source=_source()))
 
         assert "cam1" in adapter._devices
+        assert adapter._devices["cam1"].decoded_audio_reg_id == -1
+        proxy.start_camera_decode_audio_stream.assert_not_awaited()
 
 
 class TestSyncDevicesOnDemandRefresh:

@@ -56,6 +56,8 @@ _CAMERA_TRACKS = ["decoded_video", "decoded_audio"]
 # 按需补建 refresh_cameras 的最小间隔：无设备态下 sync 循环 1s 一轮，
 # 不节流会变成每秒一次重 SDK 调用 + 建连尝试。10s 足够让相机就绪后及时恢复。
 _ONDEMAND_REFRESH_MIN_INTERVAL_MS = 10_000
+_CONNECT_RETRY_INTERVAL_MS = 30_000
+_ENABLE_CAMERA_AUDIO_STREAM = False
 
 # TODO: 多通道支持
 DEFAULT_VIDEO_CHANNEL = 0
@@ -93,6 +95,7 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
         self._on_window_ready = on_window_ready
         self._devices: dict[str, _CameraDeviceState] = {}
         self._last_ondemand_refresh_ms = 0
+        self._last_connect_fail_ms: dict[str, int] = {}
 
     async def discover_devices(
         self,
@@ -152,11 +155,23 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
 
             camera_info = CameraInfo.model_validate(info.model_dump())
 
-            device_online = camera_info.online and camera_info.lan_online
-            # require_lan=False 时只看云端 online：放过 lan_online 陈旧成 false 的
-            # 卡死态相机（云端 online=True，refresh 能救活），但排除云端就离线
-            # （拔电/断网）的相机——给「应连数」判据用，避免离线相机致 refresh 空转。
-            connectable = device_online if require_lan else camera_info.online
+            cloud_online = bool(camera_info.online)
+            lan_online = bool(camera_info.lan_online)
+            device_online = cloud_online and lan_online
+            # The SDK's lan_online flag can lag even after the host can reach the
+            # camera again. Treat cloud-online cameras as tentative candidates and
+            # let stream subscription be the source of truth. A recent failed
+            # subscription backs off the tentative retry to avoid a tight loop
+            # when the camera is genuinely unreachable.
+            if require_lan and not device_online:
+                last_fail = self._last_connect_fail_ms.get(did, 0)
+                in_backoff = (
+                    last_fail > 0
+                    and _monotonic_ms() - last_fail < _CONNECT_RETRY_INTERVAL_MS
+                )
+                connectable = cloud_online and not in_backoff
+            else:
+                connectable = device_online if require_lan else cloud_online
             if online_only and not connectable:
                 continue
 
@@ -166,7 +181,7 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                 device_type="camera",
                 room_id=camera_info.room_name,
                 room_name=camera_info.room_name,
-                online=device_online,
+                online=connectable,
             )
 
         if not cap or len(result) <= MAX_ENABLED_CAMERAS:
@@ -240,14 +255,17 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
         except Exception as e:
             logger.error("Failed to subscribe decoded video for %s: %s", did, e)
 
-        # Subscribe decoded audio frame stream (multi-reg)
-        try:
-            reg_id = await self._miot_proxy.start_camera_decode_audio_stream(
-                did, DEFAULT_AUDIO_CHANNEL, self._make_decoded_audio_callback(did)
-            )
-            state.decoded_audio_reg_id = reg_id
-        except Exception as e:
-            logger.error("Failed to subscribe decoded audio for %s: %s", did, e)
+        # Realtime home perception currently needs video frames. Some Xiaomi
+        # cameras repeatedly emit undecodable G711A audio frames, which can
+        # destabilize the backend while adding no value to visual camera status.
+        if _ENABLE_CAMERA_AUDIO_STREAM:
+            try:
+                reg_id = await self._miot_proxy.start_camera_decode_audio_stream(
+                    did, DEFAULT_AUDIO_CHANNEL, self._make_decoded_audio_callback(did)
+                )
+                state.decoded_audio_reg_id = reg_id
+            except Exception as e:
+                logger.error("Failed to subscribe decoded audio for %s: %s", did, e)
 
         # 两路流都没订上 = camera_img_manager 缺失（典型：登录时相机 LAN 未就绪，
         # refresh_cameras 没建成 manager，start_*_stream 返回 -1 静默失败）。保留该
@@ -255,12 +273,15 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
         # sync 早退、永不重试。剔除它，交给 sync_devices 的按需补建在下轮重连。
         if state.decoded_video_reg_id < 0 and state.decoded_audio_reg_id < 0:
             self._devices.pop(did, None)
+            self._last_connect_fail_ms[did] = _monotonic_ms()
             logger.warning(
                 "Camera %s stream subscribe failed (manager missing?), "
                 "will retry on next sync",
                 did,
             )
             return
+
+        self._last_connect_fail_ms.pop(did, None)
 
     async def disconnect_device(self, did: str) -> None:
         state = self._devices.pop(did, None)

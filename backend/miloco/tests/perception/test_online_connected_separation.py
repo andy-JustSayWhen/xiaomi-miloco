@@ -166,24 +166,30 @@ class TestDiscoverDevicesOnlineConnected:
         assert result["cam1"].online is True
 
     @pytest.mark.asyncio
-    async def test_online_but_not_on_lan_filtered_out(self, adapter):
-        """Cloud-online but NOT LAN-reachable should be filtered."""
-        cam = _make_camera_info(did="cam1", online=True, lan_online=False)
+    async def test_online_but_stale_lan_status_is_tentatively_discovered(self, adapter):
+        """Cloud-online cameras are tried even when SDK lan_online is stale false."""
+        cam = _make_camera_info(
+            did="cam1", online=True, lan_online=False
+        ).model_copy(update={"home_id": "H1"})
         adapter._miot_proxy.get_cameras.return_value = {"cam1": cam}
 
         result = await adapter.discover_devices(online_only=True)
 
-        assert "cam1" not in result
+        assert "cam1" in result
+        assert result["cam1"].online is True
 
     @pytest.mark.asyncio
-    async def test_online_lan_none_filtered_out(self, adapter):
-        """Cloud-online but lan_online=None should be filtered."""
-        cam = _make_camera_info(did="cam1", online=True, lan_online=None)
+    async def test_online_lan_none_is_tentatively_discovered(self, adapter):
+        """Cloud-online cameras are tried even when SDK lan_online is unknown."""
+        cam = _make_camera_info(
+            did="cam1", online=True, lan_online=None
+        ).model_copy(update={"home_id": "H1"})
         adapter._miot_proxy.get_cameras.return_value = {"cam1": cam}
 
         result = await adapter.discover_devices(online_only=True)
 
-        assert "cam1" not in result
+        assert "cam1" in result
+        assert result["cam1"].online is True
 
     @pytest.mark.asyncio
     async def test_offline_camera_filtered_out(self, adapter):
@@ -234,7 +240,7 @@ class TestDiscoverDevicesOnlineConnected:
 
     @pytest.mark.asyncio
     async def test_filter_cameras_from_all(self, adapter):
-        """_filter_cameras_from_all requires online AND lan_online."""
+        """_filter_cameras_from_all keeps cameras with fresh LAN status."""
         cam = _make_camera_info(
             did="cam1",
             online=True,
@@ -250,15 +256,35 @@ class TestDiscoverDevicesOnlineConnected:
         assert result["cam1"].online is True
 
     @pytest.mark.asyncio
-    async def test_filter_cameras_from_all_no_lan(self, adapter):
-        """_filter_cameras_from_all filters when lan_online is False."""
+    async def test_filter_cameras_from_all_stale_lan(self, adapter):
+        """Stale lan_online=false is still tried when cloud online is true."""
         cam = _make_camera_info(
             did="cam1", online=True, lan_online=False,
-        )
+        ).model_copy(update={"home_id": "H1"})
         result = adapter._filter_cameras_from_all(
             {"cam1": cam},
             online_only=True,
         )
+        assert "cam1" in result
+        assert result["cam1"].online is True
+
+    @pytest.mark.asyncio
+    async def test_filter_cameras_from_all_stale_lan_backoff(self, adapter, monkeypatch):
+        """A recent failed stream subscription suppresses tentative retries."""
+        monkeypatch.setattr(
+            "miloco.perception.collect.camera_adapter._monotonic_ms",
+            lambda: 100_000,
+        )
+        adapter._last_connect_fail_ms["cam1"] = 90_000
+        cam = _make_camera_info(
+            did="cam1", online=True, lan_online=False,
+        ).model_copy(update={"home_id": "H1"})
+
+        result = adapter._filter_cameras_from_all(
+            {"cam1": cam},
+            online_only=True,
+        )
+
         assert "cam1" not in result
 
     @pytest.mark.asyncio
