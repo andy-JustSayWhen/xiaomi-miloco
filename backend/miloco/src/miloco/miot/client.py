@@ -29,6 +29,7 @@ from miot.types import (
     MIoTSceneChangedEvent,
     MIoTSetPropertyParam,
     MIoTUserInfo,
+    MIoTCameraVideoQuality,
 )
 from pydantic_core import to_jsonable_python
 
@@ -548,6 +549,7 @@ class MiotProxy:
         if camera_instance is not None:
             pin_code = self._get_camera_pin_code(camera_info.did)
             await camera_instance.start_async(
+                MIoTCameraVideoQuality.HIGH,
                 enable_reconnect=True,
                 enable_audio=True,
                 pin_code=pin_code,

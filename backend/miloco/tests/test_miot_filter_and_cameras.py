@@ -17,6 +17,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from miot.types import MIoTCameraVideoQuality
 from miloco.database.kv_repo import ScopeConfigKeys
 from miloco.middleware.exceptions import (
     MiotServiceException,
@@ -709,6 +710,7 @@ async def test_create_camera_img_manager_passes_pin_override(_scope_proxy_env):
 
     assert result is not None
     mock_instance.start_async.assert_awaited_once_with(
+        MIoTCameraVideoQuality.HIGH,
         enable_reconnect=True,
         enable_audio=True,
         pin_code="1518",
@@ -731,6 +733,7 @@ async def test_create_camera_img_manager_defaults_to_no_pin(_scope_proxy_env):
 
     assert result is not None
     mock_instance.start_async.assert_awaited_once_with(
+        MIoTCameraVideoQuality.HIGH,
         enable_reconnect=True,
         enable_audio=True,
         pin_code=None,
