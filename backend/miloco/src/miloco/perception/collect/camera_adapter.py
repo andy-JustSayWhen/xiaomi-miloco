@@ -255,17 +255,26 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                 continue
 
             self._last_connect_fail_ms[did] = now_ms
+            first_frame_unreachable = (
+                first_frame_timeout and not self._cached_camera_has_lan_hint(did)
+            )
             if first_frame_timeout:
-                self._first_frame_cooldown_until_ms[did] = (
-                    now_ms + _FIRST_FRAME_FAILURE_COOLDOWN_MS
-                )
+                if first_frame_unreachable:
+                    self._first_frame_cooldown_until_ms[did] = (
+                        now_ms + _FIRST_FRAME_FAILURE_COOLDOWN_MS
+                    )
+                    action = (
+                        "dropping false connected state and cooling down for "
+                        f"{_FIRST_FRAME_FAILURE_COOLDOWN_MS / 1000:.0f}s"
+                    )
+                else:
+                    action = "reconnecting"
                 logger.warning(
                     "Camera %s subscribed but produced no decoded video frame "
-                    "within %.0fs; dropping false connected state and cooling "
-                    "down for %.0fs",
+                    "within %.0fs; %s",
                     did,
                     _FIRST_VIDEO_FRAME_TIMEOUT_MS / 1000,
-                    _FIRST_FRAME_FAILURE_COOLDOWN_MS / 1000,
+                    action,
                 )
             else:
                 logger.warning(
@@ -274,9 +283,24 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                     (now_ms - state.last_video_frame_ms) / 1000,
                 )
             await self.disconnect_device(did)
-            if first_frame_timeout:
+            if first_frame_unreachable:
                 continue
             await self._rebuild_camera_stream_manager(did)
+
+    def _cached_camera_has_lan_hint(self, did: str) -> bool:
+        get_cached_camera = getattr(self._miot_proxy, "get_cached_camera", None)
+        if not callable(get_cached_camera):
+            return False
+        try:
+            camera_info = get_cached_camera(did)
+        except Exception:  # noqa: BLE001
+            return False
+        if camera_info is None:
+            return False
+        if getattr(camera_info, "lan_online", None) is True:
+            return True
+        local_ip = getattr(camera_info, "local_ip", None)
+        return isinstance(local_ip, str) and bool(local_ip.strip())
 
     async def _rebuild_camera_stream_manager(self, did: str) -> None:
         rebuild = getattr(self._miot_proxy, "rebuild_camera_stream_manager", None)
