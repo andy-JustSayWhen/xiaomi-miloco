@@ -27,10 +27,10 @@ https://github.com/andy-JustSayWhen/easy-miloco
    https://github.com/andy-JustSayWhen/easy-miloco/releases
    ```
 
-2. 下载最新版 Windows 一键部署包，文件名通常类似：
+2. 根据系统类型，下载最新版 `.zip` 一键部署包，文件名通常类似：
 
    ```text
-   miloco-windows-v0.1.zip
+   easy-miloco-v0.1-windows.zip
    ```
 
 3. 如果 GitHub 下载慢，询问用户是否有维护者提供的夸克网盘副本。夸克网盘只是下载副本，GitHub Release 才是版本基准；下载后必须校验 SHA256。

@@ -1,6 +1,6 @@
 # easy-miloco
 
-本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库做的工作主要为：1. 提供一键部署包，适配 WIN、macOS、NAS 和云服务器；2. 提供教程，面向小白，长期更新 Miloco 系列教程；3. 其他见 [项目说明](#项目说明)。
+本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库做的工作主要为：1. 提供一键部署包，适配 Windows、macOS、NAS 和云服务器；2. 提供教程，面向小白，长期更新 Miloco 系列教程；3. 其他见 [项目说明](#项目说明)。
 
 ## 一键部署
 
@@ -58,10 +58,10 @@ Miloco for Windows v0.1 仅对 Windows 11 22H2 及以上版本提供完整一键
 └── LICENSE.md
 ```
 
-Release 包目录树：
+Release 包目录树示例：
 
 ```text
-miloco-windows-v0.1/
+easy-miloco-v0.1-<system>/
 ├── README.md
 ├── install.ps1
 ├── manifest.json
@@ -120,4 +120,4 @@ miloco-windows-v0.1/
 - 用户问题优先通过诊断报告定位，不盲目重装。
 - 更新前只备份本项目相关状态，不默认导出整个 WSL。
 - 失败经验和成功经验必须沉淀到 `docs/faq/known-issues.md` 或对应 runbook。
-- Windows v0.1 先保证 Windows 11 22H2+；macOS、NAS、云服务器在 Windows 稳定后再展开。
+- v0.1 先保证 Windows 11 22H2+；macOS、NAS、云服务器在 Windows 路线稳定后再展开。

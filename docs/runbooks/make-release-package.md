@@ -51,8 +51,8 @@ dist/windows/
 至少包含：
 
 ```text
-miloco-windows-v0.1.zip
-miloco-windows-v0.1.zip.sha256
+easy-miloco-v0.1-windows.zip
+easy-miloco-v0.1-windows.zip.sha256
 manifest.json
 release-notes.md
 ```
