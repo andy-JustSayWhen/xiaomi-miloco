@@ -9,6 +9,7 @@ from the realtime stream buffers via collector.collect_batch(),
 ensuring a unified data path.
 """
 
+import asyncio
 import logging
 
 from miloco.database.perception_repo import PerceptionLogRepo
@@ -25,6 +26,9 @@ from miloco.perception.types import PerceptionDevice
 from miloco.utils.time_utils import ms_to_iso_local, now_ms
 
 logger = logging.getLogger(__name__)
+
+_ONDEMAND_SOURCE_READY_TIMEOUT_S = 12.0
+_ONDEMAND_SOURCE_READY_POLL_S = 0.5
 
 
 class PerceptionService:
@@ -101,6 +105,51 @@ class PerceptionService:
 
     # ---- Active perception ----
 
+    async def _wait_for_requested_sources(self, sources: list[str]) -> list[str]:
+        """Wait briefly for requested sources to reconnect and buffer data."""
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + _ONDEMAND_SOURCE_READY_TIMEOUT_S
+        last_missing: list[str] = []
+        last_no_data: list[str] = []
+
+        while True:
+            active_sources = self._collector.get_all_active_sources()
+            valid_dids = [did for did in sources if did in active_sources]
+            last_missing = [did for did in sources if did not in active_sources]
+            last_no_data = [
+                did
+                for did in valid_dids
+                if self._collector.collect(did, drain=False) is None
+            ]
+
+            if valid_dids and not last_missing and not last_no_data:
+                return valid_dids
+
+            now = loop.time()
+            if now >= deadline:
+                if last_missing:
+                    logger.warning(
+                        "[service](device=%s) still inactive after on-demand wait",
+                        ",".join(last_missing),
+                    )
+                if last_no_data:
+                    logger.warning(
+                        "[service](device=%s) active but no buffered data after "
+                        "on-demand wait",
+                        ",".join(last_no_data),
+                    )
+                return valid_dids
+
+            if last_missing:
+                try:
+                    await self._collector.sync_all_devices()
+                except Exception as e:  # noqa: BLE001
+                    logger.warning("On-demand source sync failed: %s", e)
+
+            await asyncio.sleep(
+                min(_ONDEMAND_SOURCE_READY_POLL_S, max(0.0, deadline - now))
+            )
+
     async def on_demand_perceive(
         self, request: OnDemandPerceptionRequest
     ) -> OnDemandPerceptionResultItem | None:
@@ -110,7 +159,10 @@ class PerceptionService:
         If the realtime engine is running, data comes from its existing stream
         subscriptions. If not running, the collector may have no data.
         """
-        active_sources = self._collector.get_all_active_sources()
+        active_sources = {
+            did: True
+            for did in await self._wait_for_requested_sources(list(request.sources))
+        }
 
         valid_dids: list[str] = []
         for did in request.sources:
