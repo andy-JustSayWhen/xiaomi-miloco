@@ -578,6 +578,7 @@ async def test_authorize_with_code_clears_scope_before_token_exchange():
 # must stay coupled to keep LAN callback registrations consistent.
 
 from miloco.config import (  # noqa: E402  (kept near MiotProxy tests for locality)
+    get_settings,
     reset_settings,
 )
 from miloco.miot import mips_listeners as bl_module  # noqa: E402
@@ -688,6 +689,52 @@ async def test_create_camera_img_manager_denied_but_valid_instance_builds_manage
     miot_client.create_camera_instance_async.assert_called_once()
     assert result is not None
     assert "c1" in proxy._camera_img_managers
+
+
+@pytest.mark.asyncio
+async def test_create_camera_img_manager_passes_pin_override(_scope_proxy_env):
+    proxy, _kv, miot_client = _scope_proxy_env
+    pin_path = get_settings().directories.workspace_dir / "camera_pin_overrides.json"
+    pin_path.write_text(json.dumps({"c1": "1518"}), encoding="utf-8")
+
+    mock_instance = MagicMock()
+    mock_instance.start_async = AsyncMock()
+    mock_instance.register_decode_jpg_async = AsyncMock()
+    miot_client.create_camera_instance_async = AsyncMock(return_value=mock_instance)
+    miot_client._camera_client = MagicMock()
+
+    cam = _camera("c1", home_id="H1")
+    cam.channel_count = 1
+    result = await proxy._create_camera_img_manager(cam)
+
+    assert result is not None
+    mock_instance.start_async.assert_awaited_once_with(
+        enable_reconnect=True,
+        enable_audio=True,
+        pin_code="1518",
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_camera_img_manager_defaults_to_no_pin(_scope_proxy_env):
+    proxy, _kv, miot_client = _scope_proxy_env
+
+    mock_instance = MagicMock()
+    mock_instance.start_async = AsyncMock()
+    mock_instance.register_decode_jpg_async = AsyncMock()
+    miot_client.create_camera_instance_async = AsyncMock(return_value=mock_instance)
+    miot_client._camera_client = MagicMock()
+
+    cam = _camera("c1", home_id="H1")
+    cam.channel_count = 1
+    result = await proxy._create_camera_img_manager(cam)
+
+    assert result is not None
+    mock_instance.start_async.assert_awaited_once_with(
+        enable_reconnect=True,
+        enable_audio=True,
+        pin_code=None,
+    )
 
 
 @pytest.mark.asyncio

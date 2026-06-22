@@ -546,7 +546,12 @@ class MiotProxy:
         # 此时 start_async 是正常的初始化,不会干扰已有连接。
         camera_instance = await self._get_camera_instance(camera_info)
         if camera_instance is not None:
-            await camera_instance.start_async(enable_reconnect=True, enable_audio=True)
+            pin_code = self._get_camera_pin_code(camera_info.did)
+            await camera_instance.start_async(
+                enable_reconnect=True,
+                enable_audio=True,
+                pin_code=pin_code,
+            )
             camera_img_manager = CameraVisionHandler(
                 camera_info,
                 camera_instance,
@@ -562,6 +567,28 @@ class MiotProxy:
         else:
             logger.error("Camera instance for %s is None, skipping", camera_info.did)
             return None
+
+    def _get_camera_pin_code(self, did: str) -> str | None:
+        """Load optional per-camera PIN override from the Miloco workspace."""
+        path = get_settings().directories.workspace_dir / "camera_pin_overrides.json"
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return None
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to load camera PIN overrides from %s: %s", path, e)
+            return None
+
+        value = raw.get(did) if isinstance(raw, dict) else None
+        if value is None:
+            return None
+
+        pin_code = str(value).strip()
+        if len(pin_code) == 4 and pin_code.isdigit():
+            return pin_code
+
+        logger.warning("Ignoring invalid camera PIN override for %s", did)
+        return None
 
     async def _get_camera_instance(
         self, camera_info: MIoTCameraInfo
