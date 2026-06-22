@@ -750,6 +750,32 @@ async def test_refresh_cameras_primes_lan_overrides(_scope_proxy_env):
     assert cameras["c1"].local_ip == "192.168.31.104"
 
 
+@pytest.mark.asyncio
+async def test_refresh_camera_online_status_primes_lan_override_without_sdk_hit(
+    _scope_proxy_env,
+):
+    proxy, _kv, miot_client = _scope_proxy_env
+    lan_path = get_settings().directories.workspace_dir / "camera_lan_overrides.json"
+    lan_path.write_text(json.dumps({"c1": "192.168.31.104"}), encoding="utf-8")
+
+    cam = _camera("c1", home_id="H1", online=True, lan_online=False)
+    cam.local_ip = None
+    miot_client.get_cameras_async = AsyncMock(return_value={"c1": cam})
+    miot_client._lan_client = SimpleNamespace(
+        ping_async=AsyncMock(),
+        get_devices_async=AsyncMock(return_value={}),
+    )
+
+    cameras = await proxy.refresh_camera_online_status()
+
+    assert cameras is not None
+    miot_client._lan_client.ping_async.assert_awaited_once_with(
+        target_ip="192.168.31.104"
+    )
+    assert cameras["c1"].lan_online is True
+    assert cameras["c1"].local_ip == "192.168.31.104"
+
+
 def test_get_camera_lan_overrides_ignores_invalid_values(_scope_proxy_env, caplog):
     proxy, _kv, _miot_client = _scope_proxy_env
     lan_path = get_settings().directories.workspace_dir / "camera_lan_overrides.json"
@@ -865,6 +891,38 @@ async def test_rebuild_camera_stream_manager_recreates_existing_manager(
     proxy._create_camera_img_manager.assert_awaited_once_with(cam)
     miot_client.register_lan_device_changed_async.assert_awaited_once()
     assert proxy._camera_img_managers["c1"] is new_handler
+
+
+@pytest.mark.asyncio
+async def test_rebuild_camera_stream_manager_primes_cached_lan_override(
+    _scope_proxy_env,
+):
+    proxy, kv, miot_client = _scope_proxy_env
+    kv.set(ScopeConfigKeys.HOME_WHITE_LIST_KEY, json.dumps(["H1"]))
+    lan_path = get_settings().directories.workspace_dir / "camera_lan_overrides.json"
+    lan_path.write_text(json.dumps({"c1": "192.168.31.104"}), encoding="utf-8")
+
+    cam = _camera("c1", home_id="H1", online=True, lan_online=False)
+    cam.local_ip = None
+    proxy._camera_info_dict = {"c1": cam}
+    miot_client._lan_client = SimpleNamespace(
+        ping_async=AsyncMock(),
+        get_devices_async=AsyncMock(return_value={}),
+    )
+
+    created = {}
+
+    async def _create(cam_info):
+        created["camera"] = cam_info
+        return MagicMock()
+
+    proxy._create_camera_img_manager = AsyncMock(side_effect=_create)
+
+    rebuilt = await proxy.rebuild_camera_stream_manager("c1")
+
+    assert rebuilt is True
+    assert created["camera"].lan_online is True
+    assert created["camera"].local_ip == "192.168.31.104"
 
 
 @pytest.mark.asyncio

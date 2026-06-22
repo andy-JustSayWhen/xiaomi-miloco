@@ -661,8 +661,17 @@ class MiotProxy:
                 continue
             lan_info = lan_devices.get(did)
             if lan_info is None:
+                if bool(getattr(cam, "online", False)):
+                    cam.lan_online = True
+                    cam.local_ip = ip
+                    logger.warning(
+                        "Camera LAN override used without SDK LAN table hit: "
+                        "did=%s ip=%s",
+                        did,
+                        ip,
+                    )
                 continue
-            cam.lan_online = lan_info.online
+            cam.lan_online = bool(lan_info.online) or bool(getattr(cam, "online", False))
             cam.local_ip = lan_info.ip or ip
             logger.debug(
                 "Camera LAN override merged: did=%s online=%s ip=%s",
@@ -691,11 +700,12 @@ class MiotProxy:
         creates a fresh instance for the same did.
         """
         async with self._refresh_cameras_lock:
+            cameras = copy.deepcopy(self._camera_info_dict)
+            if did not in cameras:
+                cameras = copy.deepcopy(await self._miot_client.get_cameras_async())
+            await self._prime_camera_lan_overrides(cameras)
+            self._camera_info_dict = cameras
             camera_info = self._camera_info_dict.get(did)
-            if camera_info is None:
-                cameras = await self._miot_client.get_cameras_async()
-                self._camera_info_dict = copy.deepcopy(cameras)
-                camera_info = self._camera_info_dict.get(did)
 
             if camera_info is None:
                 logger.warning("Cannot rebuild camera %s: not found in account", did)
@@ -846,6 +856,7 @@ class MiotProxy:
             try:
                 cameras = await self._miot_client.get_cameras_async()
                 self._camera_info_dict = copy.deepcopy(cameras)
+                await self._prime_camera_lan_overrides(self._camera_info_dict)
                 return self._camera_info_dict
             except Exception as e:
                 logger.error("Failed to refresh camera online status: %s", e)
