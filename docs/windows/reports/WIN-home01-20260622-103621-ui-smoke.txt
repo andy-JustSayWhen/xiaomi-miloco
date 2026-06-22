@@ -1,0 +1,55 @@
+# WIN-home01 Miloco UI smoke report
+
+Time: 2026-06-22 10:36:21 +08:00
+Method: Computer Use plugin -> NetEase UU Remote -> WIN-home01
+
+Visual checks:
+
+1. Xiaomi OAuth result page
+   - Chrome showed Xiaomi `授权成功`.
+   - This visually confirms the user-side OAuth browser flow reached success.
+
+2. Miloco dashboard
+   - Opened from desktop shortcut `Miloco 面板`.
+   - URL: `http://127.0.0.1:1886/`
+   - Page loaded normally.
+   - Header showed `mdidb` and `127 个设备`.
+   - Overview showed live camera card with `LIVE`.
+   - Camera card displayed the room/camera view for `主卧`.
+
+3. Miloco devices page
+   - Left navigation `设备` opened normally.
+   - Page title showed `家里的设备`.
+   - Count showed `127 devices` and `13 rooms`.
+   - Device list rendered with online/offline states.
+
+4. Miloco model page
+   - Left navigation `模型` opened normally.
+   - Token usage rendered normally.
+   - Today usage showed about `343.3k tokens`.
+   - Web UI model configuration table showed no visible row. This is treated as a UI display quirk because strict CLI validation and runtime logs already proved `model.omni.model=mimo-v2.5`, API key configured, and MiMo chat/completions returned 200.
+
+5. Miloco logs page
+   - Left navigation `日志` opened normally.
+   - Date range rendered normally.
+   - Current range showed no events, which is not a service error.
+
+6. OpenClaw Gateway UI
+   - Opened from desktop shortcut `OpenClaw Gateway`.
+   - URL: `http://127.0.0.1:18789/?tab1&session=main`
+   - Page loaded to OpenClaw gateway dashboard authentication form.
+   - WebSocket URL field showed `ws://127.0.0.1:18789`.
+   - UI displayed `需要认证`, confirming the gateway HTTP UI is reachable and protected.
+   - Gateway token was not entered through the UI during this smoke test.
+
+Conclusion:
+
+```text
+Miloco user-facing UI: PASS
+Miloco dashboard/camera preview: PASS
+Miloco device page: PASS
+Miloco model usage page: PASS
+Miloco logs page: PASS
+OpenClaw gateway UI reachability: PASS
+OpenClaw authenticated dashboard entry: NOT_TESTED_UI_TOKEN_NOT_ENTERED
+```

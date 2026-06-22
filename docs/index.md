@@ -1,14 +1,15 @@
 # easy-miloco Docs
 
-这是本 fork 的文档总入口。文档围绕三件事长期维护：
+这里是本 fork 的文档总入口。文档围绕三件事长期维护：
 
-- 快速部署：让普通用户和 Agent 都能按文档完成一键部署、更新和回滚。
+- 快速部署：让普通用户和 Agent 都能按文档完成安装、更新、回滚和诊断。
 - 源码优化：记录本 fork 相对官方仓库做过哪些代码和实现调整。
 - 使用教程：面向小白，长期更新 Miloco 系列教程、常见问题和成功经验。
 
 ## 用户入口
 
 - 一键部署：[install-guide.md](install-guide.md)
+- Windows 部署总入口：[windows/index.md](windows/index.md)
 - 摄像头支持和排障：[cameras.md](cameras.md)
 - 常见问题：[faq/known-issues.md](faq/known-issues.md)
 
@@ -16,23 +17,27 @@
 
 Agent 必须先读：
 
-- [install-guide.md](install-guide.md)
 - [AGENT.md](AGENT.md)
+- [install-guide.md](install-guide.md)
 
 常见任务：
 
-- 部署当前机器：先读 [AGENT.md](AGENT.md)，再按平台进入对应 runbook。
+- 部署当前机器：读 [windows/agent-install.md](windows/agent-install.md)，按预检、安装、授权、验收顺序推进。
+- 手动排障：从 [windows/troubleshooting.md](windows/troubleshooting.md) 和 [faq/known-issues.md](faq/known-issues.md) 开始。
+- 摄像头排障：读 [windows/camera-runbook.md](windows/camera-runbook.md) 和 [cameras.md](cameras.md)。
 - 制作更新包：维护者专用，读 [runbooks/make-release-package.md](runbooks/make-release-package.md)。
-- 排查问题：先生成诊断报告，再查 [faq/known-issues.md](faq/known-issues.md) 和 `runbooks/`。
 
-## Windows v0.1
+## 文档地图
 
-Windows v0.1 目标是先把 Windows 11 22H2+ 的一键部署、更新、回滚和诊断跑通。低于该版本的 Windows 不提供完整兼容保证。
+| 目录 | 用途 |
+| --- | --- |
+| [windows/](windows/index.md) | Windows 安装、预检、故障、验收、WIN-home01 实录 |
+| [runbooks/](runbooks/change-and-debug-runbook.md) | 变更、排障、发版前检查 |
+| [tests/](tests/test-guide.md) | 测试矩阵和验收清单 |
+| [meta/](meta/source-map.md) | 源码地图和维护日志 |
+| [scripts/](scripts/README.md) | 从 OB 迁入的预检与验收脚本 |
+| [windows/reports/](windows/reports/) | WIN-home01 部署和摄像头验收报告 |
 
-计划文档：
+## v0.1 边界
 
-- `windows/compatibility.md`
-- `windows/update-and-rollback.md`
-- `windows/differences-from-upstream.md`
-
-这些文件会在 v0.1 installer 实现过程中补齐。
+v0.1 先保证 Windows 11 22H2+ 的一键部署、更新、回滚和诊断路线。低于该版本的 Windows 可能可以运行基础服务，但不保证摄像头实时流、WSL 网络、Hyper-V 防火墙、OpenClaw/Miloco 联动稳定可用。

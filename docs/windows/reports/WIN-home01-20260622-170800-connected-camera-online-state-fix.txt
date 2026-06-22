@@ -1,0 +1,73 @@
+WIN-home01 connected camera online-state fix
+Time: 2026-06-22 17:08-17:16 Asia/Shanghai
+
+Problem
+- OpenClaw could visually describe camera <camera-did-bedside> / 床边置物架, but the chat UI previously showed a top-left node failure for that camera.
+- Miloco WebUI /api/miot/scope/cameras data could still mark the same camera as offline even while live/perception streams were connected.
+
+Root cause
+- backend/miloco/src/miloco/miot/service.py list_cameras_with_state() used only MiOT cached online && lan_online for is_online.
+- backend/miloco/src/miloco/perception/collect/camera_adapter.py _current_source() also exposed cached online && lan_online even for a device already present in the active local stream map.
+- When MiOT metadata lagged behind local stream reconnect, the same camera was simultaneously "visible" to perception and "offline" to WebUI/OpenClaw metadata.
+
+Fix
+- In MiotService.list_cameras_with_state(), compute cloud_online = online && lan_online, then is_online = cloud_online or did in connected.
+- In MiotService.toggle_camera(), use the same connected-aware online rule when enabling cameras, so a connected stream is not rejected because of stale lan_online=false.
+- In CameraDeviceAdapter._current_source(), report online=True for devices already in _devices, because that method is only used for active local stream sources.
+
+Local files changed
+- C:\Users\<user>\Desktop\xiaomi-miloco\backend\miloco\src\miloco\miot\service.py
+- C:\Users\<user>\Desktop\xiaomi-miloco\backend\miloco\src\miloco\perception\collect\camera_adapter.py
+- C:\Users\<user>\Desktop\xiaomi-miloco\backend\miloco\tests\test_miot_filter_and_cameras.py
+- C:\Users\<user>\Desktop\xiaomi-miloco\backend\miloco\tests\perception\test_camera_adapter_decode_latency.py
+
+Verification
+- python -m py_compile backend\miloco\src\miloco\miot\service.py backend\miloco\src\miloco\perception\collect\camera_adapter.py
+- uv run --with tzdata pytest miloco\tests\test_miot_filter_and_cameras.py miloco\tests\perception\test_camera_adapter_decode_latency.py -q
+- Result: 65 passed in 3.78s
+- Note: plain python -m pytest failed on Windows because the local environment lacked pytest; plain uv run pytest initially failed because Windows ZoneInfo lacked tzdata for Asia/Shanghai, so tzdata was injected only for this verification command.
+
+Remote hot patch
+- Copied service.py to /home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miloco/miot/service.py
+- Copied camera_adapter.py to /home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miloco/perception/collect/camera_adapter.py
+- Remote backups:
+  - /home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miloco/miot/service.py.bak.connected-online-20260622-170650
+  - /home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miloco/perception/collect/camera_adapter.py.bak.connected-online-20260622-170650
+- Remote py_compile passed.
+- supervisorctl restart miloco-backend succeeded.
+- miloco-backend status: RUNNING pid 3359201, uptime 0:00:06 immediately after restart.
+
+API verification after hot patch
+- /api/miot/scope/cameras:
+  - <camera-did-living> 摄像头 客厅: is_online=true, in_use=true, connected=true
+  - <camera-did-desk> 主卧 电脑桌上: is_online=true, in_use=true, connected=true
+  - <camera-did-bedside> 床边置物架: is_online=true, in_use=true, connected=true
+- /api/perception/devices:
+  - all three camera devices returned online=true
+- /api/monitor/nodes:
+  - camera failure_count=0
+  - collector failure_count=0
+  - processor failure_count=0
+  - engine failure_count=0
+  - no failed node remained
+
+OpenClaw verification
+- Gateway runId: fd3213a4-2f7d-4fd0-8e59-91ed8ac8f681
+- provider=mimo
+- model=mimo-v2.5
+- Initial scope list inside OpenClaw returned all three cameras online/in_use/connected.
+- <camera-did-desk> returned visual description at 2026-06-22T17:09:33+08:00.
+- <camera-did-bedside> / 床边置物架 returned visual description at 2026-06-22T17:09:23+08:00:
+  - 主卧场景；房间内没有人。
+  - 画面中央电脑显示器亮着，发出强烈白光。
+  - 屏幕下方有键盘和鼠标。
+  - 左侧有金属架子。
+  - 右侧堆放衣物和箱子，整体较杂乱。
+- <camera-did-living> had one transient "cannot connect to Miloco backend at http://127.0.0.1:1886" immediately after restart, then retry succeeded at 2026-06-22T17:10:13+08:00.
+- Final OpenClaw conclusion:
+  OpenClaw 当前能看到全部 3 台摄像头的画面。
+
+Git
+- Commit: 466a745 fix: trust connected camera streams for online state
+- Pushed to origin/main.
+- Git note: regular git add/commit repeatedly hit Windows .git/index.lock unlink failures while Codex/GitHub status refresh processes were active. The lock file was verified with GIT_INDEX_FILE=.git/index.lock, the original .git/index was backed up, and commit was created via git write-tree / git commit-tree / git update-ref.

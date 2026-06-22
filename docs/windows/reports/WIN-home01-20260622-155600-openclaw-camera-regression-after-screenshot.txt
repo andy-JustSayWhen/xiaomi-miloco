@@ -1,0 +1,98 @@
+WIN-home01 / OpenClaw 摄像头回归修正报告
+时间：2026-06-22 15:49-16:05
+
+触发：
+用户截图显示 OpenClaw 聊天页在 2026-06-22 15:49 报告：
+床边置物架（<camera-did-bedside>）：离线，无法获取画面。这个摄像头连接不稳定，之前验收时也反复掉线。
+
+结论修正：
+此前 13:31 的“验收通过”只能算点状通过，不能算稳定验收。
+15:49 截图证明 <camera-did-bedside> 仍会在 OpenClaw 聊天链路中掉线或被旧状态拦截。
+
+重新复现：
+miloco-cli scope camera list --pretty
+- <camera-did-bedside> / 床边置物架：is_online=false, in_use=true, connected=false
+
+miloco-cli perceive query --source <camera-did-bedside> --query describe --pretty
+- code=2011
+- message=No valid active perception sources found. Ensure the perception engine is running and devices are online.
+
+前次热补丁问题：
+远端运行文件 service.py 中，_wait_for_requested_sources 的 helper 结构被错误写入；
+on_demand_perceive 仍保留旧的 active_sources = self._collector.get_all_active_sources()。
+因此 13:31 的远端热修并未真正接入 on-demand 运行路径。
+
+根因：
+<camera-did-bedside> 会出现短暂离线或 MiOT 摄像头在线状态缓存过期。
+on-demand 感知路径在 sync_all_devices 之前未刷新 MiOT 摄像头在线元数据，导致 <camera-did-bedside> 被旧缓存判断为 inactive，并直接返回 2011。
+
+修复：
+本地源码：
+C:\Users\<user>\Desktop\xiaomi-miloco\backend\miloco\src\miloco\perception\service.py
+
+Git 提交：
+03281ac fix: refresh camera metadata before on-demand sync
+已推送 origin/main
+
+远端运行文件：
+/home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miloco/perception/service.py
+
+新增：
+- PerceptionService._refresh_camera_source_metadata()
+- missing source 时先 refresh_camera_online_status，再 sync_all_devices
+
+远端备份：
+/home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miloco/perception/service.py.bak.refresh-online-20260622-1559
+
+校验：
+python -m py_compile backend/miloco/src/miloco/perception/service.py
+python3 -m py_compile /home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miloco/perception/service.py
+
+重启：
+/home/<wsl-user>/.local/bin/supervisorctl -c /home/<wsl-user>/.openclaw/miloco/supervisord.conf restart miloco-backend
+
+重启后状态：
+miloco-backend RUNNING pid 584625
+
+Miloco 直接验证：
+摄像头列表：
+- <camera-did-living> 摄像头 客厅：is_online=true, in_use=true, connected=true
+- <camera-did-desk> 主卧 电脑桌上：is_online=true, in_use=true, connected=true
+- <camera-did-bedside> 床边置物架：is_online=true, in_use=true, connected=true
+
+<camera-did-bedside> 单源感知：
+timestamp=2026-06-22T15:56:09+08:00
+answer=昏暗房间，电脑显示器亮着，显示器前有键盘鼠标，左侧金属衣架挂衣物，右侧白色柜子或箱子及杂物，无人，环境安静。
+
+收尾复核：
+timestamp=2026-06-22T16:05:03+08:00
+source=<camera-did-bedside>
+code=0
+answer=安静主卧；电脑显示器开启并发出白光；左侧金属架；右侧纸箱和衣物；无人，环境静止。
+
+OpenClaw 聊天链路复验：
+runId=5204e37c-96ae-44eb-8833-cf9bc584831e
+provider=mimo
+model=mimo-v2.5
+
+聊天页设备清单：
+- <camera-did-living> 摄像头 客厅：online=true, in_use=true, connected=true
+- <camera-did-desk> 主卧 电脑桌上：online=true, in_use=true, connected=true
+- <camera-did-bedside> 床边置物架：online=true, in_use=true, connected=true
+
+视觉结果：
+- <camera-did-desk>：能看到白色书桌、键盘、鼠标、白色圆柱形设备、小物件、黑色置物架、紫色瑜伽球；无人无宠物。
+- <camera-did-living>：能看到客厅 L 型沙发、茶几、纸巾盒、编织篮、白色柜子、绿色塑料收纳箱；无人无宠物。
+- <camera-did-bedside>：第三次重试成功，能看到昏暗房间、亮着的电脑显示器、键盘鼠标、金属衣架、衣物、白色柜子或箱子及杂物；无人。
+
+OpenClaw 最终原文：
+OpenClaw 当前能看到全部 3 台摄像头的画面。
+
+仍需关注：
+本轮 OpenClaw 聊天链路不是一次无重试通过。<camera-did-bedside> 前两次工具调用返回：
+cannot connect to Miloco backend at http://127.0.0.1:1886
+
+supervisor 状态显示 backend 未崩溃：
+miloco-backend RUNNING pid 584625
+
+后续如果要称为稳定验收，应执行主卧双摄连续 N 轮无重试通过，不能只用一次最终成功代替稳定性结论。

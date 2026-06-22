@@ -1,56 +1,45 @@
 # AGENT.md
 
-本文件是 Agent 操作本仓库时的总入口。收到用户类似“部署一下”“生成诊断报告”“修复 Windows 部署问题”的自然语言指令时，先读本文件，再执行对应 runbook。
-
-制作更新包、打 tag、发布 GitHub Release 属于维护者任务。只有仓库维护者明确要求“制作更新包”“打包更新吧”“发版”时，才允许读取 `docs/runbooks/make-release-package.md` 并推进发布流程。
+本文件是 Agent 操作本仓库时的文档入口。收到“部署一下”“检查更新”“回滚”“排查摄像头”“制作更新包”“发版”等自然语言任务时，先读本文件，再进入对应 runbook。
 
 ## 总规则
 
-1. 先确认用户目标属于哪一类：部署、更新、回滚、制作 release 包、诊断、文档沉淀。
-2. 不要盲目重装。优先生成诊断报告，按层判断问题出在 Windows、WSL、Miloco backend、OpenClaw Gateway、插件、账号、模型、设备还是摄像头。
-3. 更新或修改前，先保护项目相关状态。默认只保护 Miloco/OpenClaw 相关状态，不导出整个 WSL。
+1. 先判断任务类型：部署、更新、回滚、诊断、摄像头排障、文档沉淀、制作 release 包。
+2. 不要盲目重装。优先生成诊断报告，按 Windows、WSL、Miloco backend、Miloco WebUI、OpenClaw、账号、模型、设备、摄像头分层定位。
+3. 更新或修复前，只保护 Miloco/OpenClaw 相关状态，不默认导出整个 WSL。
 4. GitHub Release 是唯一版本基准。夸克网盘只作为人工同步的下载副本，必须用 SHA256 校验。
-5. 每次新增问题、修复路径或成功部署经验，都应沉淀到 `docs/faq/known-issues.md` 或对应 runbook。
-6. 如果 README 指向的脚本或 runbook 还不存在，不要假装已经可用；应先创建缺失文件或明确报告当前缺口。
+5. 新增问题、修复路径或成功部署经验后，更新 [faq/known-issues.md](faq/known-issues.md) 或对应 runbook。
+6. 如果 README 指向的脚本或 runbook 不存在，先创建缺失文件或明确报告当前缺口，不要假装已经可用。
 
 ## 常见指令映射
 
 | 用户说法 | Agent 应读 | Agent 应做 |
 | --- | --- | --- |
-| “部署一下” | 本文件、`docs/index.md`、平台 runbook | 预检、安装、配置、验收 |
-| “打包更新吧” | 本文件、`docs/runbooks/make-release-package.md` | 维护者专用：构建 release 包、自测、生成 SHA256 和 release notes |
-| “检查更新” | 更新 runbook | 读取 GitHub Release，展示更新说明，等待用户确认 |
-| “回滚” | 回滚 runbook | 列出项目级快照，按用户选择恢复 |
-| “出问题了” | FAQ 和诊断 runbook | 生成报告，按失败层修复 |
+| “部署一下” | [install-guide.md](install-guide.md)、[windows/agent-install.md](windows/agent-install.md) | 预检、安装、配置、授权、验收 |
+| “摄像头离线/看不到画面” | [cameras.md](cameras.md)、[windows/camera-runbook.md](windows/camera-runbook.md) | 区分云端在线、局域网在线、流连接、OpenClaw 视觉理解四层状态 |
+| “检查更新” | [runbooks/make-release-package.md](runbooks/make-release-package.md) 的版本基准说明 | 读取 GitHub Release，展示更新说明，等待用户确认 |
+| “回滚” | Windows 回滚 runbook，若缺失则先补齐 | 列出项目级快照，按用户选择恢复 |
+| “制作更新包/打包更新/发版” | [runbooks/make-release-package.md](runbooks/make-release-package.md) | 维护者专用：构建 release 包、自测、生成 SHA256 和 release notes |
 
-## 当前 v0.1 状态
+## 文档沉淀要求
 
-当前仓库处于 Windows 一键部署 v0.1 规划/落地阶段。`docs/` 已作为 Agent 和用户的知识库入口；`windows/` installer、release builder、rollback 工具需要在后续任务中实现。
-
-因此，Agent 在执行“制作更新包”时必须先检查：
-
-```text
-windows/build-release.ps1
-windows/
-docs/runbooks/make-release-package.md
-```
-
-如果 `windows/build-release.ps1` 尚不存在，则当前任务不是直接打包，而是先实现 release builder。
-
-## 沉淀要求
-
-完成任务后，如有以下任一情况，必须更新文档：
+完成任务后，如有以下情况，必须更新文档：
 
 - 出现新的错误现象。
 - 发现新的系统兼容边界。
 - 发现新的下载、代理、端口、WSL、OpenClaw 或摄像头问题。
-- 成功跑通一台新 Windows 机器。
+- 成功跑通一台新的 Windows 机器。
 - release 打包流程新增人工步骤，例如同步夸克网盘副本。
 
 优先沉淀到：
 
 ```text
 docs/faq/known-issues.md
+docs/windows/
 docs/runbooks/
 docs/releases/
 ```
+
+## 公开仓库注意事项
+
+公开 docs 不写入用户账号、密码、API Key、OAuth code、设备 PIN 等私密值。需要说明配置时，使用占位符和本机路径模板；私有实录可保留在用户自己的 OB 仓库。

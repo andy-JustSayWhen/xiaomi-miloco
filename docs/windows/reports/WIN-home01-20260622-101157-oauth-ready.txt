@@ -1,0 +1,30 @@
+# WIN-home01 OAuth-ready report
+GeneratedAt=2026-06-22T10:11:57+08:00
+
+## OAuth URL
+
+https://account.xiaomi.com/oauth2/authorize?redirect_uri=https%3A%2F%2Fmico.api.mijia.tech%2Flogin_redirect&client_id=2882303761520431603&response_type=code&device_id=mico.4010007daa7043c18e101c053be2f57f&state=864dcbd558ff9c17d916c9e7d4f9ce194c6ac41c&skip_confirm=False
+
+## Launch actions
+
+- Refreshed OAuth URL with win-miloco-workflow.ps1 -Action BindUrl.
+- Start-Process URL through PowerShell -EncodedCommand returned LaunchExit=0.
+- Created desktop fallback files:
+  - C:\Users\<user>\Desktop\miloco-xiaomi-oauth.url
+  - C:\Users\<user>\Desktop\miloco-xiaomi-oauth.txt
+
+## Current validation
+
+BASIC_READY=yes
+FULL_READY=no
+PASS_COUNT=12
+WARN_COUNT=4
+FAIL_COUNT=0
+miloco.omni_api_key=PASS configured
+miloco.account=is_bound=false
+miloco.devices=only header
+miloco.cameras=data[]
+
+## Next action
+
+User completes Xiaomi OAuth in browser and sends OAuth payload / authorization code to Agent.

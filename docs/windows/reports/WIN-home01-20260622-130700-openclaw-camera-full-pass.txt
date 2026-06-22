@@ -1,0 +1,64 @@
+WIN-home01 OpenClaw camera full acceptance
+Time: 2026-06-22 13:07 Asia/Shanghai
+
+Goal:
+Confirm in the OpenClaw chat page that OpenClaw can see every camera in the home.
+
+Final result:
+PASS. OpenClaw chat page confirmed all 3 cameras are visible.
+
+Camera list:
+<camera-did-desk> | 主卧 电脑桌上 | 主卧 | online=true | in_use=true | connected=true
+<camera-did-bedside>  | 床边置物架   | 主卧 | online=true | in_use=true | connected=true
+<camera-did-living> | 摄像头 客厅   | 客厅 | online=true | in_use=true | connected=true
+
+Important configs:
+Miloco URL: http://127.0.0.1:1886/
+OpenClaw Gateway URL: http://127.0.0.1:18789/
+OpenClaw Gateway token: <AGENT_WEBHOOK_BEARER>
+Miloco server token: <MILOCO_SERVER_TOKEN>
+MiMo omni model: mimo-v2.5
+MiMo omni base_url: https://token-plan-sgp.xiaomimimo.com/v1
+MiMo omni api_key: <MIMO_API_KEY>
+
+Root cause fixed:
+<camera-did-bedside> was not a no-keyframe-only issue. It has is_set_pincode=1, and native miot_camera_start returned -4 when pin=None.
+After adding PIN override <CAMERA_PIN>, native start returned 0 and the camera produced HEVC raw frames, decoded frames, record_clip MP4, and perception descriptions.
+
+Persistent PIN override:
+/home/<wsl-user>/.openclaw/miloco/camera_pin_overrides.json
+{
+  "<camera-did-bedside>": "<CAMERA_PIN>"
+}
+
+Runtime code changes kept:
+1. Removed denylist entries from:
+   /home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miot/configs/camera_extra_info.yaml
+   models: chuangmi.camera.021a04, chuangmi.camera.036a02
+
+2. Changed default camera quality to HIGH in:
+   /home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miot/camera.py
+
+3. Added per-camera PIN override loading in:
+   /home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miloco/miot/client.py
+
+Backups:
+/home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miot/configs/camera_extra_info.yaml.bak.camera-denylist-20260622121428
+/home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miot/configs/camera_extra_info.yaml.bak.camera-denylist-20260622121451
+/home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miot/camera.py.bak.micam-high-20260622122904
+/home/<wsl-user>/.local/share/uv/tools/miloco/lib/python3.12/site-packages/miloco/miot/client.py.bak.camera-pin-overrides-20260622125907
+
+OpenClaw chat page answer:
+All three cameras queried successfully.
+
+<camera-did-desk> / 主卧 电脑桌上:
+White desk, black keyboard, mouse, cup with straw, black shelf in background, purple yoga ball, no person or pet.
+
+<camera-did-bedside> / 床边置物架:
+Bright computer monitor, desk with keyboard and mouse, clothes rack on the side, no person or pet.
+
+<camera-did-living> / 摄像头 客厅:
+Living room scene; a girl sitting on the sofa and a boy standing on the right side.
+
+Conclusion quoted from OpenClaw page:
+OpenClaw 当前能看到全部 3 台摄像头的画面。

@@ -1,0 +1,28 @@
+# WIN-home01 Miloco OAuth page visible report
+
+Time: 2026-06-22 10:17:29 +08:00
+Host: WIN-home01 through NetEase UU Remote
+
+Action:
+- Tested Computer Use plugin against local Windows.
+- Confirmed it can see NetEase UU Remote.
+- Selected the `WIN-home01` remote window.
+- The first coordinate click was blocked because the remote window was not foreground; after activating the target window, Computer Use input succeeded.
+- Double-clicked the desktop fallback shortcut `Miloco 小米授权`.
+
+Visible result:
+- Chrome opened on `account.xiaomi.com`.
+- The Xiaomi OAuth page is visible.
+- Page title/content indicates: use Xiaomi account to log in / authorize Xiaomi Miloco.
+- The page is stopped at the orange `确认授权` button.
+
+Current decision:
+- Do not click `确认授权` automatically without action-time user confirmation.
+- User can either click `确认授权` in the remote desktop, or explicitly instruct Codex to click it.
+- After authorization, send back the callback URL, `code`, or full OAuth payload.
+
+Next command after receiving OAuth payload:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Finish -AuthPayload '<XIAOMI_OAUTH_PAYLOAD>' -MimoApiKey '<MIMO_API_KEY>' -OmniModel 'mimo-v2.5' -OmniBaseUrl 'https://token-plan-sgp.xiaomimimo.com/v1' -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+```

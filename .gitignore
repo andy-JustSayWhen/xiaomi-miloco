@@ -38,6 +38,10 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
+# Local agent/build scratch
+.codex/
+scripts/.build-release-build.sh
+
 # Python
 .venv
 .mypy_cache

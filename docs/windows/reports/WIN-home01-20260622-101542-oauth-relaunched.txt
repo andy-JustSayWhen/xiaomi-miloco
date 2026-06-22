@@ -1,0 +1,31 @@
+# WIN-home01 Miloco OAuth relaunch report
+
+Time: 2026-06-22 10:15:42 +08:00
+Host: <windows-user>@<tailscale-ip>
+Distro: Ubuntu-24.04
+
+Action:
+- Relaunched Xiaomi OAuth authorize URL on WIN01 through Windows OpenSSH.
+- Used PowerShell -EncodedCommand to avoid URL `&` being split by the remote shell.
+- Refreshed desktop fallback files for the current Windows user.
+
+OAuth URL:
+https://account.xiaomi.com/oauth2/authorize?redirect_uri=https%3A%2F%2Fmico.api.mijia.tech%2Flogin_redirect&client_id=2882303761520431603&response_type=code&device_id=mico.4010007daa7043c18e101c053be2f57f&state=864dcbd558ff9c17d916c9e7d4f9ce194c6ac41c&skip_confirm=False
+
+Remote result:
+- C:\Users\<user>\Desktop\miloco-xiaomi-oauth.url length=298
+- C:\Users\<user>\Desktop\miloco-xiaomi-oauth.txt length=275
+- Start-Process returned through SSH without command failure.
+
+Current status:
+- MiMo / Omni API key is configured.
+- `model.omni.model=mimo-v2.5`
+- `model.omni.base_url=https://token-plan-sgp.xiaomimimo.com/v1`
+- Miloco basic service remains ready.
+- Full readiness still depends on the user completing Xiaomi OAuth and providing the callback URL or auth code.
+
+Next command after receiving OAuth payload:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Finish -AuthPayload '<XIAOMI_OAUTH_PAYLOAD>' -MimoApiKey '<MIMO_API_KEY>' -OmniModel 'mimo-v2.5' -OmniBaseUrl 'https://token-plan-sgp.xiaomimimo.com/v1' -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+```
