@@ -13,6 +13,7 @@ from unittest.mock import AsyncMock, MagicMock
 from miloco.perception.collect.camera_adapter import (
     CameraDeviceAdapter,
     _CameraDeviceState,
+    _FIRST_FRAME_FAILURE_COOLDOWN_MS,
 )
 from miloco.perception.types import PerceptionDevice
 
@@ -73,8 +74,28 @@ class TestConnectDeviceManagerMissing:
 
         assert "cam1" not in adapter._devices
         assert adapter._last_connect_fail_ms["cam1"] == 160_000
+        assert (
+            adapter._first_frame_cooldown_until_ms["cam1"]
+            == 160_000 + _FIRST_FRAME_FAILURE_COOLDOWN_MS
+        )
         proxy.stop_camera_decode_video_stream.assert_awaited_once_with("cam1", 0, 7)
-        proxy.rebuild_camera_stream_manager.assert_awaited_once_with("cam1")
+        proxy.rebuild_camera_stream_manager.assert_not_awaited()
+
+    def test_first_frame_cooldown_blocks_connect(self, monkeypatch):
+        proxy = MagicMock()
+        proxy.start_camera_decode_video_stream = AsyncMock(return_value=7)
+        proxy.start_camera_decode_audio_stream = AsyncMock(return_value=-1)
+        adapter = CameraDeviceAdapter(miot_proxy=proxy)
+        adapter._first_frame_cooldown_until_ms["cam1"] = 200_000
+        monkeypatch.setattr(
+            "miloco.perception.collect.camera_adapter._monotonic_ms",
+            lambda: 100_000,
+        )
+
+        asyncio.run(adapter.connect_device("cam1", source=_source()))
+
+        assert "cam1" not in adapter._devices
+        proxy.start_camera_decode_video_stream.assert_not_awaited()
 
     def test_no_first_frame_device_kept_before_timeout(self, monkeypatch):
         proxy = MagicMock()

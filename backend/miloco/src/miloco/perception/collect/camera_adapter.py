@@ -59,6 +59,7 @@ _CAMERA_TRACKS = ["decoded_video", "decoded_audio"]
 _ONDEMAND_REFRESH_MIN_INTERVAL_MS = 10_000
 _CONNECT_RETRY_INTERVAL_MS = 30_000
 _FIRST_VIDEO_FRAME_TIMEOUT_MS = 60_000
+_FIRST_FRAME_FAILURE_COOLDOWN_MS = 5 * 60_000
 _VIDEO_FRAME_STALE_MS = 30_000
 _ENABLE_CAMERA_AUDIO_STREAM = False
 
@@ -102,6 +103,7 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
         self._devices: dict[str, _CameraDeviceState] = {}
         self._last_ondemand_refresh_ms = 0
         self._last_connect_fail_ms: dict[str, int] = {}
+        self._first_frame_cooldown_until_ms: dict[str, int] = {}
 
     async def discover_devices(
         self,
@@ -170,11 +172,16 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
             # subscription backs off the tentative retry to avoid a tight loop
             # when the camera is genuinely unreachable.
             if require_lan and not device_online:
+                now_ms = _monotonic_ms()
                 last_fail = self._last_connect_fail_ms.get(did, 0)
+                cooldown_until = self._first_frame_cooldown_until_ms.get(did, 0)
+                if cooldown_until and cooldown_until <= now_ms:
+                    self._first_frame_cooldown_until_ms.pop(did, None)
+                    cooldown_until = 0
                 in_backoff = (
                     last_fail > 0
-                    and _monotonic_ms() - last_fail < _CONNECT_RETRY_INTERVAL_MS
-                )
+                    and now_ms - last_fail < _CONNECT_RETRY_INTERVAL_MS
+                ) or (cooldown_until > now_ms)
                 connectable = cloud_online and not in_backoff
             else:
                 connectable = device_online if require_lan else cloud_online
@@ -249,11 +256,16 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
 
             self._last_connect_fail_ms[did] = now_ms
             if first_frame_timeout:
+                self._first_frame_cooldown_until_ms[did] = (
+                    now_ms + _FIRST_FRAME_FAILURE_COOLDOWN_MS
+                )
                 logger.warning(
                     "Camera %s subscribed but produced no decoded video frame "
-                    "within %.0fs; dropping false connected state",
+                    "within %.0fs; dropping false connected state and cooling "
+                    "down for %.0fs",
                     did,
                     _FIRST_VIDEO_FRAME_TIMEOUT_MS / 1000,
+                    _FIRST_FRAME_FAILURE_COOLDOWN_MS / 1000,
                 )
             else:
                 logger.warning(
@@ -262,6 +274,8 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                     (now_ms - state.last_video_frame_ms) / 1000,
                 )
             await self.disconnect_device(did)
+            if first_frame_timeout:
+                continue
             await self._rebuild_camera_stream_manager(did)
 
     async def _rebuild_camera_stream_manager(self, did: str) -> None:
@@ -280,6 +294,19 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
     ) -> None:
         if did in self._devices:
             return
+
+        now_ms = _monotonic_ms()
+        cooldown_until = self._first_frame_cooldown_until_ms.get(did, 0)
+        if cooldown_until > now_ms:
+            logger.warning(
+                "Camera %s is cooling down after no decoded first frame; "
+                "retry in %.0fs",
+                did,
+                (cooldown_until - now_ms) / 1000,
+            )
+            return
+        if cooldown_until:
+            self._first_frame_cooldown_until_ms.pop(did, None)
 
         # source 只表示上游 sync_devices 已完成 discover/filter；相机元数据不从
         # source 读取，统一在打包窗口/status 时按 did 从 MiotProxy cache 现取。
@@ -611,6 +638,8 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                 )
                 state.last_video_frame_ms = wall_ms
                 state.video_frame_count += 1
+                self._first_frame_cooldown_until_ms.pop(did, None)
+                self._last_connect_fail_ms.pop(did, None)
                 state.sync_buffer.put(
                     "decoded_video", decoded, stream_ts=ts, wall_ms=wall_ms
                 )
