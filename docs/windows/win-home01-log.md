@@ -1,4 +1,4 @@
-# WIN-home01 部署实录
+﻿# WIN-home01 部署实录
 
 > 关联文档：[部署指南](deployment-guide.md)、[easy-miloco 索引](../index.md)
 > 记录对象：远程 Windows 电脑 `WIN-home01`
@@ -1020,9 +1020,9 @@ model.omni.api_key 为空
 远端执行：
 
 ```powershell
-scp windows-preflight.ps1 wsl-miloco-validate.sh <windows-user>@<tailscale-ip>:C:/Users/17239/AppData/Local/Temp/
+scp windows-preflight.ps1 wsl-miloco-validate.sh <windows-user>@<tailscale-ip>:C:/Users/<user>/AppData/Local/Temp/
 ssh <windows-user>@<tailscale-ip> "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\windows-preflight.ps1 -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789"
-ssh <windows-user>@<tailscale-ip> "wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/17239/AppData/Local/Temp/wsl-miloco-validate.sh"
+ssh <windows-user>@<tailscale-ip> "wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/<user>/AppData/Local/Temp/wsl-miloco-validate.sh"
 ```
 
 Windows 侧返回要点：
@@ -1086,8 +1086,8 @@ FAIL_COUNT=0
 远端部署：
 
 ```powershell
-scp wsl-post-auth-finish.sh wsl-miloco-validate.sh <windows-user>@<tailscale-ip>:C:/Users/17239/AppData/Local/Temp/
-ssh <windows-user>@<tailscale-ip> "wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/17239/AppData/Local/Temp/wsl-post-auth-finish.sh --help"
+scp wsl-post-auth-finish.sh wsl-miloco-validate.sh <windows-user>@<tailscale-ip>:C:/Users/<user>/AppData/Local/Temp/
+ssh <windows-user>@<tailscale-ip> "wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/<user>/AppData/Local/Temp/wsl-post-auth-finish.sh --help"
 ```
 
 远端 `--help` 已通过，说明 Windows SSH → WSL 脚本路径可执行。
@@ -1095,7 +1095,7 @@ ssh <windows-user>@<tailscale-ip> "wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/
 生成最新小米 OAuth 绑定链接：
 
 ```powershell
-ssh <windows-user>@<tailscale-ip> "wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/17239/AppData/Local/Temp/wsl-post-auth-finish.sh --print-bind-url"
+ssh <windows-user>@<tailscale-ip> "wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/<user>/AppData/Local/Temp/wsl-post-auth-finish.sh --print-bind-url"
 ```
 
 返回：
@@ -1107,7 +1107,7 @@ https://account.xiaomi.com/oauth2/authorize?redirect_uri=https%3A%2F%2Fmico.api.
 后续执行模板：
 
 ```powershell
-ssh <windows-user>@<tailscale-ip> "wsl.exe -d Ubuntu-24.04 -- env MILOCO_AUTH_PAYLOAD='<小米 OAuth payload>' MIMO_API_KEY='<MiMo API Key>' bash /mnt/c/Users/17239/AppData/Local/Temp/wsl-post-auth-finish.sh"
+ssh <windows-user>@<tailscale-ip> "wsl.exe -d Ubuntu-24.04 -- env MILOCO_AUTH_PAYLOAD='<小米 OAuth payload>' MIMO_API_KEY='<MiMo API Key>' bash /mnt/c/Users/<user>/AppData/Local/Temp/wsl-post-auth-finish.sh"
 ```
 
 判断：
@@ -1139,7 +1139,7 @@ ssh <windows-user>@<tailscale-ip> "wsl.exe -d Ubuntu-24.04 -- env MILOCO_AUTH_PA
 远端部署：
 
 ```powershell
-scp win-miloco-workflow.ps1 windows-preflight.ps1 wsl-miloco-validate.sh wsl-post-auth-finish.sh <windows-user>@<tailscale-ip>:C:/Users/17239/AppData/Local/Temp/
+scp win-miloco-workflow.ps1 windows-preflight.ps1 wsl-miloco-validate.sh wsl-post-auth-finish.sh <windows-user>@<tailscale-ip>:C:/Users/<user>/AppData/Local/Temp/
 ```
 
 远端 `AllBasic` 验证：
@@ -1455,7 +1455,7 @@ https://account.xiaomi.com/oauth2/authorize?redirect_uri=https%3A%2F%2Fmico.api.
 - Agent 一键版把官方 Step 3 写清为 `--agent-finish --account-auth ... --omni-api-key ...`；如果缺账号和 Key，只能基础就绪。
 - 人工手动版已补充 `wsl --install` 参数无效时的 DISM 兜底，并补充带账号/Key 的官方 `--agent-finish` 形式。
 - 决策树和故障矩阵已补充“正确命令仍提示 `--install` 无效”的旧系统处理分支。
-- 脚本说明里的远程 `scp` 路径已统一为 `17239@<target-ip>:C:/Users/...`。
+- 脚本说明里的远程 `scp` 路径已统一为 `<windows-user>@<target-ip>:C:/Users/<user>/...`。
 
 同步更新文档：
 
@@ -1974,7 +1974,7 @@ BASH_PARSE_PASS wsl-post-auth-finish.sh
 
 ```powershell
 ssh <windows-user>@<tailscale-ip> "powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Report -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789 -ReportPath C:\Users\<user>\AppData\Local\Temp\miloco-win01-report-20260622-044254.txt"
-scp <windows-user>@<tailscale-ip>:C:/Users/17239/AppData/Local/Temp/miloco-win01-report-20260622-044254.txt E:\BaiduSyncdisk\obsidian repo\default\App学习笔记\easy-miloco\02-deploy\reports\WIN-home01-20260622-044254-report.txt
+scp <windows-user>@<tailscale-ip>:C:/Users/<user>/AppData/Local/Temp/miloco-win01-report-20260622-044254.txt E:\BaiduSyncdisk\obsidian repo\default\App学习笔记\easy-miloco\02-deploy\reports\WIN-home01-20260622-044254-report.txt
 ```
 
 报告路径：
@@ -2620,7 +2620,7 @@ camera.connected=true
 为避免普通 `Validate` 只证明基础验收，通过远端 WSL 直接执行严格模式：
 
 ```bash
-MILOCO_PORT=1886 OPENCLAW_PORT=18789 bash /mnt/c/Users/17239/AppData/Local/Temp/wsl-miloco-validate.sh --strict-full
+MILOCO_PORT=1886 OPENCLAW_PORT=18789 bash /mnt/c/Users/<user>/AppData/Local/Temp/wsl-miloco-validate.sh --strict-full
 ```
 
 返回：

@@ -1,4 +1,4 @@
-# 部署指南
+﻿# 部署指南
 
 ## 支持环境
 
@@ -94,7 +94,7 @@ miloco-cli service stop
 前台调试后端：
 
 ```bash
-cd C:/Users/17239/Desktop/xiaomi-miloco/backend
+cd C:/Users/<user>/Desktop/xiaomi-miloco/backend
 uv sync --all-packages
 uv run miloco-backend
 ```
@@ -248,7 +248,7 @@ MILOCO_AUTH_PAYLOAD='<小米 OAuth payload>' MIMO_API_KEY='<MiMo API Key>' bash 
 开发时如果改 Web：
 
 ```bash
-cd C:/Users/17239/Desktop/xiaomi-miloco/web
+cd C:/Users/<user>/Desktop/xiaomi-miloco/web
 pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm test
@@ -270,7 +270,7 @@ miloco-cli service start
 开发验证：
 
 ```bash
-cd C:/Users/17239/Desktop/xiaomi-miloco/plugins/openclaw
+cd C:/Users/<user>/Desktop/xiaomi-miloco/plugins/openclaw
 pnpm install --frozen-lockfile
 pnpm check
 pnpm test

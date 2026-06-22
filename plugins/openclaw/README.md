@@ -4,11 +4,9 @@ OpenClaw plugin for Xiaomi Miloco — brings smart home perception and automatio
 
 ## Install
 
-This plugin is installed as part of Miloco via the easy-miloco one-click package (it is bundled in the per-platform archive on the GitHub Release and installed locally from the packaged `.tgz`):
+This plugin is installed as part of Miloco via the easy-miloco one-click package. Download the matching `.zip` package from GitHub Release and run the package root installer:
 
-```bash
-curl -LsSf https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash
-```
+https://github.com/andy-JustSayWhen/easy-miloco/releases
 
 ## What It Does
 

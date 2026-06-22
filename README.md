@@ -1,6 +1,6 @@
 # easy-miloco
 
-本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库做的工作主要为：1. 提供一键部署包，适配 Windows、macOS、NAS 和云服务器；2. 提供教程，面向小白，长期更新 Miloco 系列教程；3. 其他见 [项目说明](#项目说明)。
+本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库做的工作主要为：1. 提供一键部署包，适配 Windows、macOS、NAS 和云服务器；2. 提供教程。面向小白，长期更新 miloco 系列教程；3. 其他见 [项目说明](#项目说明)。
 
 ## 一键部署
 
@@ -99,7 +99,7 @@ easy-miloco-v0.1-<system>/
 | 一键部署包 | ❌ | 普通用户从 GitHub Release 下载对应系统 `.zip`，解压后双击根目录 `install.ps1` | v0.1 待实现 |
 | 更新与回滚 | ❌ | 以 GitHub Release 为唯一版本基准；更新前只备份本项目相关状态，失败或后悔时一键回滚 | v0.1 待实现 |
 | 国内下载副本 | ❌ | GitHub Release 仍是版本基准；维护者可同步夸克网盘副本，用户下载后校验 SHA256 | v0.1 待实现 |
-| Agent/FAQ/runbook 文档 | ❌ | 新增 `docs/AGENT.md`、`docs/faq/`、`docs/runbooks/`，让 Agent 能按文档部署、诊断和沉淀问题 | 文档骨架已落盘 |
+| 教程、FAQ 与 runbook 文档 | ❌ | 新增 `docs/AGENT.md`、`docs/faq/`、`docs/runbooks/`，面向小白长期维护 miloco 系列教程，并让 Agent 能按文档部署和诊断 | 文档骨架已落盘 |
 
 #### 用户视角
 

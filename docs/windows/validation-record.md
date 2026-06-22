@@ -1,4 +1,4 @@
-# Windows 部署资料包验收记录
+﻿# Windows 部署资料包验收记录
 
 > 验收日期：2026-06-22 10:22
 > 验收对象：`packages/easy-miloco-v0.1-windows.zip`
@@ -13,7 +13,7 @@
 zip SHA256：
 
 ```text
-E2C1D45AD4A9955A915C4310F0DBA089C113045987B22F8E4AF0D011E8A3F556  easy-miloco-v0.1-windows.zip
+见包外 easy-miloco-v0.1-windows.zip.sha256
 ```
 
 包外校验文件：

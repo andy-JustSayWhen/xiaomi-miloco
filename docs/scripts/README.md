@@ -121,38 +121,38 @@ bash ./wsl-post-auth-finish.sh
 把脚本传到目标 Windows 临时目录：
 
 ```powershell
-scp .\win-miloco-workflow.ps1 .\windows-preflight.ps1 .\wsl-miloco-validate.sh .\wsl-post-auth-finish.sh 17239@<target-ip>:C:/Users/17239/AppData/Local/Temp/
+scp .\win-miloco-workflow.ps1 .\windows-preflight.ps1 .\wsl-miloco-validate.sh .\wsl-post-auth-finish.sh <windows-user>@<target-ip>:C:/Users/<user>/AppData/Local/Temp/
 ```
 
 推荐先跑统一入口：
 
 ```powershell
-ssh 17239@<target-ip> "powershell.exe -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789"
+ssh <windows-user>@<target-ip> "powershell.exe -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789"
 ```
 
 生成诊断报告：
 
 ```powershell
-ssh 17239@<target-ip> "powershell.exe -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Report -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789 -ReportPath C:\Users\<user>\AppData\Local\Temp\miloco-report.txt"
-scp 17239@<target-ip>:C:/Users/17239/AppData/Local/Temp/miloco-report.txt .
+ssh <windows-user>@<target-ip> "powershell.exe -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Report -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789 -ReportPath C:\Users\<user>\AppData\Local\Temp\miloco-report.txt"
+scp <windows-user>@<target-ip>:C:/Users/<user>/AppData/Local/Temp/miloco-report.txt .
 ```
 
 运行 Windows 侧预检：
 
 ```powershell
-ssh 17239@<target-ip> "powershell.exe -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\windows-preflight.ps1 -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789"
+ssh <windows-user>@<target-ip> "powershell.exe -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\windows-preflight.ps1 -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789"
 ```
 
 运行 WSL 侧验收：
 
 ```powershell
-ssh 17239@<target-ip> "wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/17239/AppData/Local/Temp/wsl-miloco-validate.sh"
+ssh <windows-user>@<target-ip> "wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/<user>/AppData/Local/Temp/wsl-miloco-validate.sh"
 ```
 
 生成授权入口：
 
 ```powershell
-ssh 17239@<target-ip> "powershell.exe -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action BindUrl -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789"
+ssh <windows-user>@<target-ip> "powershell.exe -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action BindUrl -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789"
 ```
 
 远程命令复杂时，优先上传脚本再执行，不要把大量 `&&`、管道、`$HOME` 变量直接塞进 Windows OpenSSH 的命令字符串。

@@ -1,4 +1,4 @@
-# 测试指南
+﻿# 测试指南
 
 ## 测试原则
 
@@ -15,7 +15,7 @@
 ### 后端和 MIoT
 
 ```bash
-cd C:/Users/17239/Desktop/xiaomi-miloco/backend
+cd C:/Users/<user>/Desktop/xiaomi-miloco/backend
 uv sync --all-packages
 uv run pytest -v
 uv run ruff check .
@@ -37,7 +37,7 @@ uv run task lint
 ### CLI
 
 ```bash
-cd C:/Users/17239/Desktop/xiaomi-miloco/cli
+cd C:/Users/<user>/Desktop/xiaomi-miloco/cli
 uv sync
 uv run pytest -v
 ```
@@ -52,7 +52,7 @@ uv run pytest -v
 ### Web
 
 ```bash
-cd C:/Users/17239/Desktop/xiaomi-miloco/web
+cd C:/Users/<user>/Desktop/xiaomi-miloco/web
 pnpm install --frozen-lockfile
 pnpm typecheck
 pnpm test
@@ -68,7 +68,7 @@ pnpm build
 ### OpenClaw 插件
 
 ```bash
-cd C:/Users/17239/Desktop/xiaomi-miloco/plugins/openclaw
+cd C:/Users/<user>/Desktop/xiaomi-miloco/plugins/openclaw
 pnpm install --frozen-lockfile
 pnpm check
 pnpm test

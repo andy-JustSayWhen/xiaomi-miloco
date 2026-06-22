@@ -1,4 +1,4 @@
-# 变更和排障手册
+﻿# 变更和排障手册
 
 ## 先分层
 
@@ -28,7 +28,7 @@ miloco-cli doctor
 如需前台看日志：
 
 ```bash
-cd C:/Users/17239/Desktop/xiaomi-miloco/backend
+cd C:/Users/<user>/Desktop/xiaomi-miloco/backend
 uv run miloco-backend
 ```
 

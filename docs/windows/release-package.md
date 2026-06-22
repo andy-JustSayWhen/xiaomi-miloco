@@ -1,4 +1,4 @@
-# Windows 部署资料包发布清单
+﻿# Windows 部署资料包发布清单
 
 > 生成日期：2026-06-22
 > 用途：把 Windows 部署教程、脚本和验收材料作为一套可分发资料包交给其他玩家或 Agent。
@@ -90,7 +90,7 @@ packages/easy-miloco-v0.1-windows.zip.sha256
 zip SHA256：
 
 ```text
-E2C1D45AD4A9955A915C4310F0DBA089C113045987B22F8E4AF0D011E8A3F556  easy-miloco-v0.1-windows.zip
+见包外 easy-miloco-v0.1-windows.zip.sha256
 ```
 
 说明：包外 OB 发布清单记录 zip 自身 SHA256。包内的本清单副本不写死 zip 自身 SHA256，以避免资料包自引用导致每次写入哈希都会改变 zip 哈希。
@@ -139,13 +139,13 @@ SHA_FAIL=0
 远程 Windows OpenSSH 建议写法：
 
 ```powershell
-scp .\win-miloco-workflow.ps1 .\windows-preflight.ps1 .\wsl-miloco-validate.sh .\wsl-post-auth-finish.sh 17239@<target-ip>:C:/Users/17239/AppData/Local/Temp/
+scp .\win-miloco-workflow.ps1 .\windows-preflight.ps1 .\wsl-miloco-validate.sh .\wsl-post-auth-finish.sh <windows-user>@<target-ip>:C:/Users/<user>/AppData/Local/Temp/
 ```
 
 不要写成：
 
 ```powershell
-17239@<target-ip>:/C:/Users/17239/AppData/Local/Temp/
+<windows-user>@<target-ip>:/C:/Users/<user>/AppData/Local/Temp/
 ```
 
 后者在 Windows OpenSSH 场景下容易造成路径解释混乱。
