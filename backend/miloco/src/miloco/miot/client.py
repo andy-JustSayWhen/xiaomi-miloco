@@ -11,6 +11,7 @@ import json
 import logging
 import time
 from collections.abc import Callable, Coroutine
+from ipaddress import ip_address
 
 from av.audio.frame import AudioFrame
 from av.video.frame import VideoFrame
@@ -20,6 +21,7 @@ from miot.spec import MIoTSpecTypeLevel
 from miot.types import (
     MIoTActionParam,
     MIoTCameraInfo,
+    MIoTCameraVideoQuality,
     MIoTDeviceBindEvent,
     MIoTDeviceInfo,
     MIoTGetPropertyParam,
@@ -29,7 +31,6 @@ from miot.types import (
     MIoTSceneChangedEvent,
     MIoTSetPropertyParam,
     MIoTUserInfo,
-    MIoTCameraVideoQuality,
 )
 from pydantic_core import to_jsonable_python
 
@@ -143,9 +144,7 @@ class MiotProxy:
 
         # Listener for home-level scene changes (rename/delete/edit). Debounces
         # then refreshes the scene list.
-        self._scene_listener = SceneEventListener(
-            refresh_scenes=self.refresh_scenes
-        )
+        self._scene_listener = SceneEventListener(refresh_scenes=self.refresh_scenes)
         # Home ids whose home/{home_id}/scene/{rename,delete,edit} topics this
         # proxy intends to subscribe. Mirrors _subscribed_meta_dids but per home.
         self._subscribed_scene_home_ids: set[str] = set()
@@ -222,9 +221,7 @@ class MiotProxy:
             welcome=self._welcome_service.welcome,
         )
         self._subscribed_meta_dids = set()
-        self._scene_listener = SceneEventListener(
-            refresh_scenes=self.refresh_scenes
-        )
+        self._scene_listener = SceneEventListener(refresh_scenes=self.refresh_scenes)
         self._subscribed_scene_home_ids = set()
         self._miot_client.register_user_bind_callback(self._on_user_bind_event)
         # Device meta change (rename/hr_change): refresh the list so the new
@@ -233,9 +230,7 @@ class MiotProxy:
             self._on_device_meta_changed_event
         )
         # Home scene change (rename/delete/edit): refresh the scene list.
-        self._miot_client.register_scene_changed_callback(
-            self._on_scene_changed_event
-        )
+        self._miot_client.register_scene_changed_callback(self._on_scene_changed_event)
 
         await self._miot_client.init_async()
 
@@ -334,9 +329,7 @@ class MiotProxy:
                 result["errors"].append(f"{label}: {e}")
 
         if result["errors"]:
-            logger.warning(
-                "MiOT info refresh completed with errors: %s", result
-            )
+            logger.warning("MiOT info refresh completed with errors: %s", result)
         else:
             logger.info("MiOT info refresh completed: %s", result)
         return result
@@ -540,7 +533,8 @@ class MiotProxy:
             raise
 
     async def _create_camera_img_manager(
-        self, camera_info: MIoTCameraInfo,
+        self,
+        camera_info: MIoTCameraInfo,
     ) -> CameraVisionHandler | None:
         # scope 不影响 manager 的建立——watch 视频流需要 camera instance 无论 inUse 状态。
         # toggle_scope 只改 KV,不触发 refresh_cameras,所以这里只在启动/摄像头首次发现时调用,
@@ -591,6 +585,91 @@ class MiotProxy:
 
         logger.warning("Ignoring invalid camera PIN override for %s", did)
         return None
+
+    def _get_camera_lan_overrides(self) -> dict[str, str]:
+        """Load optional per-camera LAN IP overrides from the Miloco workspace."""
+        path = get_settings().directories.workspace_dir / "camera_lan_overrides.json"
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Failed to load camera LAN overrides from %s: %s", path, e)
+            return {}
+
+        if not isinstance(raw, dict):
+            logger.warning("Ignoring non-object camera LAN overrides from %s", path)
+            return {}
+
+        overrides: dict[str, str] = {}
+        for did, value in raw.items():
+            did_str = str(did).strip()
+            ip_str = str(value).strip()
+            if not did_str or not ip_str:
+                continue
+            try:
+                ip_address(ip_str)
+            except ValueError:
+                logger.warning(
+                    "Ignoring invalid camera LAN override for %s: %s", did_str, ip_str
+                )
+                continue
+            overrides[did_str] = ip_str
+        return overrides
+
+    async def _prime_camera_lan_overrides(
+        self, cameras: dict[str, MIoTCameraInfo]
+    ) -> None:
+        """Singlecast-ping configured camera IPs and merge LAN status.
+
+        Some Xiaomi cameras answer direct MIoT LAN probes but do not reliably
+        appear in broadcast discovery. That leaves SDK `lan_online=False` even
+        though the device is reachable. This only corrects LAN metadata; video
+        stream success still depends on the native camera SDK.
+        """
+        overrides = {
+            did: ip
+            for did, ip in self._get_camera_lan_overrides().items()
+            if did in cameras
+        }
+        if not overrides:
+            return
+
+        lan_client = getattr(self._miot_client, "_lan_client", None)
+        if lan_client is None:
+            return
+
+        for did, ip in overrides.items():
+            try:
+                await lan_client.ping_async(target_ip=ip)
+            except Exception as e:  # noqa: BLE001
+                logger.debug(
+                    "Camera LAN override probe failed: did=%s ip=%s err=%s", did, ip, e
+                )
+
+        try:
+            lan_devices = await lan_client.get_devices_async()
+        except Exception as e:  # noqa: BLE001
+            logger.debug(
+                "Failed to read LAN devices after camera override probes: %s", e
+            )
+            return
+
+        for did, ip in overrides.items():
+            cam = cameras.get(did)
+            if cam is None:
+                continue
+            lan_info = lan_devices.get(did)
+            if lan_info is None:
+                continue
+            cam.lan_online = lan_info.online
+            cam.local_ip = lan_info.ip or ip
+            logger.debug(
+                "Camera LAN override merged: did=%s online=%s ip=%s",
+                did,
+                lan_info.online,
+                cam.local_ip,
+            )
 
     async def _get_camera_instance(
         self, camera_info: MIoTCameraInfo
@@ -688,9 +767,7 @@ class MiotProxy:
             await self.refresh_devices()
         return self._device_info_dict
 
-    async def _on_lan_device_changed(
-        self, did: str, info: MIoTLanDeviceInfo
-    ) -> None:
+    async def _on_lan_device_changed(self, did: str, info: MIoTLanDeviceInfo) -> None:
         # refresh_cameras deep-copies SDK state, so post-init lan_online
         # changes only reach _camera_info_dict via this hook.
         cam = self._camera_info_dict.get(did)
@@ -710,11 +787,14 @@ class MiotProxy:
             try:
                 cameras = await self._miot_client.get_cameras_async()
                 cameras = copy.deepcopy(cameras)
+                await self._prime_camera_lan_overrides(cameras)
                 # Publish before registering so callbacks resolve against the new dict.
                 self._camera_info_dict = cameras
                 for camera_did in cameras.keys():
                     if camera_did not in self._camera_img_managers:
-                        if not is_home_allowed(self._kv_repo, cameras[camera_did].home_id):
+                        if not is_home_allowed(
+                            self._kv_repo, cameras[camera_did].home_id
+                        ):
                             continue
                         manager = await self._create_camera_img_manager(
                             cameras[camera_did]
@@ -741,7 +821,9 @@ class MiotProxy:
                         del self._camera_img_managers[camera_did]
                     else:
                         # cam 仍在账号里,manager 保活(无论 scope 状态)。
-                        logger.debug("Manager %s kept alive for watch stream", camera_did)
+                        logger.debug(
+                            "Manager %s kept alive for watch stream", camera_did
+                        )
                 return cameras
 
             except Exception as e:
@@ -782,9 +864,7 @@ class MiotProxy:
                 return None
 
     @staticmethod
-    def _log_device_diff(
-        action: str, dev: MIoTDeviceInfo | None, did: str
-    ) -> None:
+    def _log_device_diff(action: str, dev: MIoTDeviceInfo | None, did: str) -> None:
         """Pretty-print one ADDED/REMOVED device line with all relevant
         identity fields (name, home, room, model, online, sub-devices, etc.)
         so the operator can tell *which* physical device was bound/unbound
@@ -887,7 +967,9 @@ class MiotProxy:
         target = {did for did in self._device_info_dict if "/" not in did}
         skipped = [did for did in self._device_info_dict if "/" in did]
         if skipped:
-            logger.debug("device-meta: skipping %d did(s) with '/': %s", len(skipped), skipped)
+            logger.debug(
+                "device-meta: skipping %d did(s) with '/': %s", len(skipped), skipped
+            )
         to_add = target - self._subscribed_meta_dids
         to_remove = self._subscribed_meta_dids - target
         if not to_add and not to_remove:
@@ -968,8 +1050,7 @@ class MiotProxy:
         unsubscribed on the next sync.
         """
         target = {
-            h for h in self._collect_home_ids()
-            if is_home_allowed(self._kv_repo, h)
+            h for h in self._collect_home_ids() if is_home_allowed(self._kv_repo, h)
         }
         to_add = target - self._subscribed_scene_home_ids
         to_remove = self._subscribed_scene_home_ids - target
@@ -1096,9 +1177,7 @@ class MiotProxy:
             oauth_info = await self._miot_client.get_access_token_async(
                 code=code, state=state
             )
-            logger.info(
-                "Retrieved MIoT auth info, code: %s, state: %s", code, state
-            )
+            logger.info("Retrieved MIoT auth info, code: %s, state: %s", code, state)
             self.reset_miot_token_info(oauth_info)
             await self.refresh_miot_info()
             return oauth_info
@@ -1376,4 +1455,6 @@ class MiotProxy:
             if result:
                 logger.info("Token refresh completed successfully")
             else:
-                logger.error("Token refresh failed, re-login required: miloco-cli account bind")
+                logger.error(
+                    "Token refresh failed, re-login required: miloco-cli account bind"
+                )

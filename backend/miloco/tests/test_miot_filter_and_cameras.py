@@ -17,7 +17,6 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from miot.types import MIoTCameraVideoQuality
 from miloco.database.kv_repo import ScopeConfigKeys
 from miloco.middleware.exceptions import (
     MiotServiceException,
@@ -26,6 +25,7 @@ from miloco.middleware.exceptions import (
 )
 from miloco.miot import filter as miot_filter
 from miloco.miot.service import MiotService
+from miot.types import MIoTCameraVideoQuality
 
 
 class _FakeKV:
@@ -49,7 +49,9 @@ def _home(home_id: str, name: str = "Home"):
     return SimpleNamespace(home_id=home_id, home_name=name)
 
 
-def _camera(did: str, home_id: str = "H1", *, online: bool = True, lan_online: bool = True):
+def _camera(
+    did: str, home_id: str = "H1", *, online: bool = True, lan_online: bool = True
+):
     return SimpleNamespace(
         did=did,
         home_id=home_id,
@@ -149,9 +151,11 @@ def test_set_in_use_no_op_skips_kv_write():
     # Re-add the same id — should not rewrite
     original_set = kv.set
     calls = {"n": 0}
+
     def counting_set(key, value):
         calls["n"] += 1
         return original_set(key, value)
+
     kv.set = counting_set  # type: ignore[assignment]
     miot_filter.set_home_in_use(kv, "H1", True)
     assert calls["n"] == 0
@@ -161,7 +165,9 @@ def test_set_in_use_no_op_skips_kv_write():
 # ─── MiotService.list_homes / switch_home ────────────────────────────────────
 
 
-def _make_service(devices: dict | None = None, cameras: dict | None = None, kv: _FakeKV | None = None) -> MiotService:
+def _make_service(
+    devices: dict | None = None, cameras: dict | None = None, kv: _FakeKV | None = None
+) -> MiotService:
     kv = kv or _FakeKV({ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"])})
     proxy = SimpleNamespace(
         _kv_repo=SimpleNamespace(
@@ -273,10 +279,12 @@ async def test_list_cameras_with_state_flags():
         "c2": _camera("c2", home_id="H1"),
         "c3": _camera("c3", home_id="H2"),
     }
-    kv = _FakeKV({
-        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
-        ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
-    })
+    kv = _FakeKV(
+        {
+            ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+            ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
+        }
+    )
     svc = _make_service(devices=devices, cameras=cameras, kv=kv)
     svc._connected_camera_dids = lambda: {"c2"}  # type: ignore[assignment]
 
@@ -289,7 +297,9 @@ async def test_list_cameras_with_state_flags():
     assert by_did["c1"]["is_online"] is True
     assert by_did["c1"]["connected"] is False
     assert by_did["c2"]["in_use"] is True
-    assert by_did["c2"]["is_online"] is True  # connected overrides stale lan_online=False
+    assert (
+        by_did["c2"]["is_online"] is True
+    )  # connected overrides stale lan_online=False
     assert by_did["c2"]["connected"] is True
 
 
@@ -312,10 +322,12 @@ async def test_toggle_camera_writes_disabled():
 
 @pytest.mark.asyncio
 async def test_toggle_camera_allows_connected_camera_with_stale_lan_offline():
-    kv = _FakeKV({
-        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
-        ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
-    })
+    kv = _FakeKV(
+        {
+            ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+            ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
+        }
+    )
     svc = _make_service(
         devices={"c1": _camera("c1")},
         cameras={"c1": _camera("c1", lan_online=False)},
@@ -335,10 +347,12 @@ async def test_toggle_camera_batch_atomic():
     svc = _make_service(
         devices={"c1": _camera("c1"), "c2": _camera("c2")},
         cameras={"c1": _camera("c1"), "c2": _camera("c2")},
-        kv=kv
+        kv=kv,
     )
     # 两个都合法 → 都写入停用集
-    res = await svc.toggle_camera([{"did": "c1", "in_use": False}, {"did": "c2", "in_use": False}])
+    res = await svc.toggle_camera(
+        [{"did": "c1", "in_use": False}, {"did": "c2", "in_use": False}]
+    )
     assert isinstance(res, list)
     dids = {c["did"] for c in res}
     assert dids == {"c1", "c2"}
@@ -346,9 +360,12 @@ async def test_toggle_camera_batch_atomic():
 
     # c1 合法 + ghost 未知 → 整批拒绝，c1 不写入
     with pytest.raises(ValidationException):
-        await svc.toggle_camera([{"did": "c1", "in_use": False}, {"did": "ghost", "in_use": False}])
+        await svc.toggle_camera(
+            [{"did": "c1", "in_use": False}, {"did": "ghost", "in_use": False}]
+        )
     assert json.loads(kv.get(ScopeConfigKeys.CAMERA_BLACK_LIST_KEY)) == [
-        "c1", "c2"
+        "c1",
+        "c2",
     ]  # 不变
 
 
@@ -407,10 +424,12 @@ async def test_assert_did_auto_selects_first_home():
 async def test_unbind_miot_clears_scope_config():
     """unbind 后 HOME_WHITE_LIST_KEY / CAMERA_BLACK_LIST_KEY 应从 KV 中删除，
     同时 LRU 全量清空（换账号后旧 did 全失效）。"""
-    kv = _FakeKV({
-        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
-        ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
-    })
+    kv = _FakeKV(
+        {
+            ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+            ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
+        }
+    )
     db_connector = MagicMock()
     db_connector.execute_update = MagicMock(return_value=0)
     db_connector.execute_query = MagicMock(return_value=[])
@@ -437,8 +456,7 @@ async def test_unbind_miot_clears_scope_config():
     assert kv.get(ScopeConfigKeys.CAMERA_BLACK_LIST_KEY) is None
     # LRU: 必须有一次 DELETE FROM device_lru
     lru_calls = [
-        c for c in db_connector.execute_update.call_args_list
-        if "device_lru" in str(c)
+        c for c in db_connector.execute_update.call_args_list if "device_lru" in str(c)
     ]
     assert any("DELETE" in str(c).upper() for c in lru_calls), (
         f"unbind_miot must DELETE FROM device_lru, got: {lru_calls}"
@@ -481,10 +499,12 @@ async def test_unbind_miot_scope_cleared_even_if_deinit_fails():
     不变量：unbind_miot() 先删 scope keys / LRU，再调 deinit()。
     若未来有人把清理挪到 deinit() 后面，此测试会 catch 到。
     """
-    kv = _FakeKV({
-        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
-        ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
-    })
+    kv = _FakeKV(
+        {
+            ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+            ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
+        }
+    )
     db_connector = MagicMock()
     db_connector.execute_update = MagicMock(return_value=0)
     db_connector.execute_query = MagicMock(return_value=[])
@@ -522,10 +542,12 @@ async def test_unbind_miot_scope_cleared_even_if_deinit_fails():
 async def test_authorize_with_code_clears_scope_before_token_exchange():
     """直接绑新账号（不经 unbind）时也必须清理旧 scope 和 LRU，
     否则新账号设备会被旧启用集过滤为空。"""
-    kv = _FakeKV({
-        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
-        ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
-    })
+    kv = _FakeKV(
+        {
+            ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+            ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
+        }
+    )
     db_connector = MagicMock()
     db_connector.execute_update = MagicMock(return_value=0)
     db_connector.execute_query = MagicMock(return_value=[])
@@ -558,8 +580,7 @@ async def test_authorize_with_code_clears_scope_before_token_exchange():
     )
     # LRU 必须清空
     lru_calls = [
-        c for c in db_connector.execute_update.call_args_list
-        if "device_lru" in str(c)
+        c for c in db_connector.execute_update.call_args_list if "device_lru" in str(c)
     ]
     assert any("DELETE" in str(c).upper() for c in lru_calls), (
         f"authorize_with_code must DELETE FROM device_lru, got: {lru_calls}"
@@ -599,15 +620,14 @@ def _scope_proxy_env(tmp_path, monkeypatch):
     reset_settings()
     monkeypatch.setattr(bl_module, "BIND_DEBOUNCE_SEC", 0.05)
     monkeypatch.setattr(
-        ws_module, "dispatch_event",
+        ws_module,
+        "dispatch_event",
         AsyncMock(return_value=True),
     )
     # refresh_cameras 末尾会把 cameras dict 喂给 to_jsonable_python 落 KV；
     # SimpleNamespace stub 不支持 pydantic 序列化，替换成 no-op 让测试聚焦
     # 在销毁循环和 manager 状态本身。
-    monkeypatch.setattr(
-        "miloco.miot.client.to_jsonable_python", lambda _cameras: {}
-    )
+    monkeypatch.setattr("miloco.miot.client.to_jsonable_python", lambda _cameras: {})
 
     kv = _FakeKV()
     kv_repo = SimpleNamespace(
@@ -622,6 +642,10 @@ def _scope_proxy_env(tmp_path, monkeypatch):
     miot_client.unregister_lan_device_changed_async = AsyncMock()
     miot_client.create_camera_instance_async = AsyncMock()
     miot_client.get_cameras_async = AsyncMock(return_value={})
+    miot_client._lan_client = SimpleNamespace(
+        ping_async=AsyncMock(),
+        get_devices_async=AsyncMock(return_value={}),
+    )
     proxy._miot_client = miot_client  # type: ignore[assignment]
 
     yield proxy, kv, miot_client
@@ -665,7 +689,9 @@ async def test_create_camera_img_manager_denied_by_home_filter(_scope_proxy_env)
 
 
 @pytest.mark.asyncio
-async def test_create_camera_img_manager_denied_but_valid_instance_builds_manager(_scope_proxy_env):
+async def test_create_camera_img_manager_denied_but_valid_instance_builds_manager(
+    _scope_proxy_env,
+):
     """scope_denied + 有效 instance → manager 仍然被建立(核心路径断言)。
 
     这是新设计的防回归钉:若有人把 scope gate 恢复,create_camera_instance_async
@@ -674,9 +700,13 @@ async def test_create_camera_img_manager_denied_but_valid_instance_builds_manage
     proxy, kv, miot_client = _scope_proxy_env
     kv.set(ScopeConfigKeys.CAMERA_BLACK_LIST_KEY, json.dumps(["c1"]))
 
-    mock_instance = MagicMock(spec=[
-        "start_async", "register_decode_jpg_async", "register_decode_video_frame_async",
-    ])
+    mock_instance = MagicMock(
+        spec=[
+            "start_async",
+            "register_decode_jpg_async",
+            "register_decode_video_frame_async",
+        ]
+    )
     mock_instance.start_async = AsyncMock()
     mock_instance.register_decode_jpg_async = AsyncMock()
     miot_client.create_camera_instance_async = AsyncMock(return_value=mock_instance)
@@ -690,6 +720,48 @@ async def test_create_camera_img_manager_denied_but_valid_instance_builds_manage
     miot_client.create_camera_instance_async.assert_called_once()
     assert result is not None
     assert "c1" in proxy._camera_img_managers
+
+
+@pytest.mark.asyncio
+async def test_refresh_cameras_primes_lan_overrides(_scope_proxy_env):
+    proxy, _kv, miot_client = _scope_proxy_env
+    lan_path = get_settings().directories.workspace_dir / "camera_lan_overrides.json"
+    lan_path.write_text(json.dumps({"c1": "192.168.31.104"}), encoding="utf-8")
+
+    cam = _camera("c1", home_id="H1", lan_online=False)
+    cam.local_ip = None
+    miot_client.get_cameras_async = AsyncMock(return_value={"c1": cam})
+    miot_client._lan_client = SimpleNamespace(
+        ping_async=AsyncMock(),
+        get_devices_async=AsyncMock(
+            return_value={
+                "c1": SimpleNamespace(online=True, ip="192.168.31.104"),
+            }
+        ),
+    )
+
+    cameras = await proxy.refresh_cameras()
+
+    assert cameras is not None
+    miot_client._lan_client.ping_async.assert_awaited_once_with(
+        target_ip="192.168.31.104"
+    )
+    assert cameras["c1"].lan_online is True
+    assert cameras["c1"].local_ip == "192.168.31.104"
+
+
+def test_get_camera_lan_overrides_ignores_invalid_values(_scope_proxy_env, caplog):
+    proxy, _kv, _miot_client = _scope_proxy_env
+    lan_path = get_settings().directories.workspace_dir / "camera_lan_overrides.json"
+    lan_path.write_text(
+        json.dumps({"c1": "not-an-ip", "c2": "192.168.31.2"}), encoding="utf-8"
+    )
+
+    with caplog.at_level("WARNING"):
+        overrides = proxy._get_camera_lan_overrides()
+
+    assert overrides == {"c2": "192.168.31.2"}
+    assert "Ignoring invalid camera LAN override for c1" in caplog.text
 
 
 @pytest.mark.asyncio
@@ -741,7 +813,9 @@ async def test_create_camera_img_manager_defaults_to_no_pin(_scope_proxy_env):
 
 
 @pytest.mark.asyncio
-async def test_create_camera_img_manager_denied_by_home_filter_valid_instance_builds_manager(_scope_proxy_env):
+async def test_create_camera_img_manager_denied_by_home_filter_valid_instance_builds_manager(
+    _scope_proxy_env,
+):
     """home_id 不在启用集 + 有效 instance → manager 仍然被建立(home filter 变体防回归钉)。"""
     proxy, kv, miot_client = _scope_proxy_env
     kv.set(ScopeConfigKeys.HOME_WHITE_LIST_KEY, json.dumps(["H1"]))
@@ -762,7 +836,9 @@ async def test_create_camera_img_manager_denied_by_home_filter_valid_instance_bu
 
 
 @pytest.mark.asyncio
-async def test_rebuild_camera_stream_manager_recreates_existing_manager(_scope_proxy_env):
+async def test_rebuild_camera_stream_manager_recreates_existing_manager(
+    _scope_proxy_env,
+):
     proxy, kv, miot_client = _scope_proxy_env
     kv.set(ScopeConfigKeys.HOME_WHITE_LIST_KEY, json.dumps(["H1"]))
 
@@ -819,7 +895,9 @@ async def test_refresh_cameras_keeps_scope_denied_existing_manager(_scope_proxy_
 
 
 @pytest.mark.asyncio
-async def test_refresh_cameras_destroys_when_camera_removed_from_account(_scope_proxy_env):
+async def test_refresh_cameras_destroys_when_camera_removed_from_account(
+    _scope_proxy_env,
+):
     """摄像头从账号消失(cam is None) → destroy + unregister + dict 删除三件配对。
 
     这是唯一剩余的 destroy 触发路径。scope_denied 时不再 destroy,只有这条路走 destroy。
@@ -835,7 +913,9 @@ async def test_refresh_cameras_destroys_when_camera_removed_from_account(_scope_
     await proxy.refresh_cameras()
 
     handler.destroy.assert_awaited_once()
-    miot_client.unregister_lan_device_changed_async.assert_awaited_once_with(did="c_gone")
+    miot_client.unregister_lan_device_changed_async.assert_awaited_once_with(
+        did="c_gone"
+    )
     assert "c_gone" not in proxy._camera_img_managers
 
 
@@ -912,8 +992,6 @@ async def test_toggle_camera_triggers_sync_camera_adapter_when_changed():
     # 第二次相同操作 → KV 已含 c1，changed=False → 不再 sync
     await svc.toggle_camera([{"did": "c1", "in_use": False}])
     assert svc._sync_camera_adapter.await_count == 1
-
-
 
 
 @pytest.mark.asyncio
@@ -1005,7 +1083,10 @@ async def test_authorize_with_code_auto_selects_first_home():
     db_connector.execute_query = MagicMock(return_value=[])
     proxy = SimpleNamespace(
         _kv_repo=SimpleNamespace(
-            db_connector=db_connector, get=kv.get, set=kv.set, delete=kv.delete,
+            db_connector=db_connector,
+            get=kv.get,
+            set=kv.set,
+            delete=kv.delete,
         ),
         get_miot_auth_info=AsyncMock(),
         refresh_cameras=AsyncMock(),
@@ -1099,19 +1180,23 @@ async def test_toggle_camera_enable_batch_over_limit():
     # (LIMIT-1) + 2 = LIMIT+1 > LIMIT → 报错。要求 LIMIT>=1（恒成立）。
     total = LIMIT + 2
     dids = _cam_dids(total)
-    blacklisted = dids[LIMIT - 1:]  # 最后 (total-(LIMIT-1)) = 3 台
-    kv = _FakeKV({
-        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
-        ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(blacklisted),
-    })
+    blacklisted = dids[LIMIT - 1 :]  # 最后 (total-(LIMIT-1)) = 3 台
+    kv = _FakeKV(
+        {
+            ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+            ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(blacklisted),
+        }
+    )
     cameras = {d: _camera(d, home_id="H1") for d in dids}
     svc = _make_service(devices=dict(cameras), cameras=cameras, kv=kv)
 
     with pytest.raises(ValidationException, match="最多同时启用"):
-        await svc.toggle_camera([
-            {"did": blacklisted[0], "in_use": True},
-            {"did": blacklisted[1], "in_use": True},
-        ])
+        await svc.toggle_camera(
+            [
+                {"did": blacklisted[0], "in_use": True},
+                {"did": blacklisted[1], "in_use": True},
+            ]
+        )
 
 
 @pytest.mark.asyncio
@@ -1137,19 +1222,23 @@ async def test_toggle_camera_atomic_swap_at_limit():
     enabled = _cam_dids(LIMIT)  # c001..cN，满额
     b = "c_new"
     a = enabled[0]
-    kv = _FakeKV({
-        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
-        ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps([b]),
-    })
+    kv = _FakeKV(
+        {
+            ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+            ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps([b]),
+        }
+    )
     cameras = {d: _camera(d, home_id="H1") for d in enabled}
     cameras[b] = _camera(b, home_id="H1")
     svc = _make_service(devices=dict(cameras), cameras=cameras, kv=kv)
 
     # 禁 A 同时启 B：操作后 final_enabled = LIMIT 台，不应误拒
-    res = await svc.toggle_camera([
-        {"did": a, "in_use": False},
-        {"did": b, "in_use": True},
-    ])
+    res = await svc.toggle_camera(
+        [
+            {"did": a, "in_use": False},
+            {"did": b, "in_use": True},
+        ]
+    )
     assert isinstance(res, list)
     by_did = {c["did"]: c for c in res}
     assert by_did[a]["in_use"] is False
@@ -1162,18 +1251,22 @@ async def test_toggle_camera_swap_still_rejects_net_over_limit():
     # LIMIT 台在用 + 2 台黑名单；禁 1 启 2 → 净 LIMIT+1 > LIMIT → 报错。
     enabled = _cam_dids(LIMIT)
     b1, b2 = "c_new1", "c_new2"
-    kv = _FakeKV({
-        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
-        ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps([b1, b2]),
-    })
+    kv = _FakeKV(
+        {
+            ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+            ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps([b1, b2]),
+        }
+    )
     cameras = {d: _camera(d, home_id="H1") for d in enabled}
     cameras[b1] = _camera(b1, home_id="H1")
     cameras[b2] = _camera(b2, home_id="H1")
     svc = _make_service(devices=dict(cameras), cameras=cameras, kv=kv)
 
     with pytest.raises(ValidationException, match="最多同时启用"):
-        await svc.toggle_camera([
-            {"did": enabled[0], "in_use": False},
-            {"did": b1, "in_use": True},
-            {"did": b2, "in_use": True},
-        ])
+        await svc.toggle_camera(
+            [
+                {"did": enabled[0], "in_use": False},
+                {"did": b1, "in_use": True},
+                {"did": b2, "in_use": True},
+            ]
+        )
