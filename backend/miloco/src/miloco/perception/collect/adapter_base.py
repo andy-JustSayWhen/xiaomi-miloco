@@ -115,12 +115,20 @@ class BaseDeviceAdapter(ABC):
         for did in discovered_dids - connected_dids:
             try:
                 await self.connect_device(did, source=discovered[did])
-                logger.info(
-                    "[%s] Connected device: %s (%s)",
-                    self.device_type,
-                    did,
-                    discovered[did].name,
-                )
+                if did in self.get_connected_devices():
+                    logger.info(
+                        "[%s] Connected device: %s (%s)",
+                        self.device_type,
+                        did,
+                        discovered[did].name,
+                    )
+                else:
+                    logger.info(
+                        "[%s] Device connection pending or not live yet: %s (%s)",
+                        self.device_type,
+                        did,
+                        discovered[did].name,
+                    )
             except Exception as e:
                 logger.error(
                     "[%s] Failed to connect device %s: %s",
