@@ -2,7 +2,7 @@
 
 这里沉淀部署、更新、回滚和运行过程中的常见问题。Agent 排障时应先查本文件；如果遇到新问题，修复后补充到这里。
 
-## Windows 版本低于 v0.1 兼容边界
+## 低版本 Windows 的兼容边界
 
 现象：
 
@@ -32,4 +32,3 @@
 
 - 下载后必须校验 SHA256。
 - release notes 和 manifest 以 GitHub Release 为准。
-

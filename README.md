@@ -52,7 +52,7 @@ Miloco for Windows v0.1 仅对 Windows 11 22H2 及以上版本提供完整一键
 ├── web/                  # Miloco WebUI
 ├── scripts/              # 官方安装/构建脚本
 ├── windows/              # 本 fork 新增：一键部署包源码、打包、更新、回滚
-├── docs/                 # 本 fork 新增：用户/Agent 文档、FAQ、runbook、release 说明
+├── docs/                 # 本 fork 新增：教程、部署指南、FAQ、runbook、release 说明
 ├── knowledge/            # 项目知识库
 ├── README.md
 └── LICENSE.md

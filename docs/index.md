@@ -1,9 +1,16 @@
 # easy-miloco Docs
 
-这是本 fork 的文档总入口。这里的文档服务两类读者：
+这是本 fork 的文档总入口。文档围绕三件事长期维护：
 
-- 用户：安装、更新、回滚、诊断和常见问题。
-- Agent：自动部署、自动打包、排障和经验沉淀。
+- 快速部署：让普通用户和 Agent 都能按文档完成一键部署、更新和回滚。
+- 源码优化：记录本 fork 相对官方仓库做过哪些代码和实现调整。
+- 使用教程：面向小白，长期更新 Miloco 系列教程、常见问题和成功经验。
+
+## 用户入口
+
+- 一键部署：[install-guide.md](install-guide.md)
+- 摄像头支持和排障：[cameras.md](cameras.md)
+- 常见问题：[faq/known-issues.md](faq/known-issues.md)
 
 ## Agent 入口
 

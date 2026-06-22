@@ -31,6 +31,6 @@ miloco-cli config set model.omni.api_key sk-xxxxx
 
 ## License
 
-For license details, please see [LICENSE.md](https://raw.githubusercontent.com/XiaoMi/xiaomi-miloco/main/LICENSE.md).
+For license details, please see [LICENSE.md](../../LICENSE.md).
 
 **Important Notice**: This project is limited to non-commercial use only. Without written authorization from Xiaomi Corporation, this project may not be used for developing applications, web services, or other forms of software.

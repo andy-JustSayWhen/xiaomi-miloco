@@ -2,7 +2,7 @@
 
 <p align="center"><a href="README.md">English</a> | 简体中文</p>
 
-本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库主要提供一键部署包、源码优化和面向小白的 Miloco 系列教程。
+本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库做的工作主要为：1. 提供一键部署包，适配 WIN、macOS、NAS 和云服务器；2. 提供教程，面向小白，长期更新 Miloco 系列教程；3. 其他见 [项目说明](README.md#项目说明)。
 
 Xiaomi Miloco 是小米面向未来的全屋智能 AI 开源方案，以米家摄像头的画面与声音为全模态感知入口，以自研 MiMo 大模型为智能大脑，以 Agent 插件形式运行在 [OpenClaw](https://openclaw.ai) 之上，联动全屋设备带来主动智能体验。
 
@@ -40,7 +40,7 @@ Miloco 2.0 能感知家中发生的事件，能基于常识主动判断并操控
 
 ### 方式一：通过 Agent 安装（推荐）
 
-向 OpenClaw 发送以下指令即可自动完成安装：
+把下面这句话丢给 Agent，让 Agent 全程代劳：
 
 ```text
 请为我一键部署 Miloco，按照：https://github.com/andy-JustSayWhen/easy-miloco/blob/main/docs/install-guide.md
@@ -48,7 +48,7 @@ Miloco 2.0 能感知家中发生的事件，能基于常识主动判断并操控
 
 ### 方式二：用户自己动
 
-打开 https://github.com/andy-JustSayWhen/easy-miloco/releases ，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，双击文件夹根目录内的 `install.ps1`。
+打开 [GitHub Release](https://github.com/andy-JustSayWhen/easy-miloco/releases)，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，双击文件夹根目录内的 `install.ps1`。
 
 ### 方式三：从源码构建
 

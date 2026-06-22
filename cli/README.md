@@ -4,10 +4,10 @@ Command-line interface for Xiaomi Miloco — manage the backend service, devices
 
 ## Install
 
-miloco-cli 随 Miloco 一起安装，不单独发布到 PyPI。运行官方安装脚本即可（脚本会从 GitHub Release 下载本平台归档并本地安装）：
+miloco-cli 随 Miloco 一起安装，不单独发布到 PyPI。使用 easy-miloco 一键部署包安装即可（脚本会从本仓库 GitHub Release 下载本平台归档并本地安装）：
 
 ```bash
-curl -LsSf https://github.com/XiaoMi/xiaomi-miloco/releases/latest/download/install.sh | bash
+curl -LsSf https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash
 ```
 
 ## Quick Start
@@ -45,6 +45,6 @@ MILOCO_SERVER__URL=https://192.168.1.100:1810 miloco-cli service status
 
 ## License
 
-For license details, please see [LICENSE.md](https://raw.githubusercontent.com/XiaoMi/xiaomi-miloco/main/LICENSE.md).
+For license details, please see [LICENSE.md](../LICENSE.md).
 
 **Important Notice**: This project is limited to non-commercial use only. Without written authorization from Xiaomi Corporation, this project may not be used for developing applications, web services, or other forms of software.
