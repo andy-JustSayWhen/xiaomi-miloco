@@ -30,13 +30,19 @@ def _make_state(
 
 class _CachedCamera:
     def __init__(
-        self, *, did: str = "cam1", name: str = "cam1", room_name: str = "r2"
+        self,
+        *,
+        did: str = "cam1",
+        name: str = "cam1",
+        room_name: str = "r2",
+        online: bool = True,
+        lan_online: bool = True,
     ):
         self._payload = {
             "did": did,
             "name": name,
-            "online": True,
-            "lan_online": True,
+            "online": online,
+            "lan_online": lan_online,
             "room_name": room_name,
         }
 
@@ -246,6 +252,15 @@ class TestBuildDeviceDataAggregation:
         assert first.room_name == "r-old"
         assert second.name == "cam-new"
         assert second.room_name == "r-new"
+
+    def test_connected_source_overrides_stale_offline_metadata(self):
+        proxy = _Proxy(_CachedCamera(online=True, lan_online=False))
+        adapter = CameraDeviceAdapter(miot_proxy=proxy)  # type: ignore[arg-type]
+        adapter._devices["cam1"] = _make_state()
+
+        source = adapter.get_connected_devices()["cam1"]
+
+        assert source.online is True
 
     def test_current_source_falls_back_to_did_without_cache(self):
         adapter = CameraDeviceAdapter(miot_proxy=object())  # type: ignore[arg-type]

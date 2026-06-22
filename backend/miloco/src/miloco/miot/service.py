@@ -944,9 +944,12 @@ class MiotService:
         cameras = {did: info for did, info in cameras.items() if did in devices}
         out: list[dict] = []
         for did, info in cameras.items():
-            online = bool(getattr(info, "online", False)) and bool(
+            cloud_online = bool(getattr(info, "online", False)) and bool(
                 getattr(info, "lan_online", False)
             )
+            # A live local stream is fresher evidence than MiOT's cached
+            # online/lan_online metadata, which can lag after a reconnect.
+            online = cloud_online or did in connected
             out.append(
                 {
                     "did": did,
@@ -981,12 +984,14 @@ class MiotService:
             # 离线设备禁止「开启」投喂:它被感知接入层 online_only 过滤、永远连不上,
             # 开了也不出画面、徒占上限名额。只拦「开启」——已启用的设备掉线后仍保留
             # inUse=true(允许态不被强制改),且可正常被「关闭」(disable 不走这条校验)。
-            # 在线口径 = online && lan_online,与 list_cameras_with_state 的 is_online 一致。
+            connected = self._connected_camera_dids()
+            # 在线口径与 list_cameras_with_state 的 is_online 一致：MiOT 在线或本地流已连上。
             def _online(did: str) -> bool:
                 info = cameras[did]
-                return bool(getattr(info, "online", False)) and bool(
+                cloud_online = bool(getattr(info, "online", False)) and bool(
                     getattr(info, "lan_online", False)
                 )
+                return cloud_online or did in connected
 
             offline_enable = [d for d in enable_dids if not _online(d)]
             if offline_enable:

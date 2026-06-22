@@ -361,7 +361,9 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
             device_type="camera",
             room_id=camera.room_name,
             room_name=camera.room_name,
-            online=camera.online and camera.lan_online,
+            # This method is only used for devices with an active local stream.
+            # Prefer that runtime fact over stale MiOT online/lan_online cache.
+            online=True,
         )
 
     def _build_device_data(

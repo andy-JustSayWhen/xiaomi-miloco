@@ -288,7 +288,7 @@ async def test_list_cameras_with_state_flags():
     assert by_did["c1"]["is_online"] is True
     assert by_did["c1"]["connected"] is False
     assert by_did["c2"]["in_use"] is True
-    assert by_did["c2"]["is_online"] is False  # lan_online=False
+    assert by_did["c2"]["is_online"] is True  # connected overrides stale lan_online=False
     assert by_did["c2"]["connected"] is True
 
 
@@ -306,6 +306,24 @@ async def test_toggle_camera_writes_disabled():
 
     res = await svc.toggle_camera([{"did": "c1", "in_use": True}])
     assert isinstance(res, list)
+    assert any(c["did"] == "c1" and c["in_use"] is True for c in res)
+
+
+@pytest.mark.asyncio
+async def test_toggle_camera_allows_connected_camera_with_stale_lan_offline():
+    kv = _FakeKV({
+        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+        ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
+    })
+    svc = _make_service(
+        devices={"c1": _camera("c1")},
+        cameras={"c1": _camera("c1", lan_online=False)},
+        kv=kv,
+    )
+    svc._connected_camera_dids = lambda: {"c1"}  # type: ignore[assignment]
+
+    res = await svc.toggle_camera([{"did": "c1", "in_use": True}])
+
     assert any(c["did"] == "c1" and c["in_use"] is True for c in res)
 
 
