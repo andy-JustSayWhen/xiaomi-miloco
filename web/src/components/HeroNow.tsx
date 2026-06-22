@@ -182,12 +182,13 @@ function CameraSection({
 }: CameraSectionProps) {
   const { t } = useTranslation();
   const total = scopeCameras.length;
-  const activeCount = scopeCameras.filter((c) => c.inUse).length;
-  const allOn = total > 0 && activeCount === total;
-  const allOff = activeCount === 0;
+  const enabledCount = scopeCameras.filter((c) => c.inUse).length;
+  const streamingCount = streamingCams.length;
+  const allOn = total > 0 && enabledCount === total;
+  const allOff = enabledCount === 0;
   // 满额判断按 inUse 计数(与后端 toggle_camera 上限校验同口径):已启用的相机即便
   // 掉线仍保留 inUse、占名额(允许态不被强制改),要腾名额得显式关掉它。
-  const atCapacity = activeCount >= maxStreamCams;
+  const atCapacity = enabledCount >= maxStreamCams;
   // 「全开」只能开「在线且未投喂」的——离线相机后端 toggle_camera 会整批拒绝
   // (offline_enable 校验),若把离线 did 也塞进批量 enable,会连带在线的一起失败。
   // 与下区单台开关「离线不可开」同口径。
@@ -230,12 +231,12 @@ function CameraSection({
         {total > 0 && (
           <div className="text-caption flex items-center gap-2 text-text-tertiary">
             <span className="num">
-              {t("hero.perceivingCount", { n: activeCount })}
+              {t("hero.perceivingCount", { n: streamingCount })}
             </span>
             <button
               type="button"
               onClick={() => runBulk(enableableDids, true)}
-              // 满额(activeCount≥上限)时置灰,跟下区单台启用开关口径一致——否则
+              // 满额(enabledCount≥上限)时置灰,跟下区单台启用开关口径一致——否则
               // >上限 的家庭点"全开"必被后端 toggle_camera 的上限校验整批拒绝。
               // 无「在线且未投喂」的相机时也置灰(全离线 / 已全开),避免空批 / 整批被拒。
               disabled={

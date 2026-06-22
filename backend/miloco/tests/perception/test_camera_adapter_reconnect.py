@@ -38,7 +38,8 @@ class TestConnectDeviceManagerMissing:
         proxy.start_camera_decode_audio_stream.assert_not_awaited()
 
     def test_video_ok_device_kept(self):
-        # 至少一路订上 = manager 存在，保留 device。
+        # 至少一路订上 = manager 存在，保留 pending device；
+        # 但 connected/active_sources 必须等第一帧到达后才成立。
         proxy = MagicMock()
         proxy.start_camera_decode_video_stream = AsyncMock(return_value=0)
         proxy.start_camera_decode_audio_stream = AsyncMock(return_value=-1)
@@ -47,8 +48,71 @@ class TestConnectDeviceManagerMissing:
         asyncio.run(adapter.connect_device("cam1", source=_source()))
 
         assert "cam1" in adapter._devices
+        assert "cam1" not in adapter.get_connected_devices()
         assert adapter._devices["cam1"].decoded_audio_reg_id == -1
         proxy.start_camera_decode_audio_stream.assert_not_awaited()
+
+    def test_no_first_frame_device_dropped_after_timeout(self, monkeypatch):
+        proxy = MagicMock()
+        proxy.start_camera_decode_video_stream = AsyncMock(return_value=7)
+        proxy.start_camera_decode_audio_stream = AsyncMock(return_value=-1)
+        proxy.stop_camera_decode_video_stream = AsyncMock()
+        adapter = CameraDeviceAdapter(miot_proxy=proxy)
+        clock = [100_000]
+        monkeypatch.setattr(
+            "miloco.perception.collect.camera_adapter._monotonic_ms",
+            lambda: clock[0],
+        )
+
+        asyncio.run(adapter.connect_device("cam1", source=_source()))
+        assert "cam1" in adapter._devices
+
+        clock[0] = 112_000
+        asyncio.run(adapter._drop_unhealthy_devices())
+
+        assert "cam1" not in adapter._devices
+        assert adapter._last_connect_fail_ms["cam1"] == 112_000
+        proxy.stop_camera_decode_video_stream.assert_awaited_once_with("cam1", 0, 7)
+
+    def test_no_first_frame_device_kept_before_timeout(self, monkeypatch):
+        proxy = MagicMock()
+        proxy.start_camera_decode_video_stream = AsyncMock(return_value=7)
+        proxy.start_camera_decode_audio_stream = AsyncMock(return_value=-1)
+        proxy.stop_camera_decode_video_stream = AsyncMock()
+        adapter = CameraDeviceAdapter(miot_proxy=proxy)
+        clock = [100_000]
+        monkeypatch.setattr(
+            "miloco.perception.collect.camera_adapter._monotonic_ms",
+            lambda: clock[0],
+        )
+
+        asyncio.run(adapter.connect_device("cam1", source=_source()))
+        clock[0] = 111_999
+        asyncio.run(adapter._drop_unhealthy_devices())
+
+        assert "cam1" in adapter._devices
+        proxy.stop_camera_decode_video_stream.assert_not_awaited()
+
+    def test_stale_video_device_dropped(self, monkeypatch):
+        proxy = MagicMock()
+        proxy.stop_camera_decode_video_stream = AsyncMock()
+        adapter = CameraDeviceAdapter(miot_proxy=proxy)
+        state = _CameraDeviceState(did="cam1")
+        state.decoded_video_reg_id = 9
+        state.connected_at_ms = 50_000
+        state.last_video_frame_ms = 100_000
+        state.video_frame_count = 3
+        adapter._devices["cam1"] = state
+        monkeypatch.setattr(
+            "miloco.perception.collect.camera_adapter._monotonic_ms",
+            lambda: 130_000,
+        )
+
+        asyncio.run(adapter._drop_unhealthy_devices())
+
+        assert "cam1" not in adapter._devices
+        assert adapter._last_connect_fail_ms["cam1"] == 130_000
+        proxy.stop_camera_decode_video_stream.assert_awaited_once_with("cam1", 0, 9)
 
 
 class TestSyncDevicesOnDemandRefresh:

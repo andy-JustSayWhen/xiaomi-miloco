@@ -15,6 +15,7 @@ import pytest
 from miloco.perception.collect.camera_adapter import (
     CameraDeviceAdapter,
     _CameraDeviceState,
+    _monotonic_ms,
 )
 from miloco.perception.collect.stream_buffer import StreamFragment
 from miloco.perception.schema import DecodedAudioFrame, DecodedVideoFrame
@@ -26,6 +27,11 @@ def _make_state(
     state = _CameraDeviceState(did=did)
     state.epoch_delta = epoch_delta
     return state
+
+
+def _mark_live(state: _CameraDeviceState) -> None:
+    state.last_video_frame_ms = _monotonic_ms()
+    state.video_frame_count = 1
 
 
 class _CachedCamera:
@@ -129,6 +135,8 @@ class TestCallbackIntegration:
 
         ready = state.sync_buffer.peek_latest(duration_ms=10_000)
         assert ready is not None
+        assert state.video_frame_count == 1
+        assert "cam1" in adapter.get_connected_devices()
         frag = ready["decoded_video"][0]
         assert isinstance(frag, StreamFragment)
         decoded = frag.data
@@ -187,6 +195,7 @@ class TestCallbackIntegration:
         asyncio.run(adapter.connect_device("cam1", source=object()))  # type: ignore[arg-type]
 
         state = adapter._devices["cam1"]
+        _mark_live(state)
         source = adapter.get_connected_devices()["cam1"]
         assert state.did == "cam1"
         assert not hasattr(state, "source")
@@ -243,6 +252,7 @@ class TestBuildDeviceDataAggregation:
         proxy = _Proxy(_CachedCamera(name="cam-old", room_name="r-old"))
         adapter = CameraDeviceAdapter(miot_proxy=proxy)  # type: ignore[arg-type]
         adapter._devices["cam1"] = _make_state()
+        _mark_live(adapter._devices["cam1"])
 
         first = adapter.get_connected_devices()["cam1"]
         proxy._camera = _CachedCamera(name="cam-new", room_name="r-new")
@@ -257,6 +267,7 @@ class TestBuildDeviceDataAggregation:
         proxy = _Proxy(_CachedCamera(online=True, lan_online=False))
         adapter = CameraDeviceAdapter(miot_proxy=proxy)  # type: ignore[arg-type]
         adapter._devices["cam1"] = _make_state()
+        _mark_live(adapter._devices["cam1"])
 
         source = adapter.get_connected_devices()["cam1"]
 
@@ -265,6 +276,7 @@ class TestBuildDeviceDataAggregation:
     def test_current_source_falls_back_to_did_without_cache(self):
         adapter = CameraDeviceAdapter(miot_proxy=object())  # type: ignore[arg-type]
         adapter._devices["cam1"] = _make_state()
+        _mark_live(adapter._devices["cam1"])
 
         source = adapter.get_connected_devices()["cam1"]
 

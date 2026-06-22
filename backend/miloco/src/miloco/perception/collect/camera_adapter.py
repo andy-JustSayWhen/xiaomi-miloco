@@ -57,6 +57,8 @@ _CAMERA_TRACKS = ["decoded_video", "decoded_audio"]
 # 不节流会变成每秒一次重 SDK 调用 + 建连尝试。10s 足够让相机就绪后及时恢复。
 _ONDEMAND_REFRESH_MIN_INTERVAL_MS = 10_000
 _CONNECT_RETRY_INTERVAL_MS = 30_000
+_FIRST_VIDEO_FRAME_TIMEOUT_MS = 12_000
+_VIDEO_FRAME_STALE_MS = 30_000
 _ENABLE_CAMERA_AUDIO_STREAM = False
 
 # TODO: 多通道支持
@@ -78,6 +80,9 @@ class _CameraDeviceState:
     # Clock calibration: epoch_delta = unix_ms - monotonic_ms (locked on first frame)
     # Used to convert monotonic wall_ms to unix timestamps for display.
     epoch_delta: int | None = None
+    connected_at_ms: int = 0
+    last_video_frame_ms: int = 0
+    video_frame_count: int = 0
 
 
 class CameraDeviceAdapter(BaseDeviceAdapter):
@@ -201,6 +206,7 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
         相机（要救），但排除云端就离线的相机（救不活，避免它让判据永真致 refresh
         空转）。scope 内相机要么已连、要么云端离线时不触发，零额外开销。
         """
+        await self._drop_unhealthy_devices()
         if all_devices is None and self._miot_proxy.is_authenticated:
             try:
                 expected = await self.discover_devices(
@@ -216,6 +222,45 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
             except Exception as e:  # noqa: BLE001
                 logger.warning("On-demand camera manager refresh failed: %s", e)
         await super().sync_devices(all_devices)
+
+    async def _drop_unhealthy_devices(self) -> None:
+        """Drop subscriptions that registered but never produced live video.
+
+        ``start_camera_decode_video_stream`` returning a reg_id only proves the
+        SDK accepted a callback. Some cameras can still fail to deliver frames
+        (stale LAN/PPCS manager, relay not established, camera sleeping). Such
+        devices must not stay in ``connected``/``active_sources`` forever.
+        """
+        now_ms = _monotonic_ms()
+        for did, state in list(self._devices.items()):
+            if state.decoded_video_reg_id < 0:
+                continue
+            first_frame_timeout = (
+                state.video_frame_count == 0
+                and now_ms - state.connected_at_ms >= _FIRST_VIDEO_FRAME_TIMEOUT_MS
+            )
+            stale_video = (
+                state.video_frame_count > 0
+                and now_ms - state.last_video_frame_ms >= _VIDEO_FRAME_STALE_MS
+            )
+            if not first_frame_timeout and not stale_video:
+                continue
+
+            self._last_connect_fail_ms[did] = now_ms
+            if first_frame_timeout:
+                logger.warning(
+                    "Camera %s subscribed but produced no decoded video frame "
+                    "within %.0fs; dropping false connected state",
+                    did,
+                    _FIRST_VIDEO_FRAME_TIMEOUT_MS / 1000,
+                )
+            else:
+                logger.warning(
+                    "Camera %s decoded video stalled for %.0fs; reconnecting",
+                    did,
+                    (now_ms - state.last_video_frame_ms) / 1000,
+                )
+            await self.disconnect_device(did)
 
     async def connect_device(
         self, did: str, source: PerceptionDevice | None = None
@@ -243,6 +288,7 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                 window_settle_ms=collect_cfg.settle_ms,
                 buffer_full_action=collect_cfg.full_action,
             ),
+            connected_at_ms=_monotonic_ms(),
         )
         self._devices[did] = state
 
@@ -447,7 +493,20 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
         )
 
     def get_connected_devices(self) -> dict[str, PerceptionDevice]:
-        return {did: self._current_source(did) for did in self._devices}
+        now_ms = _monotonic_ms()
+        return {
+            did: self._current_source(did)
+            for did, state in self._devices.items()
+            if self._has_live_video(state, now_ms)
+        }
+
+    @staticmethod
+    def _has_live_video(state: _CameraDeviceState, now_ms: int | None = None) -> bool:
+        if state.video_frame_count <= 0 or state.last_video_frame_ms <= 0:
+            return False
+        if now_ms is None:
+            now_ms = _monotonic_ms()
+        return now_ms - state.last_video_frame_ms < _VIDEO_FRAME_STALE_MS
 
     def clear_buffers(self) -> None:
         """Clear all camera sync buffers without disconnecting devices."""
@@ -537,6 +596,8 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                     decoded_unix_ms=decoded_unix_ms,
                     decode_latency_ms=decode_latency_ms,
                 )
+                state.last_video_frame_ms = wall_ms
+                state.video_frame_count += 1
                 state.sync_buffer.put(
                     "decoded_video", decoded, stream_ts=ts, wall_ms=wall_ms
                 )
