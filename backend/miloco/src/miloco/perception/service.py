@@ -105,6 +105,15 @@ class PerceptionService:
 
     # ---- Active perception ----
 
+    async def _refresh_camera_source_metadata(self) -> None:
+        """Refresh MiOT camera online metadata before on-demand reconnect."""
+        camera_adapter = self._collector.get_adapter("camera")
+        miot_proxy = getattr(camera_adapter, "_miot_proxy", None)
+        refresh_online = getattr(miot_proxy, "refresh_camera_online_status", None)
+        if refresh_online is None:
+            return
+        await refresh_online()
+
     async def _wait_for_requested_sources(self, sources: list[str]) -> list[str]:
         """Wait briefly for requested sources to reconnect and buffer data."""
         loop = asyncio.get_running_loop()
@@ -142,6 +151,7 @@ class PerceptionService:
 
             if last_missing:
                 try:
+                    await self._refresh_camera_source_metadata()
                     await self._collector.sync_all_devices()
                 except Exception as e:  # noqa: BLE001
                     logger.warning("On-demand source sync failed: %s", e)
