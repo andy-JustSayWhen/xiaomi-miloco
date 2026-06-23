@@ -99,3 +99,6 @@ xaf/
 
 # Claude CLI
 .claude/
+
+# Local deployment test notes
+docs/deployment-test-log.md
