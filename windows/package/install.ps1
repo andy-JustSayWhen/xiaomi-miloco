@@ -101,7 +101,7 @@ function Install-DesktopLauncher {
     return
   }
 
-  $launcherName = [string][char]0x4E00 + [string][char]0x952E + [string][char]0x542F + [string][char]0x52A8 + " Miloco.bat"
+  $launcherName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
   $launcher = Join-Path $desktop $launcherName
   $bat = @'
 @echo off
@@ -115,73 +115,69 @@ set "OPENCLAW_PORT=__OPENCLAW_PORT__"
 :main_menu
 cls
 echo ========================================
-echo          Miloco / OpenClaw Menu
+echo        Miloco / OpenClaw 控制台
 echo ========================================
 echo.
-echo   1. Start OpenClaw panel
-echo   2. Start Miloco panel
-echo   3. Stop services
-echo   0. Exit
+echo   1. 重启 OpenClaw 面板
+echo   2. 重启 Miloco 面板
+echo   3. 重启 Miloco + OpenClaw
+echo   4. 关闭 OpenClaw + Miloco
+echo   5. 关闭 WSL
+echo   0. 退出
 echo.
-choice /c 1230 /n /m "Select [1/2/3/0]: "
+choice /c 123450 /n /m "请选择 [1/2/3/4/5/0]: "
 
-if errorlevel 4 goto exit
-if errorlevel 3 goto stop_menu
-if errorlevel 2 goto start_miloco
-if errorlevel 1 goto start_openclaw
+if errorlevel 6 goto exit
+if errorlevel 5 goto stop_wsl
+if errorlevel 4 goto stop_services
+if errorlevel 3 goto restart_all
+if errorlevel 2 goto restart_miloco
+if errorlevel 1 goto restart_openclaw
 
-:start_openclaw
+:restart_openclaw
 echo.
-echo Starting OpenClaw panel...
-wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway start >/tmp/openclaw-desktop-start.log 2>&1 || systemctl --user start openclaw-gateway.service >/tmp/openclaw-desktop-start-systemd.log 2>&1 || true"
+echo 正在重启 OpenClaw 面板...
+wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true"
 if errorlevel 1 goto wsl_failed
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$port=[int]$env:OPENCLAW_PORT; $deadline=(Get-Date).AddSeconds(60); while((Get-Date) -lt $deadline){ $tcp=New-Object Net.Sockets.TcpClient; try { $iar=$tcp.BeginConnect('127.0.0.1',$port,$null,$null); if($iar.AsyncWaitHandle.WaitOne(1000)){ $tcp.EndConnect($iar); break } } catch {} finally { $tcp.Close() }; Start-Sleep -Seconds 1 }; Start-Process ('http://127.0.0.1:'+$port+'/')"
 goto pause_main
 
-:start_miloco
+:restart_miloco
 echo.
-echo Starting Miloco panel...
-wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; miloco-cli service start >/tmp/miloco-desktop-start.log 2>&1 || true"
+echo 正在重启 Miloco 面板...
+wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || true"
 if errorlevel 1 goto wsl_failed
 powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$port=[int]$env:MILOCO_PORT; $deadline=(Get-Date).AddSeconds(60); while((Get-Date) -lt $deadline){ $tcp=New-Object Net.Sockets.TcpClient; try { $iar=$tcp.BeginConnect('127.0.0.1',$port,$null,$null); if($iar.AsyncWaitHandle.WaitOne(1000)){ $tcp.EndConnect($iar); break } } catch {} finally { $tcp.Close() }; Start-Sleep -Seconds 1 }; Start-Process ('http://127.0.0.1:'+$port+'/')"
 goto pause_main
 
-:stop_menu
-cls
-echo ========================================
-echo              Stop Services
-echo ========================================
+:restart_all
 echo.
-echo   1. Stop Miloco services
-echo   2. Stop Miloco services and WSL
-echo   0. Back
-echo.
-choice /c 120 /n /m "Select [1/2/0]: "
-
-if errorlevel 3 goto main_menu
-if errorlevel 2 goto stop_with_wsl
-if errorlevel 1 goto stop_services
+echo 正在重启 Miloco + OpenClaw...
+wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true"
+if errorlevel 1 goto wsl_failed
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$miloco=[int]$env:MILOCO_PORT; $openclaw=[int]$env:OPENCLAW_PORT; foreach($port in @($miloco,$openclaw)){ $deadline=(Get-Date).AddSeconds(60); while((Get-Date) -lt $deadline){ $tcp=New-Object Net.Sockets.TcpClient; try { $iar=$tcp.BeginConnect('127.0.0.1',$port,$null,$null); if($iar.AsyncWaitHandle.WaitOne(1000)){ $tcp.EndConnect($iar); break } } catch {} finally { $tcp.Close() }; Start-Sleep -Seconds 1 } }; Start-Process ('http://127.0.0.1:'+$miloco+'/'); Start-Process ('http://127.0.0.1:'+$openclaw+'/')"
+goto pause_main
 
 :stop_services
 call :stop_miloco_stack
 goto pause_main
 
-:stop_with_wsl
+:stop_wsl
 call :stop_miloco_stack
-echo Terminating WSL: %DISTRO%
+echo 正在关闭 WSL: %DISTRO%
 wsl.exe --terminate "%DISTRO%"
 goto pause_main
 
 :stop_miloco_stack
 echo.
-echo Stopping Miloco / OpenClaw services...
+echo 正在关闭 OpenClaw + Miloco...
 schtasks /End /TN MilocoWSLKeeper >nul 2>nul
 wsl.exe -d "%DISTRO%" -- bash -lc "set +e; export PATH=""$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; systemctl --user disable --now openclaw-gateway.service >/tmp/openclaw-desktop-stop.log 2>&1 || true; rm -f ""$HOME/.config/systemd/user/default.target.wants/openclaw-gateway.service"" 2>/dev/null || true; systemctl --user daemon-reload >/dev/null 2>&1 || true; miloco-cli service stop >/tmp/miloco-desktop-stop.log 2>&1 || true; supervisorctl -c ""$HOME/.openclaw/miloco/supervisord.conf"" shutdown >/tmp/miloco-desktop-supervisor-stop.log 2>&1 || true; pkill -TERM -f ""[w]indows-keeper.sh"" 2>/dev/null || true; pkill -TERM -f ""[w]sl-miloco-keeper.sh"" 2>/dev/null || true; pkill -TERM -f ""/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main"" 2>/dev/null || true; pkill -TERM -f ""[o]penclaw/dist/index.js gateway --port"" 2>/dev/null || true; sleep 2; pkill -KILL -f ""/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main"" 2>/dev/null || true; pkill -KILL -f ""[o]penclaw/dist/index.js gateway --port"" 2>/dev/null || true"
-echo Stop command sent.
+echo 关闭命令已发送。
 exit /b 0
 
 :wsl_failed
-echo Failed to invoke WSL. Please check WSL distro: %DISTRO%
+echo 调用 WSL 失败，请检查 WSL 发行版: %DISTRO%
 goto pause_main
 
 :pause_main
@@ -194,7 +190,7 @@ endlocal
 exit /b 0
 '@
   $bat = $bat.Replace("__DISTRO__", $Distro).Replace("__MILOCO_PORT__", [string]$MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
-  Set-Content -Encoding utf8 -LiteralPath $launcher -Value $bat
+  [System.IO.File]::WriteAllText($launcher, $bat, [System.Text.UTF8Encoding]::new($false))
   Write-Host "Desktop launcher created: $launcher"
 }
 
