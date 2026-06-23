@@ -14,7 +14,12 @@
 
 ### 用户自己动
 
-打开 [GitHub Release](https://github.com/andy-JustSayWhen/easy-miloco/releases)，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，双击文件夹根目录内的 `install.ps1`。
+打开 [GitHub Release](https://github.com/andy-JustSayWhen/easy-miloco/releases)，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，在解压出的文件夹内右键选择"在终端中打开"（或打开 PowerShell 并 `cd` 到该文件夹），然后执行：
+
+```powershell
+Set-ExecutionPolicy -Scope Process Bypass -Force
+.\install.ps1
+```
 
 #### 下载加速
 
