@@ -102,3 +102,6 @@ xaf/
 
 # Local deployment test notes
 docs/deployment-test-log.md
+
+# Agent customizations
+.agents/
