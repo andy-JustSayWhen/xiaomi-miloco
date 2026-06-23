@@ -124,8 +124,14 @@ function Copy-RequiredArtifacts {
 
   Copy-Item -LiteralPath (Join-Path $RepoRoot "docs\scripts\win-miloco-workflow.ps1") -Destination (Join-Path $PackageRoot "scripts\windows\win-miloco-workflow.ps1") -Force
   Copy-Item -LiteralPath (Join-Path $RepoRoot "docs\scripts\windows-preflight.ps1") -Destination (Join-Path $PackageRoot "scripts\windows\windows-preflight.ps1") -Force
-  Copy-Item -LiteralPath (Join-Path $RepoRoot "docs\scripts\wsl-miloco-validate.sh") -Destination (Join-Path $PackageRoot "scripts\windows\wsl-miloco-validate.sh") -Force
-  Copy-Item -LiteralPath (Join-Path $RepoRoot "docs\scripts\wsl-post-auth-finish.sh") -Destination (Join-Path $PackageRoot "scripts\windows\wsl-post-auth-finish.sh") -Force
+  
+  $validateSrc = Join-Path $RepoRoot "docs\scripts\wsl-miloco-validate.sh"
+  $validateDst = Join-Path $PackageRoot "scripts\windows\wsl-miloco-validate.sh"
+  [System.IO.File]::WriteAllText($validateDst, ([System.IO.File]::ReadAllText($validateSrc).Replace("`r`n", "`n")), [System.Text.UTF8Encoding]::new($false))
+
+  $finishSrc = Join-Path $RepoRoot "docs\scripts\wsl-post-auth-finish.sh"
+  $finishDst = Join-Path $PackageRoot "scripts\windows\wsl-post-auth-finish.sh"
+  [System.IO.File]::WriteAllText($finishDst, ([System.IO.File]::ReadAllText($finishSrc).Replace("`r`n", "`n")), [System.Text.UTF8Encoding]::new($false))
 
   Copy-Item -Recurse -LiteralPath (Join-Path $RepoRoot "docs") -Destination (Join-Path $PackageRoot "docs") -Force
 

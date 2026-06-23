@@ -1,4 +1,4 @@
-﻿param(
+param(
   [ValidateSet("Prepare", "Report", "BindUrl", "Finish", "Validate")]
   [string]$Action = "Prepare",
   [string]$Distro = "Ubuntu-24.04",
@@ -163,6 +163,7 @@ function Ensure-Wsl {
 function Invoke-WslBash {
   param([string]$Script)
 
+  $Script = $Script -replace "`r`n", "`n"
   $id = [guid]::NewGuid().ToString('N').Substring(0, 8)
   $wslTmp = "/tmp/miloco-$id.sh"
 
