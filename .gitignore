@@ -96,3 +96,6 @@ openspec
 _workspace
 _local/
 xaf/
+
+# Claude CLI
+.claude/
