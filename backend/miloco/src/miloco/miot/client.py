@@ -548,8 +548,14 @@ class MiotProxy:
         camera_instance = await self._get_camera_instance(camera_info)
         if camera_instance is not None:
             pin_code = self._get_camera_pin_code(camera_info.did)
+            video_quality = self._get_camera_video_quality(camera_info.did)
+            logger.info(
+                "Starting camera %s with video quality %s",
+                camera_info.did,
+                video_quality.name,
+            )
             await camera_instance.start_async(
-                MIoTCameraVideoQuality.HIGH,
+                video_quality,
                 enable_reconnect=True,
                 enable_audio=True,
                 pin_code=pin_code,
@@ -591,6 +597,68 @@ class MiotProxy:
 
         logger.warning("Ignoring invalid camera PIN override for %s", did)
         return None
+
+    def _get_camera_video_quality_overrides(
+        self,
+    ) -> dict[str, MIoTCameraVideoQuality]:
+        """Load optional per-camera video quality overrides from the workspace."""
+        path = (
+            get_settings().directories.workspace_dir
+            / "camera_video_quality_overrides.json"
+        )
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}
+        except Exception as e:  # noqa: BLE001
+            logger.warning(
+                "Failed to load camera video quality overrides from %s: %s", path, e
+            )
+            return {}
+
+        if not isinstance(raw, dict):
+            logger.warning(
+                "Ignoring non-object camera video quality overrides from %s", path
+            )
+            return {}
+
+        overrides: dict[str, MIoTCameraVideoQuality] = {}
+        for did, value in raw.items():
+            did_str = str(did).strip()
+            if not did_str:
+                continue
+
+            quality: MIoTCameraVideoQuality | None = None
+            if isinstance(value, str):
+                normalized = value.strip().upper()
+                if normalized == "LOW":
+                    quality = MIoTCameraVideoQuality.LOW
+                elif normalized == "HIGH":
+                    quality = MIoTCameraVideoQuality.HIGH
+                elif normalized.isdigit():
+                    value = int(normalized)
+            if quality is None and isinstance(value, int):
+                if value in (
+                    MIoTCameraVideoQuality.LOW.value,
+                    MIoTCameraVideoQuality.HIGH.value,
+                ):
+                    quality = MIoTCameraVideoQuality(value)
+
+            if quality is None:
+                logger.warning(
+                    "Ignoring invalid camera video quality override for %s: %s",
+                    did_str,
+                    value,
+                )
+                continue
+            overrides[did_str] = quality
+        return overrides
+
+    def _get_camera_video_quality(self, did: str) -> MIoTCameraVideoQuality:
+        """Resolve camera start quality, defaulting to HIGH."""
+        return self._get_camera_video_quality_overrides().get(
+            did, MIoTCameraVideoQuality.HIGH
+        )
 
     def _get_camera_lan_overrides(self) -> dict[str, str]:
         """Load optional per-camera LAN IP overrides from the Miloco workspace."""

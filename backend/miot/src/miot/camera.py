@@ -590,6 +590,7 @@ class MIoTCameraInstance:
         """Callback for status changed."""
         camera_status: MIoTCameraStatus = MIoTCameraStatus(status)
         self._camera_info.camera_status = camera_status
+        _LOGGER.info("camera status changed, did=%s, status=%s", self._did, camera_status.name)
         s_callbacks = self._callbacks.get("status", {})
         for callback in s_callbacks.values():
             asyncio.run_coroutine_threadsafe(
@@ -612,6 +613,7 @@ class MIoTCameraInstance:
         codec_id: MIoTCameraCodec = MIoTCameraCodec(frame_header.codec_id)
         channel: int = frame_header.channel
         frame_data = MIoTCameraFrameData(
+            did=self._did,
             codec_id=codec_id,
             length=frame_header.length,
             timestamp=frame_header.timestamp,

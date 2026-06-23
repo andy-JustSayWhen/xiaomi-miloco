@@ -357,3 +357,31 @@ def test_is_key_access_unit_ignores_wrapper_frame_type():
         recv_unix_ms=0,
     )
     assert _is_key_access_unit(item) is True
+
+
+def test_is_key_access_unit_falls_back_to_wrapper_i_without_annexb():
+    item = MIoTCameraFrameData(
+        codec_id=MIoTCameraCodec.VIDEO_H265,
+        length=4,
+        timestamp=0,
+        sequence=0,
+        frame_type=MIoTCameraFrameType.FRAME_I,
+        channel=0,
+        data=b"\x26\x01\x02\x03",
+        recv_unix_ms=0,
+    )
+    assert _is_key_access_unit(item) is True
+
+
+def test_is_key_access_unit_without_annexb_and_p_frame_stays_false():
+    item = MIoTCameraFrameData(
+        codec_id=MIoTCameraCodec.VIDEO_H265,
+        length=4,
+        timestamp=0,
+        sequence=0,
+        frame_type=MIoTCameraFrameType.FRAME_P,
+        channel=0,
+        data=b"\x02\x01\x02\x03",
+        recv_unix_ms=0,
+    )
+    assert _is_key_access_unit(item) is False

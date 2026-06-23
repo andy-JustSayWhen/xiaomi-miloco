@@ -297,10 +297,46 @@ async def test_list_cameras_with_state_flags():
     assert by_did["c1"]["is_online"] is True
     assert by_did["c1"]["connected"] is False
     assert by_did["c2"]["in_use"] is True
-    assert (
-        by_did["c2"]["is_online"] is True
-    )  # connected overrides stale lan_online=False
+    assert by_did["c2"]["is_online"] is True  # connected remains online
     assert by_did["c2"]["connected"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_cameras_with_state_cloud_online_ignores_stale_lan_status():
+    kv = _FakeKV({ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"])})
+    svc = _make_service(
+        devices={"c1": _camera("c1", home_id="H1")},
+        cameras={"c1": _camera("c1", home_id="H1", online=True, lan_online=False)},
+        kv=kv,
+    )
+
+    out = await svc.list_cameras_with_state()
+
+    assert out == [
+        {
+            "did": "c1",
+            "name": "cam-c1",
+            "room_name": None,
+            "is_online": True,
+            "in_use": True,
+            "connected": False,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_list_cameras_with_state_lan_online_recovers_stale_cloud_status():
+    kv = _FakeKV({ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"])})
+    svc = _make_service(
+        devices={"c1": _camera("c1", home_id="H1")},
+        cameras={"c1": _camera("c1", home_id="H1", online=False, lan_online=True)},
+        kv=kv,
+    )
+
+    out = await svc.list_cameras_with_state()
+
+    assert out[0]["is_online"] is True
+    assert out[0]["connected"] is False
 
 
 @pytest.mark.asyncio
@@ -351,6 +387,25 @@ async def test_toggle_camera_allows_cloud_online_camera_with_stale_lan_offline()
     svc = _make_service(
         devices={"c1": _camera("c1")},
         cameras={"c1": _camera("c1", lan_online=False)},
+        kv=kv,
+    )
+
+    res = await svc.toggle_camera([{"did": "c1", "in_use": True}])
+
+    assert any(c["did"] == "c1" and c["in_use"] is True for c in res)
+
+
+@pytest.mark.asyncio
+async def test_toggle_camera_allows_lan_online_camera_with_stale_cloud_offline():
+    kv = _FakeKV(
+        {
+            ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+            ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
+        }
+    )
+    svc = _make_service(
+        devices={"c1": _camera("c1")},
+        cameras={"c1": _camera("c1", online=False, lan_online=True)},
         kv=kv,
     )
 
@@ -811,6 +866,39 @@ def test_get_camera_lan_overrides_ignores_invalid_values(_scope_proxy_env, caplo
     assert "Ignoring invalid camera LAN override for c1" in caplog.text
 
 
+def test_get_camera_video_quality_overrides_accepts_names_and_ints(_scope_proxy_env):
+    proxy, _kv, _miot_client = _scope_proxy_env
+    path = (
+        get_settings().directories.workspace_dir
+        / "camera_video_quality_overrides.json"
+    )
+    path.write_text(json.dumps({"c1": "low", "c2": 3}), encoding="utf-8")
+
+    overrides = proxy._get_camera_video_quality_overrides()
+
+    assert overrides == {
+        "c1": MIoTCameraVideoQuality.LOW,
+        "c2": MIoTCameraVideoQuality.HIGH,
+    }
+
+
+def test_get_camera_video_quality_overrides_ignores_invalid_values(
+    _scope_proxy_env, caplog
+):
+    proxy, _kv, _miot_client = _scope_proxy_env
+    path = (
+        get_settings().directories.workspace_dir
+        / "camera_video_quality_overrides.json"
+    )
+    path.write_text(json.dumps({"c1": "ultra", "c2": 1}), encoding="utf-8")
+
+    with caplog.at_level("WARNING"):
+        overrides = proxy._get_camera_video_quality_overrides()
+
+    assert overrides == {"c2": MIoTCameraVideoQuality.LOW}
+    assert "Ignoring invalid camera video quality override for c1" in caplog.text
+
+
 @pytest.mark.asyncio
 async def test_create_camera_img_manager_passes_pin_override(_scope_proxy_env):
     proxy, _kv, miot_client = _scope_proxy_env
@@ -833,6 +921,36 @@ async def test_create_camera_img_manager_passes_pin_override(_scope_proxy_env):
         enable_reconnect=True,
         enable_audio=True,
         pin_code="1518",
+    )
+
+
+@pytest.mark.asyncio
+async def test_create_camera_img_manager_passes_video_quality_override(
+    _scope_proxy_env,
+):
+    proxy, _kv, miot_client = _scope_proxy_env
+    path = (
+        get_settings().directories.workspace_dir
+        / "camera_video_quality_overrides.json"
+    )
+    path.write_text(json.dumps({"c1": "LOW"}), encoding="utf-8")
+
+    mock_instance = MagicMock()
+    mock_instance.start_async = AsyncMock()
+    mock_instance.register_decode_jpg_async = AsyncMock()
+    miot_client.create_camera_instance_async = AsyncMock(return_value=mock_instance)
+    miot_client._camera_client = MagicMock()
+
+    cam = _camera("c1", home_id="H1")
+    cam.channel_count = 1
+    result = await proxy._create_camera_img_manager(cam)
+
+    assert result is not None
+    mock_instance.start_async.assert_awaited_once_with(
+        MIoTCameraVideoQuality.LOW,
+        enable_reconnect=True,
+        enable_audio=True,
+        pin_code=None,
     )
 
 

@@ -24,7 +24,7 @@ from av.video.frame import VideoFrame
 from PIL import Image
 
 from .error import MIoTMediaDecoderError
-from .types import MIoTCameraCodec, MIoTCameraFrameData
+from .types import MIoTCameraCodec, MIoTCameraFrameData, MIoTCameraFrameType
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -74,7 +74,11 @@ def _is_key_access_unit(item: MIoTCameraFrameData) -> bool:
             if ((nal_byte >> 1) & 0x3F) in _H265_IRAP_NAL_TYPES:
                 return True
         i += sc_len
-    return False
+    # Some camera SDK paths deliver opaque or length-prefixed access units
+    # without Annex-B start codes. In that case the wrapper's I/P metadata is
+    # the only remaining signal. Keep byte-stream parsing as the primary
+    # signal, but fall back to FRAME_I when the scan found nothing.
+    return item.frame_type == MIoTCameraFrameType.FRAME_I
 
 
 class MIoTMediaRingBuffer:
@@ -111,7 +115,11 @@ class MIoTMediaRingBuffer:
                     # Drop non-key incoming frame
                     pass
                 _LOGGER.info(
-                    "drop non-key frame, %s, %s", item.codec_id, item.timestamp
+                    "drop non-key frame, did=%s, codec=%s, ts=%s, frame_type=%s",
+                    item.did,
+                    item.codec_id,
+                    item.timestamp,
+                    item.frame_type.name,
                 )
             else:
                 self._video_buffer.append(item)
@@ -308,9 +316,11 @@ class MIoTMediaDecoder(threading.Thread):
         if now_ts - self._last_jpeg_ts >= self._frame_interval:
             if not frames:
                 _LOGGER.info(
-                    "video frame is empty, %d, %d",
+                    "video frame is empty, did=%s, codec=%d, ts=%d, frame_type=%s",
+                    frame_data.did,
                     frame_data.codec_id,
                     frame_data.timestamp,
+                    frame_data.frame_type.name,
                 )
                 self._last_jpeg_ts = now_ts
                 return

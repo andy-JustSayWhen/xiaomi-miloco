@@ -326,6 +326,7 @@ class MIoTCameraFrameData(BaseModel):
     latency (host arrival → decode completion).
     """
 
+    did: str = Field(default="", description="Camera did")
     codec_id: MIoTCameraCodec = Field(description="Codec id")
     length: int = Field(description="Frame length")
     timestamp: int = Field(description="Frame timestamp")

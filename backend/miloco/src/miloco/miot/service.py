@@ -944,12 +944,13 @@ class MiotService:
         cameras = {did: info for did, info in cameras.items() if did in devices}
         out: list[dict] = []
         for did, info in cameras.items():
-            cloud_online = bool(getattr(info, "online", False)) and bool(
-                getattr(info, "lan_online", False)
-            )
-            # A live local stream is fresher evidence than MiOT's cached
-            # online/lan_online metadata, which can lag after a reconnect.
-            online = cloud_online or did in connected
+            cloud_online = bool(getattr(info, "online", False))
+            lan_online = bool(getattr(info, "lan_online", False))
+            # `is_online` is a reachability/account status for the UI and
+            # enable guard. Do not require LAN discovery because it can flap on
+            # multi-interface WSL hosts, but still accept a positive LAN hit as
+            # fresh evidence when Xiaomi cloud metadata is stale false.
+            online = cloud_online or lan_online or did in connected
             out.append(
                 {
                     "did": did,
@@ -990,7 +991,8 @@ class MiotService:
             def _online(did: str) -> bool:
                 info = cameras[did]
                 cloud_online = bool(getattr(info, "online", False))
-                return cloud_online or did in connected
+                lan_online = bool(getattr(info, "lan_online", False))
+                return cloud_online or lan_online or did in connected
 
             offline_enable = [d for d in enable_dids if not _online(d)]
             if offline_enable:
