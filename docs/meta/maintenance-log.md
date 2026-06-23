@@ -1,5 +1,22 @@
 # 维护日志
 
+## 2026-06-23 新增性能报告与 WebUI 规格复盘
+
+目的：
+
+- 把每次后端运行性能报告、侧边栏“性能”入口、报告 API 和日志打包行为沉淀成可维护规格。
+- 明确新“性能”tab 展示历史运行报告，旧 `#perf` 仍作为实时调试视图保留。
+
+新增：
+
+- `docs/runbooks/performance-report-webui-spec.md`
+
+同步更新：
+
+- `docs/index.md`
+- `docs/meta/source-map.md`
+- `docs/meta/maintenance-log.md`
+
 ## 2026-06-22 初始化
 
 目标：把空的 Obsidian 目录初始化为可持续维护的 Miloco 教程库，服务后续部署和测试。

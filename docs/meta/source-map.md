@@ -43,6 +43,7 @@
 - 任务和任务记录：`task`、`task_record`
 - 家庭档案：`home_profile`
 - 观测和健康：`observability`、`node_monitor`
+- 每次运行性能报告：`observability/performance_report.py` 生成 Markdown；`observability/performance_report_router.py` 暴露 `/api/performance-reports`；Web 面板入口在 `web/src/components/PerformanceReportsPage.tsx`。
 
 ## MIoT SDK
 

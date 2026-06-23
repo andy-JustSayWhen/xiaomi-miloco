@@ -25,6 +25,7 @@ Agent 必须先读：
 - 部署当前机器：读 [windows/agent-install.md](windows/agent-install.md)，按预检、安装、授权、验收顺序推进。
 - 手动排障：从 [windows/troubleshooting.md](windows/troubleshooting.md) 和 [faq/known-issues.md](faq/known-issues.md) 开始。
 - 摄像头排障：读 [windows/camera-runbook.md](windows/camera-runbook.md) 和 [cameras.md](cameras.md)。
+- 性能报告与面板入口：读 [runbooks/performance-report-webui-spec.md](runbooks/performance-report-webui-spec.md)。
 - 制作更新包：维护者专用，读 [runbooks/make-release-package.md](runbooks/make-release-package.md)。
 
 ## 文档地图
