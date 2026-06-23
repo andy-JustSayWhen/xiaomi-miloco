@@ -127,7 +127,7 @@ function Ensure-Wsl {
        exit 1
     }
     Write-Host "[WARN] WSL 安装已完成，请重启电脑后再次运行 install.bat 以继续。" -ForegroundColor Yellow
-    exit 0
+    exit 1
   }
 
   # 2. wsl.exe 存在但内部损坏 — 用 try/catch 捕获
@@ -148,7 +148,7 @@ function Ensure-Wsl {
       exit 1
     }
     Write-Host "[WARN] 修复完成，可能需要重启电脑。请重启后再次运行 install.bat。" -ForegroundColor Yellow
-    exit 0
+    exit 1
   }
 
   # 3. WSL 正常，检查发行版
@@ -163,7 +163,7 @@ function Ensure-Wsl {
     exit 1
   }
   Write-Host "[WARN] 发行版安装完成！如果 Windows 提示需要重启或创建 Ubuntu 默认用户，请先完成操作，然后再重新运行 install.bat。" -ForegroundColor Yellow
-  exit 0
+  exit 1
 }
 
 function Invoke-WslBash {
