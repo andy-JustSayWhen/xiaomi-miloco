@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Xiaomi Corporation
 # This software may be used and distributed according to the terms of the Xiaomi Miloco License Agreement.
 
-"""Integration: MiotProxy.deinit() → init() rebuilds the bind listener.
+"""Integration: MiotProxy.deinit() -> init() rebuilds the bind listener.
 
 Regression guard for the bug where service.unbind_miot (deinit + init)
 silently disabled bind/unbind push handling: _bind_listener was created
@@ -26,7 +26,7 @@ from miot.types import MIoTDeviceBindEvent
 
 @pytest.fixture(autouse=True)
 def _isolated_home(tmp_path, monkeypatch):
-    """$MILOCO_HOME → tmp so get_settings() doesn't touch user data."""
+    """$MILOCO_HOME -> tmp so get_settings() doesn't touch user data."""
     monkeypatch.setenv("MILOCO_HOME", str(tmp_path))
     reset_settings()
     yield
@@ -39,16 +39,17 @@ def _kv_stub():
     from miloco.database.kv_repo import ScopeConfigKeys
 
     store: dict[str, str | None] = {
-        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"])
+        ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
     }
     return SimpleNamespace(
+        store=store,
         get=lambda key, default=None: store.get(key, default),
         set=lambda key, value: store.__setitem__(key, value) or True,
         delete=lambda key: store.pop(key, None),
     )
 
 
-def _device(did: str, name: str = "新台灯"):
+def _device(did: str, name: str = "new-lamp"):
     """Stub that quacks like MIoTDeviceInfo for the listener / log path."""
     return SimpleNamespace(
         did=did,
@@ -57,9 +58,9 @@ def _device(did: str, name: str = "新台灯"):
         manufacturer="t",
         urn="urn:miot-spec-v2:device:test:0:t:1",
         home_id="H1",
-        home_name="家",
+        home_name="home",
         room_id="R1",
-        room_name="书房",
+        room_name="study",
         online=True,
         lan_online=True,
         order_time=0,
@@ -92,7 +93,7 @@ def proxy_env(monkeypatch):
     """
     # Tight debounce keeps the suite fast.
     monkeypatch.setattr(bl_module, "BIND_DEBOUNCE_SEC", 0.05)
-    # The greeting goes through DeviceWelcomeService → dispatch_event.
+    # The greeting goes through DeviceWelcomeService -> dispatch_event.
     monkeypatch.setattr(
         ws_module, "dispatch_event",
         AsyncMock(return_value=True),
@@ -142,9 +143,6 @@ async def test_init_after_deinit_rebuilds_bind_listener(proxy_env):
     assert listener_v2 is not listener_v1, "init() must build a fresh listener"
     assert listener_v2._closed is False
 
-    # Drive the full forward path: _on_user_bind_event → listener.on_event
-    # → debounce timer → _fire → refresh_devices → exist check
-    # → welcome_service.welcome → dispatch_event.
     did = "did-1"
     client.get_devices_async.return_value = {did: _device(did)}
 
@@ -154,8 +152,6 @@ async def test_init_after_deinit_rebuilds_bind_listener(proxy_env):
         )
     )
 
-    # Poll for the agent message instead of a fixed sleep — debounce is 50ms,
-    # plus task scheduling latency.
     deadline = asyncio.get_event_loop().time() + 1.0
     while asyncio.get_event_loop().time() < deadline:
         if ws_module.dispatch_event.await_count >= 1:
@@ -165,11 +161,42 @@ async def test_init_after_deinit_rebuilds_bind_listener(proxy_env):
     assert ws_module.dispatch_event.await_count >= 1, (
         "rebuilt listener should process the bind event end-to-end"
     )
-    # dispatch_event("bind", [msg_text], builder) — items list is arg[1].
     sent = ws_module.dispatch_event.await_args.args[1][0]
-    assert did in sent and "新台灯" in sent
+    assert did in sent and "new-lamp" in sent
 
     await p.deinit()
+
+
+@pytest.mark.asyncio
+async def test_deinit_keeps_persisted_auth_by_default(proxy_env):
+    """Short-lived proxy teardown must not unbind the user's Xiaomi account."""
+    from miloco.database.kv_repo import AuthConfigKeys, DeviceInfoKeys
+
+    p, _client = proxy_env
+
+    await p.init()
+    p._kv_repo.set(AuthConfigKeys.MIOT_TOKEN_INFO_KEY, "token-json")
+    p._kv_repo.set(DeviceInfoKeys.USER_INFO_KEY, "user-json")
+    await p.deinit()
+
+    assert p._kv_repo.store[AuthConfigKeys.MIOT_TOKEN_INFO_KEY] == "token-json"
+    assert p._kv_repo.store[DeviceInfoKeys.USER_INFO_KEY] == "user-json"
+
+
+@pytest.mark.asyncio
+async def test_deinit_clear_auth_removes_persisted_account_data(proxy_env):
+    """Explicit unbind path still clears persisted account credentials."""
+    from miloco.database.kv_repo import AuthConfigKeys, DeviceInfoKeys
+
+    p, _client = proxy_env
+
+    await p.init()
+    p._kv_repo.set(AuthConfigKeys.MIOT_TOKEN_INFO_KEY, "token-json")
+    p._kv_repo.set(DeviceInfoKeys.USER_INFO_KEY, "user-json")
+    await p.deinit(clear_auth=True)
+
+    assert AuthConfigKeys.MIOT_TOKEN_INFO_KEY not in p._kv_repo.store
+    assert DeviceInfoKeys.USER_INFO_KEY not in p._kv_repo.store
 
 
 @pytest.mark.asyncio
@@ -186,7 +213,7 @@ async def test_push_callbacks_registered_before_init_async(proxy_env):
     seen: dict[str, bool] = {}
 
     async def recording_init():
-        # Captured at the instant init_async runs — i.e. before any post-init
+        # Captured at the instant init_async runs, before any post-init
         # wiring in init() has a chance to execute.
         seen["user_bind"] = client.register_user_bind_callback.called
         seen["device_meta"] = client.register_device_meta_changed_callback.called

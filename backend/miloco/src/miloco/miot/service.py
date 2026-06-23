@@ -338,7 +338,7 @@ class MiotService:
         """
         try:
             self._clear_account_scope_state()
-            await self._miot_proxy.deinit()
+            await self._miot_proxy.deinit(clear_auth=True)
             # deinit 已清空 _camera_info_dict 和 token；init 重建 client 但无
             # 有效 token，refresh_cameras 大概率静默失败（返回 None）。
             # 仍调用一次：若 token 残留则清掉旧摄像机 managers；失败无副作用。

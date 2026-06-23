@@ -247,8 +247,13 @@ class MiotProxy:
 
         self._token_refresh_task = asyncio.create_task(self._start_token_refresh_task())
 
-    async def deinit(self):
-        """Deinit MIoT proxy: cancel tasks, destroy cameras, close client, clear all state."""
+    async def deinit(self, *, clear_auth: bool = False):
+        """Deinit MIoT proxy.
+
+        Normal teardown must keep OAuth credentials on disk so diagnostics,
+        tests, or process restarts can safely create and destroy short-lived
+        proxy instances. Real account unbind passes ``clear_auth=True``.
+        """
         # 1. Cancel token refresh background task
         if self._token_refresh_task:
             self._token_refresh_task.cancel()
@@ -276,13 +281,14 @@ class MiotProxy:
                 logger.warning("miot_client.deinit_async failed, proceeding: %s", e)
             self._miot_client = None  # type: ignore
 
-        # 4. Clear auth/user data from KV store (device/camera/scene are
-        #    in-memory only, no KV persistence to clean up).
-        for key in [
-            AuthConfigKeys.MIOT_TOKEN_INFO_KEY,
-            DeviceInfoKeys.USER_INFO_KEY,
-        ]:
-            self._kv_repo.delete(key)
+        # 4. Clear persisted account data only for explicit unbind.
+        #    Device/camera/scene caches are in-memory only.
+        if clear_auth:
+            for key in [
+                AuthConfigKeys.MIOT_TOKEN_INFO_KEY,
+                DeviceInfoKeys.USER_INFO_KEY,
+            ]:
+                self._kv_repo.delete(key)
 
         # 5. Clear in-memory state
         self._oauth_info = None
