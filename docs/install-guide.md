@@ -45,11 +45,10 @@ https://github.com/andy-JustSayWhen/easy-miloco
 5. 安装完成后验证桌面入口、后端服务和页面可用性：
 
    ```text
-   Miloco 面板
-   OpenClaw
-   Miloco 更新与修复
-   Miloco 诊断报告
+   一键启动 Miloco.bat
    ```
+
+   该桌面脚本由 `install.ps1` 自动生成。菜单包含启动 OpenClaw 面板、启动 Miloco 面板和关闭服务。关闭服务下有两个子功能：只关闭 Miloco/OpenClaw 服务，或关闭 Miloco/OpenClaw 服务并终止对应 WSL 发行版。
 
 ## 如果还没有可用 Release
 
