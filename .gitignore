@@ -41,6 +41,7 @@ yarn-error.log*
 
 # Local agent/build scratch
 .codex/
+.codegraph/
 scripts/.build-release-build.sh
 
 # Python
