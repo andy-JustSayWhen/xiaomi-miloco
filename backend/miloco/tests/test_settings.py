@@ -125,6 +125,7 @@ def test_directory_paths_derive_from_miloco_home(tmp_path: Path) -> None:
     assert s.directories.workspace_dir == tmp_path
     assert s.directories.image_dir == tmp_path / "images"
     assert s.directories.log_dir == tmp_path / "log"
+    assert s.directories.performance_report_dir == tmp_path / "logs" / "performance"
     assert s.directories.miot_cache_dir == tmp_path / "miot_cache"
 
 

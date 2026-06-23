@@ -5,6 +5,7 @@
   - $MILOCO_HOME/trace/omni/*.jsonl.gz
   - $MILOCO_HOME/trace/agent/**/*.jsonl.gz
   - $WORKSPACE/log/*  (backend log_dir)
+  - $WORKSPACE/logs/performance/*.md  (per-run performance reports)
 
 miloco.db 不入包: 含 MiOT OAuth token、person/biometric 等敏感数据,
 排查需要时另行单独提取。
@@ -15,6 +16,7 @@ plugin 端日志由 OpenClaw 宿主统一管理,不在此打包;排查 plugin �
 体量保护: 预扫描总和 > MAX_TOTAL_BYTES -> 抛 LogPackSizeExceeded。
 LRU: packs/ 下最多保留 2 个,多余的删最旧。
 """
+
 from __future__ import annotations
 
 import io
@@ -77,6 +79,7 @@ def _scan_components() -> dict:
     omni_dir = home / "trace" / "omni"
     agent_dir = home / "trace" / "agent"
     log_dir = ws / "log"
+    perf_report_dir = get_settings().directories.performance_report_dir
 
     comps: dict = {}
     comps["observability_db"] = {
@@ -98,6 +101,11 @@ def _scan_components() -> dict:
         comps["backend_log"] = {"present": True, "files": files, "size": size}
     else:
         comps["backend_log"] = {"present": False, "files": 0, "size": 0}
+    if perf_report_dir.exists():
+        size, files = _dir_size(perf_report_dir)
+        comps["performance_reports"] = {"present": True, "files": files, "size": size}
+    else:
+        comps["performance_reports"] = {"present": False, "files": 0, "size": 0}
     return comps
 
 
@@ -106,7 +114,9 @@ def _git_hash() -> str | None:
     try:
         out = subprocess.run(
             ["git", "rev-parse", "HEAD"],
-            capture_output=True, text=True, timeout=2,
+            capture_output=True,
+            text=True,
+            timeout=2,
             cwd=Path(__file__).resolve().parent,
         )
         return out.stdout.strip() if out.returncode == 0 else None
@@ -156,11 +166,13 @@ def build_log_pack() -> dict:
     comps = _scan_components()
     total = sum(c["size"] for c in comps.values())
     if total > MAX_TOTAL_BYTES:
-        raise LogPackSizeExceeded({
-            "estimated_size_bytes": total,
-            "limit_bytes": MAX_TOTAL_BYTES,
-            "components": comps,
-        })
+        raise LogPackSizeExceeded(
+            {
+                "estimated_size_bytes": total,
+                "limit_bytes": MAX_TOTAL_BYTES,
+                "components": comps,
+            }
+        )
 
     packs_dir = _packs_dir()
     packs_dir.mkdir(parents=True, exist_ok=True)
@@ -190,6 +202,11 @@ def build_log_pack() -> dict:
                 tar.add(home / "trace" / "agent", arcname="trace/agent")
             if comps["backend_log"]["present"]:
                 tar.add(ws / "log", arcname="log")
+            if comps["performance_reports"]["present"]:
+                tar.add(
+                    get_settings().directories.performance_report_dir,
+                    arcname="logs/performance",
+                )
             metadata = {
                 "created_at": ms_to_iso_local(now_ms()),
                 "miloco_home": str(home),

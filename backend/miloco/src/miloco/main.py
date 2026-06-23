@@ -56,6 +56,11 @@ from miloco.observability.cleanup import (
 from miloco.observability.metrics_client import MetricsClient, set_metrics_client
 from miloco.observability.metrics_db import connect as obs_connect
 from miloco.observability.metrics_db import init_schema as obs_init_schema
+from miloco.observability.performance_report import (
+    new_run_id,
+    report_path,
+    write_performance_report,
+)
 from miloco.observability.router import router as observability_router
 from miloco.perception.events_router import router as events_router
 from miloco.perception.router import router as perception_router
@@ -101,7 +106,9 @@ async def _log_cleanup_loop() -> None:
         # 每轮现读,运行时建/删 flag 下个周期立即生效。
         if (miloco_home() / ".debug_observability").exists():
             try:
-                dj = cleanup_trace_jsonl(trace_root, settings.perf.retention.trace_jsonl_days)
+                dj = cleanup_trace_jsonl(
+                    trace_root, settings.perf.retention.trace_jsonl_days
+                )
                 logger.info("Trace jsonl cleanup: removed %d day-dirs", dj)
             except Exception as e:
                 logger.error("Trace jsonl cleanup failed: %s", e)
@@ -113,14 +120,19 @@ async def _log_cleanup_loop() -> None:
                 try:
                     obs_init_schema(conn)
                     dt = cleanup_traces_table(conn, settings.perf.retention.traces_days)
-                    dtd = cleanup_traces_device_table(conn, settings.perf.retention.traces_days)
+                    dtd = cleanup_traces_device_table(
+                        conn, settings.perf.retention.traces_days
+                    )
                     de = cleanup_events_table(conn, settings.perf.retention.events_days)
                     da = cleanup_agent_runs_table(
                         conn, settings.perf.retention.agent_runs_days
                     )
                     logger.info(
                         "Observability cleanup: traces=%d, traces_device=%d, events=%d, agent_runs=%d",
-                        dt, dtd, de, da,
+                        dt,
+                        dtd,
+                        de,
+                        da,
                     )
                     # auto_vacuum=INCREMENTAL 下,DELETE 把页标 free 但不还 OS。
                     # 这里集中触发 incremental_vacuum,每页 4KB × 10000 ≈ 40MB 回收上限。
@@ -133,7 +145,9 @@ async def _log_cleanup_loop() -> None:
             except Exception as e:
                 logger.error("Observability DB cleanup failed: %s", e)
             try:
-                do = cleanup_omni_log(omni_log_root, settings.perf.retention.omni_log_days)
+                do = cleanup_omni_log(
+                    omni_log_root, settings.perf.retention.omni_log_days
+                )
                 logger.info("Omni log cleanup: removed %d files", do)
             except Exception as e:
                 logger.error("Omni log cleanup failed: %s", e)
@@ -225,7 +239,9 @@ async def _rollover_daily_loop() -> None:
     # period_start 错位导致 rollover 静默跳过。
     try:
         result = await asyncio.to_thread(
-            rollover_daily_job, service, _dt.now(deploy_timezone()),
+            rollover_daily_job,
+            service,
+            _dt.now(deploy_timezone()),
             _notify_rule_engine_rollover,
         )
         logger.info("Rollover self-heal at startup done: %s", result)
@@ -237,7 +253,9 @@ async def _rollover_daily_loop() -> None:
         await asyncio.sleep(wait)
         try:
             result = await asyncio.to_thread(
-                rollover_daily_job, service, _dt.now(deploy_timezone()),
+                rollover_daily_job,
+                service,
+                _dt.now(deploy_timezone()),
                 _notify_rule_engine_rollover,
             )
             logger.info("Daily rollover at 0:05 done: %s", result)
@@ -256,6 +274,7 @@ async def _backfill_tier_a_reid_embeddings() -> None:
     """
     try:
         from miloco.perception.engine.identity.engine import build_identity_library
+
         extractor = get_manager().perception_service.get_reid_extractor()
         if extractor is None:
             logger.info("启动 backfill tier_a ReID emb 跳过: 无可用 ReID extractor")
@@ -274,7 +293,29 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Application lifespan event handler."""
     # Startup
     app_start = time.monotonic()
+    app_started_at_ms = int(time.time() * 1000)
+    run_id = new_run_id()
     logger.info("Initializing application...")
+
+    settings = get_settings()
+    obs_db_path = settings.directories.workspace_dir / "observability.db"
+    perf_report_path = report_path(
+        settings.directories.performance_report_dir,
+        app_started_at_ms,
+        run_id,
+    )
+    _app.state.performance_report_path = perf_report_path
+    _app.state.performance_report_run_id = run_id
+    write_performance_report(
+        path=perf_report_path,
+        db_path=obs_db_path,
+        run_id=run_id,
+        started_at_ms=app_started_at_ms,
+        ended_at_ms=app_started_at_ms,
+        status="running",
+        app_version=settings.app.version,
+        perf_enabled=settings.perf.enabled,
+    )
 
     # 单 worker 守护见 start_server() 末尾;**不**放 lifespan — 通用 PaaS / Docker
     # 镜像常含 WEB_CONCURRENCY env(取值 CPU 核数,8/16),即使住户最终单 worker
@@ -289,7 +330,6 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         raise
 
     # Initialize node event log
-    settings = get_settings()
     log_dir = settings.directories.log_dir
     log_dir.mkdir(parents=True, exist_ok=True)
     event_log = NodeEventLog(str(log_dir / "node_events.log"))
@@ -332,7 +372,6 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # get_metrics_client 的判空分支兜底,observability.db 不被建。shutdown 段用
     # hasattr(_app.state, ...) 守护,这里跳过绑 state 即可自动跳过 stop。
     if settings.perf.enabled:
-        obs_db_path = settings.directories.workspace_dir / "observability.db"
         metrics_client = MetricsClient(db_path=obs_db_path)
         await metrics_client.start()
         set_metrics_client(metrics_client)
@@ -348,6 +387,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         # 而 publish_omni_log lazy 注册可能撞 threadpool 线程导致 signal 静默
         # 失败。显式在这里注册,消除竞态。
         from miloco.observability.omni_log import register_sigterm_handler
+
         register_sigterm_handler()
 
     # 启动后台补齐 tier_a 缺失的 ReID .npy(历史/迁移库遗留); 幂等、零阻塞
@@ -425,11 +465,23 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
             logger.error("Failed to stop metrics client: %s", e)
         set_metrics_client(None)
 
+    write_performance_report(
+        path=perf_report_path,
+        db_path=obs_db_path,
+        run_id=run_id,
+        started_at_ms=app_started_at_ms,
+        ended_at_ms=int(time.time() * 1000),
+        status="stopped",
+        app_version=settings.app.version,
+        perf_enabled=settings.perf.enabled,
+    )
+
     # omni_log buffer 显式 flush — atexit 兜底虽然永远会跑,lifespan shutdown
     # 走正路更稳;若 atexit 时 event loop / signal 状态异常,正路这一次已经
     # 把数据写完。flush 幂等,与 atexit 双调无副作用。
     try:
         from miloco.observability.omni_log import flush as omni_log_flush
+
         omni_log_flush()
     except Exception as e:
         logger.error("omni_log flush on shutdown failed: %s", e)
@@ -534,6 +586,7 @@ def _resolved_static_dirs() -> tuple[Path, Path]:
 register_reset_hook(
     "miloco.main:_resolved_static_dirs", _resolved_static_dirs.cache_clear
 )
+
 
 @app.get("/{full_path:path}")
 async def spa_handler(full_path: str, request: Request):

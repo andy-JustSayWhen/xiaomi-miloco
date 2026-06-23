@@ -216,7 +216,6 @@ class MiotSettings(BaseModel):
         default="cn", description="MIoT 云区域（cn/de/i2/ru/sg/us）"
     )
 
-
     oauth_redirect_uri: str = Field(
         default="https://127.0.0.1",
         description="Xiaomi OAuth redirect_uri; must match the URI used for token exchange",
@@ -400,6 +399,11 @@ class DirectorySettings(BaseModel):
     def log_dir(self) -> Path:
         return self.workspace_dir / "log"
 
+    @computed_field(description="每次后端运行的性能报告目录")  # type: ignore[misc]
+    @property
+    def performance_report_dir(self) -> Path:
+        return self.workspace_dir / "logs" / "performance"
+
     @computed_field(description="meaningful_events 截图目录")  # type: ignore[misc]
     @property
     def snapshot_dir(self) -> Path:
@@ -493,7 +497,7 @@ class MilocoSettings(BaseSettings):
         description=(
             "部署时区 (IANA 名,如 Asia/Shanghai / America/Los_Angeles);"
             "null = 跟随系统 /etc/timezone。影响业务侧"
-            "\"今天 / 本周 / rollover\"等部署概念,以及 API 出口 ISO 偏移后缀"
+            '"今天 / 本周 / rollover"等部署概念,以及 API 出口 ISO 偏移后缀'
             "(如 +08:00);DB 存储始终 INTEGER ms (UTC 绝对时刻)。"
         ),
     )

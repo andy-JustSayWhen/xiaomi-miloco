@@ -3,6 +3,7 @@
 固定 storage="." (默认),workspace_dir = MILOCO_HOME 顶级。fixture 清 settings
 lru_cache 让 setenv 后重新初始化,与生产环境对齐。
 """
+
 import gzip
 import sqlite3
 import tarfile
@@ -18,6 +19,7 @@ def _isolate_settings(tmp_path, monkeypatch):
     monkeypatch.setenv("MILOCO_HOME", str(tmp_path))
     monkeypatch.delenv("MILOCO_DIRECTORIES__STORAGE", raising=False)
     from miloco.config.settings import reset_settings
+
     reset_settings()
     yield
     reset_settings()
@@ -47,6 +49,8 @@ def _seed_miloco_home(home: Path) -> None:
     )
     # backend log (workspace_dir / "log" = MILOCO_HOME / "log")
     (home / "log" / "node_events.log").write_text("evt\n")
+    (home / "logs" / "performance").mkdir(parents=True, exist_ok=True)
+    (home / "logs" / "performance" / "miloco-perf-sample.md").write_text("# report\n")
 
 
 def test_build_log_pack_full(tmp_path, monkeypatch):
@@ -66,13 +70,17 @@ def test_build_log_pack_full(tmp_path, monkeypatch):
     assert "trace/omni/20260529.jsonl.gz" in names
     assert "trace/agent/20260529/run1__q.jsonl.gz" in names
     assert "log/node_events.log" in names
+    assert "logs/performance/miloco-perf-sample.md" in names
     assert "metadata.json" in names
 
     comps = result["components"]
     assert comps["observability_db"]["present"] is True
     assert comps["trace_omni"]["present"] is True and comps["trace_omni"]["files"] == 1
-    assert comps["trace_agent"]["present"] is True and comps["trace_agent"]["files"] == 1
+    assert (
+        comps["trace_agent"]["present"] is True and comps["trace_agent"]["files"] == 1
+    )
     assert comps["backend_log"]["present"] is True
+    assert comps["performance_reports"]["present"] is True
     assert "openclaw_plugin_log" not in comps
     assert result["evicted"] == []
 
@@ -124,6 +132,7 @@ def test_build_log_pack_size_exceeded(tmp_path, monkeypatch):
 def test_lru_keeps_only_two(tmp_path, monkeypatch):
     """连续打包 3 次 -> packs/ 只剩 2 个最新; evicted 含最旧。"""
     import time as _t
+
     monkeypatch.setenv("MILOCO_HOME", str(tmp_path))
     _seed_miloco_home(tmp_path)
 
@@ -148,6 +157,7 @@ def test_tempfile_cleanup_on_failure(tmp_path, monkeypatch):
 
     def _boom(*a, **kw):
         raise RuntimeError("simulated tar error")
+
     monkeypatch.setattr(log_pack.tarfile, "open", _boom)
 
     with pytest.raises(RuntimeError):

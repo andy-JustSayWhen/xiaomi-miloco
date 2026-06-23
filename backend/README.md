@@ -53,7 +53,7 @@ uv run task check    # ty 类型检查
 uv run task reset    # 全量重装依赖
 ```
 
-> 正常使用建议通过 `miloco-cli service start` 以 daemon 模式启动（会写 `~/.openclaw/miloco/log/miloco-backend_<ts>.log`）。
+> 正常使用建议通过 `miloco-cli service start` 以 daemon 模式启动（会写 `~/.openclaw/miloco/log/miloco-backend_<ts>.log`）。每次后端进程运行还会在 `$MILOCO_HOME/logs/performance/` 生成一份 Markdown 性能报告。
 
 ## 配置
 

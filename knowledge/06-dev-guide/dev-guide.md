@@ -368,6 +368,7 @@ bash scripts/install.sh --dev
 | `home-profile/`                   | 家庭档案（candidates.json / profile.json / profile.md）                                                    |
 | `static/`                         | 家庭面板前端静态资源（由 `install.sh` 从 `web/dist/` 同步）                                                |
 | `log/`                            | 各组件日志（`miloco-backend.log` / `supervisord.log` 等）                                                  |
+| `logs/performance/`               | 每次后端进程运行的 Markdown 性能报告；正常关闭时包含本次运行窗口内的阶段耗时、RTF、Agent、Gate 和错误摘要 |
 | `supervisord.*`                   | supervisor 配置和 socket（service start 首次生成）                                                         |
 | `memory/`                         | Agent 工作区记忆（如 `_system/dynamic_failures.md`；任务行为统计已迁至 `miloco.db` 的 `task_record_*` 表） |
 | `trace/agent/`                    | DYNAMIC rule trace jsonl（`debug_observability` flag 开时写）                                              |
