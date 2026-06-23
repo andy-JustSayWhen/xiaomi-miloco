@@ -13,6 +13,8 @@
     "usageHint": "Model & token usage",
     "performance": "Performance",
     "performanceHint": "View performance reports",
+    "backup": "Backup",
+    "backupHint": "Export restore pack",
     "loginMiot": "Tap to sign in to Xiaomi Home",
     "bound": "Connected"
   }

@@ -41,6 +41,6 @@ Agent 必须先读：
 | [scripts/](scripts/README.md) | 从 OB 迁入的预检与验收脚本 |
 | [windows/reports/](windows/reports/) | WIN-home01 部署和摄像头验收报告 |
 
-## v0.1 边界
+## v0.2 边界
 
-v0.1 先保证 Windows 11 22H2+ 的一键部署、更新、回滚和诊断路线。低于该版本的 Windows 可能可以运行基础服务，但不保证摄像头实时流、WSL 网络、Hyper-V 防火墙、OpenClaw/Miloco 联动稳定可用。
+v0.2 先保证 Windows 11 22H2+ 的一键部署、更新、回滚和诊断路线。低于该版本的 Windows 可能可以运行基础服务，但不保证摄像头实时流、WSL 网络、Hyper-V 防火墙、OpenClaw/Miloco 联动稳定可用。

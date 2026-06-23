@@ -36,7 +36,7 @@
 
 兼容声明：
 
-Miloco for Windows v0.1 仅对 Windows 11 22H2 及以上版本提供完整一键部署保证。低于该版本的 Windows 可能可以运行基础服务，但不保证摄像头实时流、WSL mirrored networking、Hyper-V 防火墙、OpenClaw/Miloco 联动稳定可用。
+Miloco for Windows v0.2 仅对 Windows 11 22H2 及以上版本提供完整一键部署保证。低于该版本的 Windows 可能可以运行基础服务，但不保证摄像头实时流、WSL mirrored networking、Hyper-V 防火墙、OpenClaw/Miloco 联动稳定可用。
 
 ## 项目说明
 
@@ -61,7 +61,7 @@ Miloco for Windows v0.1 仅对 Windows 11 22H2 及以上版本提供完整一键
 Release 包目录树示例：
 
 ```text
-easy-miloco-v0.1-<system>/
+easy-miloco-v0.2-<system>/
 ├── README.md
 ├── install.ps1
 ├── manifest.json
@@ -113,6 +113,7 @@ easy-miloco-v0.1-<system>/
 | 国内下载副本与校验 | ❌ | ☑️ | 当前仓库文档支持 GitHub Release 为基准、夸克网盘作副本、用户按 SHA256 校验。 |
 | 教程、FAQ、runbook | ❌ | ☑️ | 当前仓库新增 `docs/`，覆盖一键部署、Windows、摄像头、SSH 命令传输、NAS 安装、性能报告等复用经验。 |
 | 性能报告 WebUI | ❌ | ☑️ | 当前仓库新增 `performance_report.py`、`performance_report_router.py` 和 `PerformanceReportsPage.tsx`，展示每次后端运行报告。 |
+| Agent 可读备份恢复包 | ❌ | ☑️ | 当前仓库新增 `backup_export.py`、`BackupPage.tsx` 和 `/admin/backup/export`，导出家庭档案、成员、任务、模型配置的逻辑恢复 zip。 |
 | 摄像头 Wi-Fi/首帧排障规则 | ❌ | ☑️ | 当前仓库把 Game/5G Wi-Fi、坏 LAN override、无首帧 cooldown、误删 OAuth 等实战规则沉淀到 `docs/windows/camera-runbook.md`。 |
 
 ## 其他
@@ -124,4 +125,4 @@ easy-miloco-v0.1-<system>/
 - 用户问题优先通过诊断报告定位，不盲目重装。
 - 更新前只备份本项目相关状态，不默认导出整个 WSL。
 - 失败经验和成功经验必须沉淀到 `docs/faq/known-issues.md` 或对应 runbook。
-- v0.1 先保证 Windows 11 22H2+；macOS、NAS、云服务器在 Windows 路线稳定后再展开。
+- v0.2 先保证 Windows 11 22H2+；macOS、NAS、云服务器在 Windows 路线稳定后再展开。

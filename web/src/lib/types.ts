@@ -329,6 +329,19 @@ export interface OmniTestResult {
   message: string;
 }
 
+// ── 备份导出（Agent 恢复包）────────────────────────────────────
+export type BackupAsset =
+  | "home_profile"
+  | "members"
+  | "tasks"
+  | "model_config";
+
+export interface BackupExportResult {
+  filename: string;
+  sizeBytes: number;
+  exportedAt: string;
+}
+
 // ── 性能 tab（observability） ────────────────────────────────────
 // 直接对接 backend /api/stats 和 /api/traces，无 Normal 包装。
 

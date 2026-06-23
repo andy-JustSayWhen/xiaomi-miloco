@@ -30,7 +30,7 @@ https://github.com/andy-JustSayWhen/easy-miloco
 2. 根据系统类型，下载最新版 `.zip` 一键部署包，文件名通常类似：
 
    ```text
-   easy-miloco-v0.1-windows.zip
+   easy-miloco-v0.2-windows.zip
    ```
 
 3. 如果 GitHub 下载慢，询问用户是否有维护者提供的夸克网盘副本。夸克网盘只是下载副本，GitHub Release 才是版本基准；下载后必须校验 SHA256。
@@ -45,10 +45,10 @@ https://github.com/andy-JustSayWhen/easy-miloco
 5. 安装完成后验证桌面入口、后端服务和页面可用性：
 
    ```text
-   一键启动 Miloco.bat
+   Miloco 控制台.bat
    ```
 
-   该桌面脚本由 `install.ps1` 自动生成。菜单包含启动 OpenClaw 面板、启动 Miloco 面板和关闭服务。关闭服务下有两个子功能：只关闭 Miloco/OpenClaw 服务，或关闭 Miloco/OpenClaw 服务并终止对应 WSL 发行版。
+   该桌面脚本由 `install.ps1` 自动生成。菜单包含重启 OpenClaw 面板、重启 Miloco 面板、重启 Miloco + OpenClaw、关闭 OpenClaw + Miloco、关闭 WSL。
 
 ## 如果还没有可用 Release
 
@@ -61,11 +61,11 @@ docs/runbooks/
 docs/faq/known-issues.md
 ```
 
-然后明确告诉用户：当前仓库还处于 Windows v0.1 一键包落地阶段，需要先实现或等待 release 包。只有仓库维护者明确要求“制作更新包”“打包更新吧”“发版”时，才进入 `docs/runbooks/make-release-package.md`。
+然后明确告诉用户：当前仓库需要先制作或等待 Windows 一键 release 包。只有仓库维护者明确要求“制作更新包”“打包更新吧”“发版”时，才进入 `docs/runbooks/make-release-package.md`。
 
 ## Windows 兼容边界
 
-Windows v0.1 仅对 Windows 11 22H2 及以上版本提供完整一键部署保证。低于该版本可能能运行基础能力，但不保证 WSL mirrored networking、Hyper-V 防火墙、摄像头局域网流、OpenClaw/Miloco 联动稳定可用。
+Windows v0.2 仅对 Windows 11 22H2 及以上版本提供完整一键部署保证。低于该版本可能能运行基础能力，但不保证 WSL mirrored networking、Hyper-V 防火墙、摄像头局域网流、OpenClaw/Miloco 联动稳定可用。
 
 ## 排障原则
 

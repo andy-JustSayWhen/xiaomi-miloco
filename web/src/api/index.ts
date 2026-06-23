@@ -45,6 +45,8 @@ import type {
   OmniProfileRef,
   OmniTestResult,
   OmniModelsResult,
+  BackupAsset,
+  BackupExportResult,
 } from "@/lib/types";
 export type { ScopeHome };
 
@@ -365,6 +367,13 @@ export async function testOmniConfig(
   input: OmniConfigUpdate,
 ): Promise<OmniTestResult> {
   return impl.realTestOmniConfig(input);
+}
+
+// ── 备份导出（Agent 恢复包）────────────────────────────
+export async function exportBackupPack(
+  assets: BackupAsset[],
+): Promise<BackupExportResult> {
+  return impl.realExportBackupPack(assets);
 }
 
 // ── 性能 tab（observability）────────────────────────────

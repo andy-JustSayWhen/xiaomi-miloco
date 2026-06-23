@@ -11,9 +11,15 @@ import time
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, StrictBool
 
 from miloco.admin import log_pack as _log_pack_mod
+from miloco.admin.backup_export import (
+    BackupExportError,
+    build_agent_restore_pack,
+    normalize_assets,
+)
 from miloco.config import get_settings
 from miloco.database.token_usage_repo import get_token_usage_repo
 from miloco.manager import get_manager
@@ -163,6 +169,10 @@ class DebugOverrideBody(BaseModel):
     enabled: StrictBool
 
 
+class BackupExportBody(BaseModel):
+    assets: list[str]
+
+
 @router.get("/debug", summary="Debug 开关状态", response_model=NormalResponse)
 def get_debug_state(current_user: str = Depends(verify_token)):
     """返回 omni log debug 开关的当前状态。
@@ -201,6 +211,32 @@ def post_log_pack(current_user: str = Depends(verify_token)):
     except _log_pack_mod.LogPackSizeExceeded as e:
         raise HTTPException(status_code=422, detail=e.info)
     return NormalResponse(code=0, message="ok", data=result)
+
+
+@router.post(
+    "/backup/export",
+    summary="导出 Agent 可读的家庭资产恢复包",
+    response_class=FileResponse,
+)
+def post_backup_export(
+    body: BackupExportBody, current_user: str = Depends(verify_token)
+):
+    """导出逻辑恢复包(zip),供 Agent 差异恢复,不是原始目录/DB 覆盖包。"""
+    try:
+        assets = normalize_assets(body.assets)
+        result = build_agent_restore_pack(assets)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from e
+    except BackupExportError as e:
+        raise HTTPException(
+            status_code=500,
+            detail={"asset": e.asset, "message": e.message},
+        ) from e
+    return FileResponse(
+        path=result.path,
+        filename=result.filename,
+        media_type="application/zip",
+    )
 
 
 # ─── omni 模型配置(在「模型」页内读/写) ─────────────────────────────────────

@@ -235,6 +235,53 @@ export const IconFamily = ({ active, ...p }: Props) =>
     </svg>
   );
 
+/** 备份 — 盒子/归档 */
+export const IconBackup = ({ active, ...p }: Props) =>
+  active ? (
+    <svg {...baseSvg(p)}>
+      <path
+        d="M8 18L14 8H34L40 18V40H8V18Z"
+        fill="currentColor"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 18H40"
+        stroke="#fff"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M20 28H28"
+        stroke="#fff"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+    </svg>
+  ) : (
+    <svg {...baseSvg(p)}>
+      <path
+        d="M8 18L14 8H34L40 18V40H8V18Z"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 18H40"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+      <path
+        d="M20 28H28"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+
 /** 今天 — 时钟 */
 export const IconActivity = ({ active, ...p }: Props) =>
   active ? (

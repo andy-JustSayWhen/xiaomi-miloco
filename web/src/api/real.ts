@@ -35,6 +35,8 @@ import type {
   OmniProfileRef,
   OmniTestResult,
   OmniModelsResult,
+  BackupAsset,
+  BackupExportResult,
 } from "@/lib/types";
 
 // backend NormalResponse 包装：{ code, message, data }
@@ -1417,6 +1419,62 @@ export async function realTestOmniConfig(
     { method: "POST", body: JSON.stringify(body) },
   );
   return r.data;
+}
+
+function backupFilename(disposition: string | null): string {
+  if (!disposition) return "miloco-agent-restore-pack.zip";
+  const utf8 = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+  if (utf8?.[1]) {
+    try {
+      return decodeURIComponent(utf8[1].replace(/^"|"$/g, ""));
+    } catch {
+      return utf8[1].replace(/^"|"$/g, "");
+    }
+  }
+  const plain = disposition.match(/filename="?([^";]+)"?/i);
+  return plain?.[1] ?? "miloco-agent-restore-pack.zip";
+}
+
+async function backupErrorMessage(response: Response): Promise<string> {
+  const body = await response.json().catch(() => null);
+  const detail = body?.detail;
+  if (typeof detail === "string") return detail;
+  if (detail?.message) return detail.message;
+  if (body?.message) return body.message;
+  return i18n.t("backup.exportFailedWithStatus", { status: response.status });
+}
+
+export async function realExportBackupPack(
+  assets: BackupAsset[],
+): Promise<BackupExportResult> {
+  const response = await fetch("/api/admin/backup/export", {
+    method: "POST",
+    headers: authHeaders({ "Content-Type": "application/json" }),
+    body: JSON.stringify({ assets }),
+  });
+  if (!response.ok) {
+    throw new Error(await backupErrorMessage(response));
+  }
+
+  const blob = await response.blob();
+  const filename = backupFilename(response.headers.get("Content-Disposition"));
+  const url = URL.createObjectURL(blob);
+  try {
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.style.display = "none";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+  return {
+    filename,
+    sizeBytes: blob.size,
+    exportedAt: new Date().toISOString(),
+  };
 }
 
 async function fetchUsageStats(

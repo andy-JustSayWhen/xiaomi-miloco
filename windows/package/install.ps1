@@ -139,7 +139,7 @@ echo.
 echo 正在重启 OpenClaw 面板...
 wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true"
 if errorlevel 1 goto wsl_failed
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$port=[int]$env:OPENCLAW_PORT; $deadline=(Get-Date).AddSeconds(60); while((Get-Date) -lt $deadline){ $tcp=New-Object Net.Sockets.TcpClient; try { $iar=$tcp.BeginConnect('127.0.0.1',$port,$null,$null); if($iar.AsyncWaitHandle.WaitOne(1000)){ $tcp.EndConnect($iar); break } } catch {} finally { $tcp.Close() }; Start-Sleep -Seconds 1 }; Start-Process ('http://127.0.0.1:'+$port+'/')"
+call :open_port "%OPENCLAW_PORT%"
 goto pause_main
 
 :restart_miloco
@@ -147,7 +147,7 @@ echo.
 echo 正在重启 Miloco 面板...
 wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || true"
 if errorlevel 1 goto wsl_failed
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$port=[int]$env:MILOCO_PORT; $deadline=(Get-Date).AddSeconds(60); while((Get-Date) -lt $deadline){ $tcp=New-Object Net.Sockets.TcpClient; try { $iar=$tcp.BeginConnect('127.0.0.1',$port,$null,$null); if($iar.AsyncWaitHandle.WaitOne(1000)){ $tcp.EndConnect($iar); break } } catch {} finally { $tcp.Close() }; Start-Sleep -Seconds 1 }; Start-Process ('http://127.0.0.1:'+$port+'/')"
+call :open_port "%MILOCO_PORT%"
 goto pause_main
 
 :restart_all
@@ -155,8 +155,13 @@ echo.
 echo 正在重启 Miloco + OpenClaw...
 wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true"
 if errorlevel 1 goto wsl_failed
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$miloco=[int]$env:MILOCO_PORT; $openclaw=[int]$env:OPENCLAW_PORT; foreach($port in @($miloco,$openclaw)){ $deadline=(Get-Date).AddSeconds(60); while((Get-Date) -lt $deadline){ $tcp=New-Object Net.Sockets.TcpClient; try { $iar=$tcp.BeginConnect('127.0.0.1',$port,$null,$null); if($iar.AsyncWaitHandle.WaitOne(1000)){ $tcp.EndConnect($iar); break } } catch {} finally { $tcp.Close() }; Start-Sleep -Seconds 1 } }; Start-Process ('http://127.0.0.1:'+$miloco+'/'); Start-Process ('http://127.0.0.1:'+$openclaw+'/')"
+call :open_port "%MILOCO_PORT%"
+call :open_port "%OPENCLAW_PORT%"
 goto pause_main
+
+:open_port
+powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$port=[int]'%~1'; $deadline=(Get-Date).AddSeconds(60); while((Get-Date) -lt $deadline){ $tcp=New-Object Net.Sockets.TcpClient; try { $iar=$tcp.BeginConnect('127.0.0.1',$port,$null,$null); if($iar.AsyncWaitHandle.WaitOne(1000)){ $tcp.EndConnect($iar); break } } catch {} finally { $tcp.Close() }; Start-Sleep -Seconds 1 }; Start-Process ('http://127.0.0.1:'+$port+'/')"
+exit /b 0
 
 :stop_services
 call :stop_miloco_stack

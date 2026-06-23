@@ -37,6 +37,7 @@ import { CandidateReviewPanel } from "./components/CandidateReviewPanel";
 import { MiotBindDialog } from "./components/MiotBindDialog";
 import { ToastHost, toast } from "./components/Toast";
 import { UsagePage } from "./components/UsagePage";
+import { BackupPage } from "./components/BackupPage";
 import type { HomeId } from "./lib/types";
 import { PerfPage } from "./components/PerfPage";
 import { PerformanceReportsPage } from "./components/PerformanceReportsPage";
@@ -354,6 +355,8 @@ function MainApp() {
         return <UsagePage />;
       case "performance":
         return <PerformanceReportsPage />;
+      case "backup":
+        return <BackupPage />;
     }
   };
 

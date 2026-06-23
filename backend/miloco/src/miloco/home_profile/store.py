@@ -14,7 +14,6 @@ canonical 渲染产物落同目录 ``profile.md``。
 from __future__ import annotations
 
 import contextlib
-import fcntl
 import json
 import os
 import tempfile
@@ -23,6 +22,25 @@ from pathlib import Path
 
 from miloco.home_profile.schema import CandidatesIndex, ProfileIndex
 from miloco.utils.paths import miloco_home
+
+try:
+    import fcntl
+except ModuleNotFoundError:  # pragma: no cover - Windows-only branch
+    import msvcrt
+
+    class _WindowsFcntl:
+        LOCK_EX = 1
+        LOCK_UN = 2
+
+        @staticmethod
+        def flock(fd: int, op: int) -> None:
+            os.lseek(fd, 0, os.SEEK_SET)
+            if op == _WindowsFcntl.LOCK_EX:
+                msvcrt.locking(fd, msvcrt.LK_LOCK, 1)
+            elif op == _WindowsFcntl.LOCK_UN:
+                msvcrt.locking(fd, msvcrt.LK_UNLCK, 1)
+
+    fcntl = _WindowsFcntl()
 
 
 def home_profile_dir() -> Path:

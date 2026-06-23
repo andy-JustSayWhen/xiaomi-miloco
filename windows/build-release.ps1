@@ -1,5 +1,5 @@
 param(
-  [string]$Version = "v0.1",
+  [string]$Version = "v0.2",
   [string]$ArtifactVersion = "",
   [ValidateSet("stable", "preview")]
   [string]$Channel = "stable",
@@ -155,7 +155,8 @@ function Copy-RequiredArtifacts {
     "",
     "## Scope",
     "",
-    "- First Windows one-click deployment package.",
+    "- Windows one-click deployment package refresh.",
+    "- Desktop console menu now exposes restart OpenClaw, restart Miloco, restart both, stop services, and stop WSL.",
     "- Includes root ``install.ps1``, Miloco Linux x86_64 local bundle, Windows diagnostics scripts, docs, and SHA256.",
     "- Target OS: Windows 11 22H2+.",
     "",

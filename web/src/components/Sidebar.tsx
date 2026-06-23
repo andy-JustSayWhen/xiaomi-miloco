@@ -26,6 +26,7 @@ import {
   IconActivity,
   IconUsage,
   IconPerf,
+  IconBackup,
 } from "@/lib/navIcons";
 
 export type TabKey =
@@ -34,7 +35,8 @@ export type TabKey =
   | "family"
   | "activity"
   | "usage"
-  | "performance";
+  | "performance"
+  | "backup";
 
 type NavIcon = ComponentType<SVGProps<SVGSVGElement> & { active?: boolean }>;
 
@@ -85,6 +87,12 @@ export const TABS: TabDef[] = [
     labelKey: "nav.performance",
     hintKey: "nav.performanceHint",
     Icon: IconPerf,
+  },
+  {
+    key: "backup",
+    labelKey: "nav.backup",
+    hintKey: "nav.backupHint",
+    Icon: IconBackup,
   },
 ];
 

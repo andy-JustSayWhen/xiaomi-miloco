@@ -1,0 +1,34 @@
+{
+  "backup": {
+    "title": "Backup",
+    "subtitle": "Household asset restore pack",
+    "assetsTitle": "Backup assets",
+    "export": "Export backup",
+    "exporting": "Exporting...",
+    "selectOne": "Select at least one asset",
+    "exportFailed": "Export failed",
+    "exportFailedWithStatus": "Export failed with status {{status}}",
+    "success": "Export complete",
+    "filename": "Filename",
+    "size": "Size",
+    "time": "Exported at",
+    "assets": {
+      "home_profile": {
+        "label": "Home profile",
+        "hint": "Household structure, preferences, rooms, and long-term facts"
+      },
+      "members": {
+        "label": "Family members",
+        "hint": "Member records and identity recognition samples"
+      },
+      "tasks": {
+        "label": "Household tasks",
+        "hint": "Tasks, rules, notification actions, and record structure"
+      },
+      "model_config": {
+        "label": "Model config",
+        "hint": "Active model and saved profiles"
+      }
+    }
+  }
+}

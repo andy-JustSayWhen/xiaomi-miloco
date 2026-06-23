@@ -1,0 +1,34 @@
+{
+  "backup": {
+    "title": "备份",
+    "subtitle": "家庭资产恢复包",
+    "assetsTitle": "备份资产",
+    "export": "导出备份",
+    "exporting": "导出中...",
+    "selectOne": "至少选择一项资产",
+    "exportFailed": "导出失败",
+    "exportFailedWithStatus": "导出失败，状态码 {{status}}",
+    "success": "导出成功",
+    "filename": "文件名",
+    "size": "大小",
+    "time": "导出时间",
+    "assets": {
+      "home_profile": {
+        "label": "家庭档案",
+        "hint": "家庭结构、偏好、房间描述和长期事实"
+      },
+      "members": {
+        "label": "家庭成员",
+        "hint": "成员信息和身份识别样本"
+      },
+      "tasks": {
+        "label": "家庭任务",
+        "hint": "任务、规则、提醒动作和记录结构"
+      },
+      "model_config": {
+        "label": "模型配置",
+        "hint": "当前模型和已保存档案"
+      }
+    }
+  }
+}

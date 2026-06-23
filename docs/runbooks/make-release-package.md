@@ -17,7 +17,7 @@
 
 1. 读取 [../AGENT.md](../AGENT.md)。
 2. 检查 git 状态，识别已有未提交改动。
-3. 确认目标版本号。如果用户没有给版本号，先从当前计划版本 `v0.1` 开始，但在真正打 tag 前需要用户确认。
+3. 确认目标版本号。如果用户没有给版本号，先从当前计划版本 `v0.2` 开始；用户已明确要求版本号时，按用户要求执行。
 4. 检查 release builder 是否存在：
 
 ```powershell
@@ -28,16 +28,16 @@ Test-Path .\windows\build-release.ps1
 
 ## 计划中的标准命令
 
-v0.1 完成后，Agent 应能用一个命令生成本地更新包：
+当前 Windows 包应能用一个命令生成：
 
 ```powershell
-.\windows\build-release.ps1 -Version v0.1 -Channel stable
+.\windows\build-release.ps1 -Version v0.2 -Channel stable
 ```
 
 Dry run：
 
 ```powershell
-.\windows\build-release.ps1 -Version v0.1 -Channel stable -DryRun
+.\windows\build-release.ps1 -Version v0.2 -Channel stable -DryRun
 ```
 
 ## 打包产物
@@ -51,8 +51,8 @@ dist/windows/
 至少包含：
 
 ```text
-easy-miloco-v0.1-windows.zip
-easy-miloco-v0.1-windows.zip.sha256
+easy-miloco-v0.2-windows.zip
+easy-miloco-v0.2-windows.zip.sha256
 manifest.json
 release-notes.md
 ```
