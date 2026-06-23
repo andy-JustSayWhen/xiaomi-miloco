@@ -60,6 +60,7 @@ _ONDEMAND_REFRESH_MIN_INTERVAL_MS = 10_000
 _CONNECT_RETRY_INTERVAL_MS = 30_000
 _FIRST_VIDEO_FRAME_TIMEOUT_MS = 60_000
 _FIRST_FRAME_FAILURE_COOLDOWN_MS = 5 * 60_000
+_LAN_HINT_FIRST_FRAME_FAILURES_BEFORE_COOLDOWN = 2
 _VIDEO_FRAME_STALE_MS = 30_000
 _ENABLE_CAMERA_AUDIO_STREAM = False
 
@@ -104,6 +105,7 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
         self._last_ondemand_refresh_ms = 0
         self._last_connect_fail_ms: dict[str, int] = {}
         self._first_frame_cooldown_until_ms: dict[str, int] = {}
+        self._first_frame_failure_counts: dict[str, int] = {}
 
     async def discover_devices(
         self,
@@ -255,11 +257,20 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                 continue
 
             self._last_connect_fail_ms[did] = now_ms
-            first_frame_unreachable = (
-                first_frame_timeout and not self._cached_camera_has_lan_hint(did)
-            )
+            first_frame_failures = 0
+            should_cooldown_first_frame = False
             if first_frame_timeout:
-                if first_frame_unreachable:
+                first_frame_failures = (
+                    self._first_frame_failure_counts.get(did, 0) + 1
+                )
+                self._first_frame_failure_counts[did] = first_frame_failures
+                should_cooldown_first_frame = (
+                    not self._cached_camera_has_lan_hint(did)
+                    or first_frame_failures
+                    >= _LAN_HINT_FIRST_FRAME_FAILURES_BEFORE_COOLDOWN
+                )
+            if first_frame_timeout:
+                if should_cooldown_first_frame:
                     self._first_frame_cooldown_until_ms[did] = (
                         now_ms + _FIRST_FRAME_FAILURE_COOLDOWN_MS
                     )
@@ -268,7 +279,11 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                         f"{_FIRST_FRAME_FAILURE_COOLDOWN_MS / 1000:.0f}s"
                     )
                 else:
-                    action = "reconnecting"
+                    action = (
+                        "rebuilding stream manager "
+                        f"(first-frame failure {first_frame_failures}/"
+                        f"{_LAN_HINT_FIRST_FRAME_FAILURES_BEFORE_COOLDOWN})"
+                    )
                 logger.warning(
                     "Camera %s subscribed but produced no decoded video frame "
                     "within %.0fs; %s",
@@ -283,7 +298,7 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                     (now_ms - state.last_video_frame_ms) / 1000,
                 )
             await self.disconnect_device(did)
-            if first_frame_unreachable:
+            if should_cooldown_first_frame:
                 continue
             await self._rebuild_camera_stream_manager(did)
 
@@ -663,6 +678,7 @@ class CameraDeviceAdapter(BaseDeviceAdapter):
                 state.last_video_frame_ms = wall_ms
                 state.video_frame_count += 1
                 self._first_frame_cooldown_until_ms.pop(did, None)
+                self._first_frame_failure_counts.pop(did, None)
                 self._last_connect_fail_ms.pop(did, None)
                 state.sync_buffer.put(
                     "decoded_video", decoded, stream_ts=ts, wall_ms=wall_ms

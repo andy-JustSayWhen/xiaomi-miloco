@@ -227,6 +227,7 @@ class MIoTVideoStreamManager:
     """
 
     _CAMERA_CONNECT_COUNT_MAX: int = 4
+    _IDLE_TEAR_DOWN_DELAY_S: float = 30.0
     # Encoded output is always H.264 — keep the dict for future flexibility.
     _CODEC_NAME = {
         MIoTCameraCodec.VIDEO_H264: "h264",
@@ -245,6 +246,7 @@ class MIoTVideoStreamManager:
     # Active per-camera resources (only present while subscribers exist).
     _camera_encoder: dict[str, H264LiveEncoder]
     _camera_reg_id: dict[str, int]      # SDK register_decode_video reg_id
+    _camera_idle_teardown_tasks: dict[str, asyncio.Task]
     # Click-triggered NAL clip recorders. Counted as subscribers alongside WS
     # clients for the SDK start/stop lifecycle — adding the first recorder
     # while no WS is connected triggers ``start_video_stream``; removing the
@@ -268,6 +270,7 @@ class MIoTVideoStreamManager:
         self._camera_seen_keyframe = set()
         self._camera_encoder = {}
         self._camera_reg_id = {}
+        self._camera_idle_teardown_tasks = {}
         self._camera_recorders = {}
         self._camera_locks = {}
         logger.info("Init MIoT Video WS Manager (transcode mode, gop=%d)",
@@ -278,6 +281,15 @@ class MIoTVideoStreamManager:
         has_ws = bool(self._camera_connect_map.get(camera_tag))
         has_rec = bool(self._camera_recorders.get(camera_tag))
         return has_ws or has_rec
+
+    def _sdk_active(self, camera_tag: str) -> bool:
+        """True while the SDK decoded-video subscription is still warm."""
+        return camera_tag in self._camera_reg_id
+
+    def _cancel_idle_teardown(self, camera_tag: str) -> None:
+        task = self._camera_idle_teardown_tasks.pop(camera_tag, None)
+        if task is not None and not task.done():
+            task.cancel()
 
     def has_emitted_frame(self, camera_id: str, channel: int) -> bool:
         """True once at least one keyframe has been broadcast for this camera.
@@ -331,10 +343,42 @@ class MIoTVideoStreamManager:
     async def _teardown_if_idle(
         self, camera_id: str, channel: int, camera_tag: str
     ) -> None:
-        """If no subscribers remain, stop SDK stream and free encoder.
+        """If no subscribers remain, schedule delayed SDK teardown.
 
         Caller must hold ``_lock_for(camera_tag)``.
         """
+        if self._has_subscribers(camera_tag):
+            return
+        if not self._sdk_active(camera_tag):
+            self._camera_connect_map.pop(camera_tag, None)
+            return
+        if camera_tag in self._camera_idle_teardown_tasks:
+            return
+        task = asyncio.create_task(
+            self._delayed_teardown_if_idle(camera_id, channel, camera_tag)
+        )
+        self._camera_idle_teardown_tasks[camera_tag] = task
+        logger.info(
+            "No connection, keep video stream warm for %.0fs, %s.%d",
+            self._IDLE_TEAR_DOWN_DELAY_S,
+            camera_id,
+            channel,
+        )
+
+    async def _delayed_teardown_if_idle(
+        self, camera_id: str, channel: int, camera_tag: str
+    ) -> None:
+        try:
+            await asyncio.sleep(self._IDLE_TEAR_DOWN_DELAY_S)
+        except asyncio.CancelledError:
+            return
+        async with self._lock_for(camera_tag):
+            self._camera_idle_teardown_tasks.pop(camera_tag, None)
+            await self._teardown_now_if_idle(camera_id, channel, camera_tag)
+
+    async def _teardown_now_if_idle(
+        self, camera_id: str, channel: int, camera_tag: str
+    ) -> None:
         if self._has_subscribers(camera_tag):
             return
         reg_id = self._camera_reg_id.pop(camera_tag, -1)
@@ -386,13 +430,17 @@ class MIoTVideoStreamManager:
         """
         camera_tag = f"{camera_id}.{channel}"
         async with self._lock_for(camera_tag):
+            self._cancel_idle_teardown(camera_tag)
             # First subscriber of *any* type triggers the SDK stream. We
             # check both WS and recorder maps so a recorder already attached
             # before any browser tab opens doesn't cause us to start a
-            # second SDK callback.
-            sdk_just_started = not self._has_subscribers(camera_tag)
+            # second SDK callback. An idle-grace stream is already active
+            # even though it currently has no subscribers.
+            sdk_just_started = not self._sdk_active(camera_tag)
             if sdk_just_started:
                 await self._ensure_sdk_subscription(camera_id, channel, camera_tag)
+            else:
+                self._camera_connect_map.setdefault(camera_tag, {})
             user_tag = f"{user_name}.{token_hash}"
             self._camera_connect_map[camera_tag].setdefault(user_tag, OrderedDict())
             connection_id = str(self._camera_connect_id)
@@ -491,7 +539,8 @@ class MIoTVideoStreamManager:
         """
         camera_tag = f"{camera_id}.{channel}"
         async with self._lock_for(camera_tag):
-            if not self._has_subscribers(camera_tag):
+            self._cancel_idle_teardown(camera_tag)
+            if not self._sdk_active(camera_tag):
                 await self._ensure_sdk_subscription(camera_id, channel, camera_tag)
             self._camera_recorders.setdefault(camera_tag, []).append(recorder)
             logger.info(
@@ -568,7 +617,7 @@ class MIoTVideoStreamManager:
         # fine, we still feed the recorder below; the WS encode path then
         # short-circuits since there are no clients to broadcast to.
         if not self._has_subscribers(camera_tag):
-            logger.error("No subscribers, %s.%d", did, channel)
+            logger.debug("No subscribers, %s.%d", did, channel)
             return
 
         # Fan-out the raw BGR frame to any attached clip recorders BEFORE

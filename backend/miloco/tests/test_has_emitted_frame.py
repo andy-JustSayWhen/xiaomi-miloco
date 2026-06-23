@@ -10,7 +10,13 @@
 
 from __future__ import annotations
 
+import asyncio
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
+
+from fastapi.websockets import WebSocketState
 from miloco.miot.ws import MIoTVideoStreamManager
+import miloco.miot.ws as ws_module
 
 
 def test_false_before_any_frame():
@@ -49,4 +55,76 @@ def test_false_again_after_teardown_discard():
     mgr._camera_seen_keyframe.add("cam1.0")
     assert mgr.has_emitted_frame("cam1", 0) is True
     mgr._camera_seen_keyframe.discard("cam1.0")
+    assert mgr.has_emitted_frame("cam1", 0) is False
+
+
+def _ws():
+    return SimpleNamespace(
+        client_state=WebSocketState.CONNECTED,
+        close=AsyncMock(),
+        send_text=AsyncMock(),
+    )
+
+
+async def test_idle_grace_keeps_sdk_stream_warm(monkeypatch):
+    service = SimpleNamespace(
+        start_video_stream=AsyncMock(return_value=7),
+        stop_video_stream=AsyncMock(),
+    )
+    monkeypatch.setattr(ws_module, "manager", SimpleNamespace(miot_service=service))
+
+    mgr = MIoTVideoStreamManager()
+    mgr._IDLE_TEAR_DOWN_DELAY_S = 60
+    cid = await mgr.new_connection(_ws(), "u", "t", "cam1", 0)
+    mgr._camera_encoder["cam1.0"] = SimpleNamespace(close=AsyncMock())
+
+    await mgr.close_connection("u", "t", "cam1", 0, cid)
+
+    service.start_video_stream.assert_awaited_once()
+    service.stop_video_stream.assert_not_awaited()
+    assert "cam1.0" in mgr._camera_reg_id
+    assert "cam1.0" in mgr._camera_idle_teardown_tasks
+    mgr._cancel_idle_teardown("cam1.0")
+
+
+async def test_new_connection_cancels_idle_teardown_without_restarting(monkeypatch):
+    service = SimpleNamespace(
+        start_video_stream=AsyncMock(return_value=7),
+        stop_video_stream=AsyncMock(),
+    )
+    monkeypatch.setattr(ws_module, "manager", SimpleNamespace(miot_service=service))
+
+    mgr = MIoTVideoStreamManager()
+    mgr._IDLE_TEAR_DOWN_DELAY_S = 60
+    cid = await mgr.new_connection(_ws(), "u", "t", "cam1", 0)
+    mgr._camera_encoder["cam1.0"] = SimpleNamespace(close=AsyncMock())
+    await mgr.close_connection("u", "t", "cam1", 0, cid)
+
+    await mgr.new_connection(_ws(), "u", "t", "cam1", 0)
+
+    service.start_video_stream.assert_awaited_once()
+    service.stop_video_stream.assert_not_awaited()
+    assert "cam1.0" not in mgr._camera_idle_teardown_tasks
+
+
+async def test_idle_grace_eventually_tears_down(monkeypatch):
+    service = SimpleNamespace(
+        start_video_stream=AsyncMock(return_value=7),
+        stop_video_stream=AsyncMock(),
+    )
+    monkeypatch.setattr(ws_module, "manager", SimpleNamespace(miot_service=service))
+
+    mgr = MIoTVideoStreamManager()
+    mgr._IDLE_TEAR_DOWN_DELAY_S = 0.01
+    cid = await mgr.new_connection(_ws(), "u", "t", "cam1", 0)
+    encoder = SimpleNamespace(close=AsyncMock())
+    mgr._camera_encoder["cam1.0"] = encoder
+    mgr._camera_seen_keyframe.add("cam1.0")
+
+    await mgr.close_connection("u", "t", "cam1", 0, cid)
+    await asyncio.sleep(0.02)
+
+    service.stop_video_stream.assert_awaited_once_with("cam1", 0, 7)
+    encoder.close.assert_awaited_once()
+    assert "cam1.0" not in mgr._camera_reg_id
     assert mgr.has_emitted_frame("cam1", 0) is False

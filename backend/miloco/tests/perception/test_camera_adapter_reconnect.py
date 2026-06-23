@@ -15,6 +15,7 @@ from miloco.perception.collect.camera_adapter import (
     CameraDeviceAdapter,
     _CameraDeviceState,
     _FIRST_FRAME_FAILURE_COOLDOWN_MS,
+    _LAN_HINT_FIRST_FRAME_FAILURES_BEFORE_COOLDOWN,
 )
 from miloco.perception.types import PerceptionDevice
 
@@ -119,8 +120,39 @@ class TestConnectDeviceManagerMissing:
 
         assert "cam1" not in adapter._devices
         assert "cam1" not in adapter._first_frame_cooldown_until_ms
+        assert adapter._first_frame_failure_counts["cam1"] == 1
         proxy.stop_camera_decode_video_stream.assert_awaited_once_with("cam1", 0, 9)
         proxy.rebuild_camera_stream_manager.assert_awaited_once_with("cam1")
+
+    def test_repeated_no_first_frame_with_lan_hint_cools_down(self, monkeypatch):
+        proxy = MagicMock()
+        proxy.stop_camera_decode_video_stream = AsyncMock()
+        proxy.rebuild_camera_stream_manager = AsyncMock(return_value=True)
+        proxy.get_cached_camera = MagicMock(
+            return_value=SimpleNamespace(lan_online=True, local_ip="192.168.31.248")
+        )
+        adapter = CameraDeviceAdapter(miot_proxy=proxy)
+        adapter._first_frame_failure_counts["cam1"] = (
+            _LAN_HINT_FIRST_FRAME_FAILURES_BEFORE_COOLDOWN - 1
+        )
+        state = _CameraDeviceState(did="cam1")
+        state.decoded_video_reg_id = 9
+        state.connected_at_ms = 100_000
+        adapter._devices["cam1"] = state
+        monkeypatch.setattr(
+            "miloco.perception.collect.camera_adapter._monotonic_ms",
+            lambda: 160_000,
+        )
+
+        asyncio.run(adapter._drop_unhealthy_devices())
+
+        assert "cam1" not in adapter._devices
+        assert (
+            adapter._first_frame_cooldown_until_ms["cam1"]
+            == 160_000 + _FIRST_FRAME_FAILURE_COOLDOWN_MS
+        )
+        proxy.stop_camera_decode_video_stream.assert_awaited_once_with("cam1", 0, 9)
+        proxy.rebuild_camera_stream_manager.assert_not_awaited()
 
     def test_no_first_frame_device_kept_before_timeout(self, monkeypatch):
         proxy = MagicMock()
