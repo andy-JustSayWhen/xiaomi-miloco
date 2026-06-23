@@ -163,15 +163,17 @@ function Ensure-Wsl {
 function Invoke-WslBash {
   param([string]$Script)
 
-  # Write script to a temp file in WSL to avoid base64 pipe encoding issues
-  $wslTmpFile = "/tmp/miloco-install-$([guid]::NewGuid().ToString('N').Substring(0,8)).sh"
-  $winTmpFile = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-install-$([guid]::NewGuid().ToString('N').Substring(0,8)).sh"
-  [System.IO.File]::WriteAllText($winTmpFile, $Script, [System.Text.UTF8Encoding]::new($false))
-  $wslWinTmp = ConvertTo-WslPath $winTmpFile
+  $id = [guid]::NewGuid().ToString('N').Substring(0, 8)
+  $wslTmp = "/tmp/miloco-$id.sh"
 
-  & wsl.exe -d $Distro -- bash -lc "cp '$wslWinTmp' '$wslTmpFile' && chmod +x '$wslTmpFile' && bash '$wslTmpFile'; rc=\$?; rm -f '$wslTmpFile'; exit \$rc"
+  # Write script to a Windows temp file, then copy into WSL via /mnt path
+  $winTmp = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-$id.sh"
+  [System.IO.File]::WriteAllText($winTmp, $Script, [System.Text.UTF8Encoding]::new($false))
+  $wslMnt = ConvertTo-WslPath $winTmp
+
+  & wsl.exe -d $Distro -- bash -lc "cp '${wslMnt}' '${wslTmp}' && bash '${wslTmp}'; rc=`$?; rm -f '${wslTmp}'; exit `$rc"
   $code = $LASTEXITCODE
-  Remove-Item -LiteralPath $winTmpFile -ErrorAction SilentlyContinue
+  Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
   if ($code -ne 0) {
     exit $code
   }
