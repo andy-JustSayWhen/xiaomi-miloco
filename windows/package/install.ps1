@@ -74,22 +74,39 @@ function Check-Prerequisites {
     Write-Host "[OK] 管理员权限" -ForegroundColor Green
   }
 
-  # 3. 网络访问 GitHub
-  Write-Host "正在检测网络..." -ForegroundColor Gray
-  $reachable = $false
-  try {
-    $tcp = New-Object System.Net.Sockets.TcpClient
-    $iar = $tcp.BeginConnect("github.com", 443, $null, $null)
-    $waited = $iar.AsyncWaitHandle.WaitOne(5000)
-    if ($waited -and $tcp.Connected) { $reachable = $true }
-    $tcp.Close()
-  } catch {}
+  # 3. 网络与 GitHub 加速测速
+  Write-Host "正在检测网络与代理加速测速..." -ForegroundColor Gray
+  $endpoints = @(
+    @{ Name = "直连"; Url = "https://github.com"; Prefix = "" },
+    @{ Name = "gh-proxy.org"; Url = "https://v4.gh-proxy.org"; Prefix = "https://v4.gh-proxy.org/" },
+    @{ Name = "gitwarp.com"; Url = "https://www.gitwarp.com"; Prefix = "https://www.gitwarp.com/" }
+  )
 
-  if (-not $reachable) {
-    Write-Host "[WARN] 无法连接 github.com:443，后续下载可能失败。" -ForegroundColor Yellow
-    Write-Host "  如需加速，参见 README 的"下载加速"章节。" -ForegroundColor Yellow
+  $fastest = $null
+  $minTime = [int]::MaxValue
+
+  foreach ($ep in $endpoints) {
+    try {
+      $sw = [System.Diagnostics.Stopwatch]::StartNew()
+      $request = [System.Net.WebRequest]::Create($ep.Url)
+      $request.Timeout = 3000
+      $request.Method = "HEAD"
+      $response = $request.GetResponse()
+      $sw.Stop()
+      $response.Close()
+      if ($sw.ElapsedMilliseconds -lt $minTime) {
+        $minTime = $sw.ElapsedMilliseconds
+        $fastest = $ep
+      }
+    } catch {}
+  }
+
+  if ($fastest) {
+    Write-Host ("[OK] 网络连通。选中最快节点: {0} ({1}ms)" -f $fastest.Name, $minTime) -ForegroundColor Green
+    $global:GITHUB_PROXY_PREFIX = $fastest.Prefix
   } else {
-    Write-Host "[OK] 网络可达 GitHub" -ForegroundColor Green
+    Write-Host "[WARN] 无法连接到 GitHub 及任何加速节点，后续下载可能会失败。" -ForegroundColor Yellow
+    $global:GITHUB_PROXY_PREFIX = ""
   }
 
   if ($failed) {
@@ -103,15 +120,14 @@ function Check-Prerequisites {
 function Ensure-Wsl {
   # 1. wsl.exe 不存在
   if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
-    Write-Host ""
-    Write-Host "[FAIL] 未检测到 WSL (wsl.exe)。" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "修复方法：" -ForegroundColor Yellow
-    Write-Host "  1. 打开 Microsoft Store，搜索 'Windows Subsystem for Linux'，点击安装"
-    Write-Host "  2. 或在管理员 PowerShell 中执行: wsl --install"
-    Write-Host "  3. 安装完成后重启电脑，再重新运行 install.bat"
-    Write-Host ""
-    exit 1
+    Write-Host "[INFO] 未检测到 WSL (wsl.exe)，正在尝试自动安装..." -ForegroundColor Cyan
+    & wsl.exe --install -d $Distro
+    if ($LASTEXITCODE -ne 0) {
+       Write-Host "[FAIL] WSL 安装失败。请检查主板 BIOS 是否已开启 CPU 虚拟化，并确保网络畅通。" -ForegroundColor Red
+       exit 1
+    }
+    Write-Host "[WARN] WSL 安装已完成，请重启电脑后再次运行 install.bat 以继续。" -ForegroundColor Yellow
+    exit 0
   }
 
   # 2. wsl.exe 存在但内部损坏 — 用 try/catch 捕获
@@ -124,18 +140,15 @@ function Ensure-Wsl {
 
   # wsl.exe -l -v 返回非零退出码或空输出 → WSL 组件异常
   if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($list)) {
-    Write-Host ""
-    Write-Host "[FAIL] WSL 组件异常 (wsl.exe 存在但无法正常工作)。" -ForegroundColor Red
-    Write-Host ""
-    Write-Host "修复方法：" -ForegroundColor Yellow
-    Write-Host "  1. 打开 Microsoft Store，搜索 'Windows Subsystem for Linux'"
-    Write-Host "  2. 点击'获取'或'更新'，重新安装 WSL 组件"
-    Write-Host "  3. 安装完成后，在 PowerShell 中执行: wsl --update"
-    Write-Host "  4. 再重新运行 install.bat"
-    Write-Host ""
-    Write-Host "如果仍无法解决，请访问: https://aka.ms/wslmanualinstall" -ForegroundColor Gray
-    Write-Host ""
-    exit 1
+    Write-Host "[INFO] WSL 组件异常，正在尝试自动修复更新..." -ForegroundColor Cyan
+    & wsl.exe --update
+    & wsl.exe --install -d $Distro
+    if ($LASTEXITCODE -ne 0) {
+      Write-Host "[FAIL] WSL 自动修复失败。请打开微软商店手动更新 WSL，或检查 BIOS 虚拟化设置。" -ForegroundColor Red
+      exit 1
+    }
+    Write-Host "[WARN] 修复完成，可能需要重启电脑。请重启后再次运行 install.bat。" -ForegroundColor Yellow
+    exit 0
   }
 
   # 3. WSL 正常，检查发行版
@@ -143,21 +156,14 @@ function Ensure-Wsl {
     return
   }
 
-  if ($InstallWsl) {
-    Write-Step "Install WSL distro"
-    & wsl.exe --install -d $Distro
-    Write-Host "If Windows asks for restart or first-time Ubuntu user setup, finish that first, then rerun install.ps1."
-    exit $LASTEXITCODE
+  Write-Host "[INFO] 发现 WSL，但缺少 $Distro 发行版。正在自动安装..." -ForegroundColor Cyan
+  & wsl.exe --install -d $Distro
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host "[FAIL] 发行版安装失败。请检查网络连接或尝试重启电脑。" -ForegroundColor Red
+    exit 1
   }
-
-  Write-Host ""
-  Write-Host "[FAIL] WSL 中未找到 $Distro。" -ForegroundColor Red
-  Write-Host ""
-  Write-Host "修复方法：" -ForegroundColor Yellow
-    Write-Host "  在 PowerShell 中执行: wsl --install -d $Distro"
-    Write-Host "  安装完成后重新运行 install.bat"
-  Write-Host ""
-  exit 1
+  Write-Host "[WARN] 发行版安装完成！如果 Windows 提示需要重启或创建 Ubuntu 默认用户，请先完成操作，然后再重新运行 install.bat。" -ForegroundColor Yellow
+  exit 0
 }
 
 function Invoke-WslBash {
@@ -366,6 +372,7 @@ fi
   $install = @"
 set -euo pipefail
 export PATH="\$HOME/.local/bin:\$PATH"
+export GITHUB_PROXY_PREFIX="$global:GITHUB_PROXY_PREFIX"
 bash "$wslInstallSh" --agent-prepare
 miloco-cli service start || true
 "@
