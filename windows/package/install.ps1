@@ -1,4 +1,4 @@
-param(
+﻿param(
   [ValidateSet("Prepare", "Report", "BindUrl", "Finish", "Validate")]
   [string]$Action = "Prepare",
   [string]$Distro = "Ubuntu-24.04",
