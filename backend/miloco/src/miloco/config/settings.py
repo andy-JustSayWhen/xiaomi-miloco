@@ -217,6 +217,12 @@ class MiotSettings(BaseModel):
     )
 
 
+    oauth_redirect_uri: str = Field(
+        default="https://127.0.0.1",
+        description="Xiaomi OAuth redirect_uri; must match the URI used for token exchange",
+    )
+
+
 class CameraSettings(BaseModel):
     """摄像头采集参数。"""
 

@@ -135,6 +135,7 @@ def test_model_defaults_align_with_schema() -> None:
     assert s.model.omni.api_key == ""
     assert s.agent.webhook_url == "http://127.0.0.1:18789/miloco/webhook"
     assert s.agent.auth_bearer == ""
+    assert s.miot.oauth_redirect_uri == "https://127.0.0.1"
     assert s.server.python_bin == ""
     assert s.debug is False
 

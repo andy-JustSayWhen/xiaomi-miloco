@@ -76,7 +76,7 @@ class Manager:
         async with mon.track_async(NodeName.MIOT_PROXY, "init"):
             self._miot_proxy = await MiotProxy.create_miot_proxy(
                 uuid=self.device_uuid,
-                redirect_uri="https://mico.api.mijia.tech/login_redirect",
+                redirect_uri=get_settings().miot.oauth_redirect_uri,
                 kv_repo=self._kv_repo,
                 cloud_server=get_settings().miot.cloud_server,
             )

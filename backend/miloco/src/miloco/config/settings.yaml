@@ -54,6 +54,7 @@ app:
 # MIoT 云接入参数（可选值：cn / de / i2 / ru / sg / us）
 miot:
   cloud_server: "cn"
+  oauth_redirect_uri: "https://127.0.0.1"
 
 # 摄像头采集参数
 camera:

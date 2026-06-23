@@ -68,6 +68,24 @@
       },
       "required": ["webhook_url", "auth_bearer"]
     },
+    "miot": {
+      "type": "object",
+      "additionalProperties": true,
+      "description": "MIoT cloud and OAuth settings",
+      "properties": {
+        "cloud_server": {
+          "type": "string",
+          "default": "cn",
+          "description": "MIoT cloud region: cn/de/i2/ru/sg/us"
+        },
+        "oauth_redirect_uri": {
+          "type": "string",
+          "default": "https://127.0.0.1",
+          "description": "Xiaomi OAuth redirect_uri used for both authorization and token exchange"
+        }
+      },
+      "required": ["cloud_server", "oauth_redirect_uri"]
+    },
     "model": {
       "type": "object",
       "additionalProperties": true,
@@ -100,5 +118,5 @@
       "required": ["omni"]
     }
   },
-  "required": ["debug", "server", "agent", "model"]
+  "required": ["debug", "server", "agent", "miot", "model"]
 }
