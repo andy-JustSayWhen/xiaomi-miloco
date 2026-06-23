@@ -24,7 +24,7 @@ DOMAIN_CLOUD_CACHE: str = "cloud_cache"
 
 ## ------Home Assistant------ ##
 DOMAIN_HA_CACHE: str = "ha_cache"
-TEST_HA_URL: str = "http://10.189.144.201:8123"
+TEST_HA_URL: str = "http://192.0.2.10:8123"
 TEST_HA_TOKEN: str = environ.get("TEST_HA_TOKEN") or "<Your Home Assistant Token>"
 TEST_HA_OAUTH2_REDIRECT_URI: str = (
     f"https://{PROJECT_CODE}.api.mijia.tech/login_redirect"

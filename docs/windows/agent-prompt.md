@@ -41,7 +41,7 @@
 - WSL: 检查 ~/.wslconfig 是否 mirrored networking
 
 安装：
-- 下载 https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh
+- 下载 https://github.com/<person-a>-JustSayWhen/easy-miloco/releases/latest/download/install.sh
 - 运行 bash /tmp/miloco-install.sh --agent-prepare
 - 如果 uv 长时间无输出，检查 ps/ss/du，不要重复启动安装
 - 如果 1810 绑定失败且在 Windows excluded range 内，改 Miloco 到未占用端口，如 1886，并同步 server.url
@@ -79,10 +79,10 @@
 - 如果缺用户授权码/API Key，不要宣称满血完成，只能说明基础服务就绪并等待用户提供材料
 ```
 
-## WIN-home01 专用填充版
+## <windows-sample-host> 专用填充版
 
 ```text
-你现在接管 WIN-home01 的 Miloco 部署。目标是按 Xiaomi Miloco 官方说明，在 Windows 的 WSL2 内完成满血部署，并记录每一步。
+你现在接管 <windows-sample-host> 的 Miloco 部署。目标是按 Xiaomi Miloco 官方说明，在 Windows 的 WSL2 内完成满血部署，并记录每一步。
 
 目标机器：
 - SSH 主部署用户：<windows-user>@<tailscale-ip>
@@ -90,8 +90,8 @@
 - WSL distro：Ubuntu-24.04
 - WSL 用户：<wsl-user>
 - 代理：127.0.0.1:7897
-- Obsidian 实录：E:\BaiduSyncdisk\obsidian repo\default\App学习笔记\easy-miloco\02-deploy\WIN-home01部署实录.md
-- SSH 信息：E:\BaiduSyncdisk\obsidian repo\default\常用SSH信息\WIN-home01
+- Obsidian 实录：E:\BaiduSyncdisk\obsidian repo\default\App学习笔记\easy-miloco\02-deploy\<windows-sample-host>部署实录.md
+- SSH 信息：E:\BaiduSyncdisk\obsidian repo\default\常用SSH信息\<windows-sample-host>
 
 当前已知：
 - Miloco 当前端口是 1886，因为 Windows excluded port range 包含 1786-1885，默认 1810 不能绑定

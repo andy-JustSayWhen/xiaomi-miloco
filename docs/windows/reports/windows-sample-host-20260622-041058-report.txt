@@ -1,13 +1,13 @@
 Miloco Windows deployment report
 GeneratedAt=2026-06-22T04:10:58
-Computer=WINANDYWU User=17239
+Computer=<windows-sample-host> User=<windows-user>
 Distro=Ubuntu-24.04 MilocoPort=1886 OpenClawPort=18789
 
 
 == Windows preflight ==
 == Windows Miloco preflight ==
 [INFO] windows.os
-  detail: Microsoft Windows 11 专业版 10.0.26200, build 26200, arch=AMD64, user=17239
+  detail: Microsoft Windows 11 专业版 10.0.26200, build 26200, arch=AMD64, user=<windows-user>
 [PASS] windows.wsl_command
   detail: wsl.exe is available.
 [PASS] windows.wsl_distro
@@ -37,7 +37,7 @@ user=<wsl-user> home=/home/<wsl-user>
 [PASS] wsl.os
   detail: PRETTY_NAME=Ubuntu 24.04.3 LTS VERSION_ID=24.04  arch=x86_64
 [PASS] wsl.network_interfaces
-  detail: lo UNKNOWN 127.0.0.1/8 10.255.255.254/32 ::1/128 eth0 UP <tailscale-ip>/32 fd7a:115c:a1e0::6238:f015/128 fe80::8710:ddc9:26a4:e280/64 eth1 UP 192.168.31.10/24 loopback0 UP eth2 DOWN br-13ae67abde6d DOWN 172.18.0.1/16 docker0 DOWN 172.17.0.1/16
+  detail: lo UNKNOWN 127.0.0.1/8 <LAN_IP>.254/32 ::1/128 eth0 UP <tailscale-ip>/32 fd7a:115c:a1e0::6238:f015/128 fe80::8710:ddc9:26a4:e280/64 eth1 UP <LAN_IP>/24 loopback0 UP eth2 DOWN br-13ae67abde6d DOWN <LAN_IP>/16 docker0 DOWN <LAN_IP>/16
 [PASS] cmd.curl
   detail: /usr/bin/curl
 [PASS] cmd.miloco-cli
@@ -91,4 +91,4 @@ FAIL_COUNT=0
 == Report summary ==
 PreflightExitCode=0
 ValidateExitCode=0
-ReportPath=C:\Users\<user>\AppData\Local\Temp\miloco-win01-report-20260622-0412.txt
+ReportPath=C:\Users\<user>\AppData\Local\Temp\miloco-windows-sample-host-report-20260622-0412.txt

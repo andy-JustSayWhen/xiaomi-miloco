@@ -1,8 +1,8 @@
-WIN-home01 connected camera online-state fix
+<windows-sample-host> connected camera online-state fix
 Time: 2026-06-22 17:08-17:16 Asia/Shanghai
 
 Problem
-- OpenClaw could visually describe camera <camera-did-bedside> / 床边置物架, but the chat UI previously showed a top-left node failure for that camera.
+- OpenClaw could visually describe camera <camera-did-bedside> / <camera-bedside>, but the chat UI previously showed a top-left node failure for that camera.
 - Miloco WebUI /api/miot/scope/cameras data could still mark the same camera as offline even while live/perception streams were connected.
 
 Root cause
@@ -39,9 +39,9 @@ Remote hot patch
 
 API verification after hot patch
 - /api/miot/scope/cameras:
-  - <camera-did-living> 摄像头 客厅: is_online=true, in_use=true, connected=true
-  - <camera-did-desk> 主卧 电脑桌上: is_online=true, in_use=true, connected=true
-  - <camera-did-bedside> 床边置物架: is_online=true, in_use=true, connected=true
+  - <camera-did-living> <camera-living>: is_online=true, in_use=true, connected=true
+  - <camera-did-desk> <camera-desk>: is_online=true, in_use=true, connected=true
+  - <camera-did-bedside> <camera-bedside>: is_online=true, in_use=true, connected=true
 - /api/perception/devices:
   - all three camera devices returned online=true
 - /api/monitor/nodes:
@@ -57,8 +57,8 @@ OpenClaw verification
 - model=mimo-v2.5
 - Initial scope list inside OpenClaw returned all three cameras online/in_use/connected.
 - <camera-did-desk> returned visual description at 2026-06-22T17:09:33+08:00.
-- <camera-did-bedside> / 床边置物架 returned visual description at 2026-06-22T17:09:23+08:00:
-  - 主卧场景；房间内没有人。
+- <camera-did-bedside> / <camera-bedside> returned visual description at 2026-06-22T17:09:23+08:00:
+  - <room-bedroom>场景；房间内没有人。
   - 画面中央电脑显示器亮着，发出强烈白光。
   - 屏幕下方有键盘和鼠标。
   - 左侧有金属架子。

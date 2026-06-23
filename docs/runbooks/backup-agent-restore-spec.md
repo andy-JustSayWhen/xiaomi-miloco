@@ -42,8 +42,8 @@
 - 任务 ID、描述、状态、创建时间、更新时间。
 - 规则 ID、规则启用状态、触发条件、进入/退出动作。
 - 任务与规则之间的关联关系。
-- 提醒动作描述，例如“通过飞书消息提醒 Andy”和“卧室音箱播报某句话”。
-- 提醒文本，例如“Andy，注意坐姿，肩颈前倾了，调整一下”。
+- 提醒动作描述，例如“通过飞书消息提醒 <person-a>”和“<room-bedroom>音箱播报某句话”。
+- 提醒文本，例如“<person-a>，注意坐姿，肩颈前倾了，调整一下”。
 
 通知配置不单独备份，是因为它往往依赖当前安装环境：
 
@@ -107,7 +107,7 @@ model/
   "created_at": "2026-06-23T00:00:00+08:00",
   "source": {
     "app": "easy-miloco",
-    "miloco_home_hint": "/home/andywu/.openclaw/miloco"
+    "miloco_home_hint": "/home/<wsl-user>/.openclaw/miloco"
   },
   "assets": ["home_profile", "members", "tasks", "model_config"],
   "restore_contract": "agent_restore_v1"

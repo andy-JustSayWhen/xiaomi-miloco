@@ -1,6 +1,6 @@
-# WIN-home01 后授权收尾 Runbook
+# <windows-sample-host> 后授权收尾 Runbook
 
-用途：当用户提供“小米 OAuth 授权码”和“MiMo API Key”后，按本 runbook 把 WIN-home01 从“基础服务就绪”推进到“满血部署完成”。
+用途：当用户提供“小米 OAuth 授权码”和“MiMo API Key”后，按本 runbook 把 <windows-sample-host> 从“基础服务就绪”推进到“满血部署完成”。
 
 ## 当前基线
 
@@ -23,8 +23,8 @@
 
 1. 小米 OAuth 授权码：来自 `miloco-cli account bind --no-wait` 输出的登录链接。
 2. MiMo API Key：用于 `model.omni.api_key`。
-3. WIN-home01 当前 MiMo endpoint：`https://token-plan-sgp.xiaomimimo.com/v1`。
-4. WIN-home01 当前视觉模型：`mimo-v2.5`。不要把 `model.omni.model` 配成 `mimo-v2.5-pro`，该模型不支持视觉。
+3. <windows-sample-host> 当前 MiMo endpoint：`https://token-plan-sgp.xiaomimimo.com/v1`。
+4. <windows-sample-host> 当前视觉模型：`mimo-v2.5`。不要把 `model.omni.model` 配成 `mimo-v2.5-pro`，该模型不支持视觉。
 
 如果授权链接过期，重新生成：
 
@@ -35,7 +35,7 @@ miloco-cli account bind --no-wait
 本次已通过脚本生成的最新授权链接：
 
 ```text
-https://account.xiaomi.com/oauth2/authorize?redirect_uri=https%3A%2F%2Fmico.api.mijia.tech%2Flogin_redirect&client_id=2882303761520431603&response_type=code&device_id=mico.4010007daa7043c18e101c053be2f57f&state=864dcbd558ff9c17d916c9e7d4f9ce194c6ac41c&skip_confirm=False
+<XIAOMI_OAUTH_URL>
 ```
 
 ## 优先路径：脚本一键收尾
@@ -43,9 +43,9 @@ https://account.xiaomi.com/oauth2/authorize?redirect_uri=https%3A%2F%2Fmico.api.
 脚本位置：
 
 - 本地 OB：`02-deploy/scripts/wsl-post-auth-finish.sh`
-- WIN-home01 临时目录：`C:\Users\<user>\AppData\Local\Temp\wsl-post-auth-finish.sh`
+- <windows-sample-host> 临时目录：`C:\Users\<user>\AppData\Local\Temp\wsl-post-auth-finish.sh`
 
-2026-06-22 04:46 已核对 WIN01 临时目录脚本与 OB 当前版本一致：
+2026-06-22 04:46 已核对 <windows-sample-host> 临时目录脚本与 OB 当前版本一致：
 
 ```text
 2CD059D8C9C984B9E28FD6E1CB974E413CCEA9B1B02903925E27D03D608C42AD  win-miloco-workflow.ps1
@@ -67,7 +67,7 @@ FAIL_COUNT=0
 ```powershell
 $ssh='C:\Program Files\OpenSSH\ssh.exe'
 & $ssh -i 'C:\Users\<user>\.ssh\id_ed25519' '<windows-user>@<tailscale-ip>' `
-  'wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/17239/AppData/Local/Temp/wsl-post-auth-finish.sh --print-bind-url'
+  'wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/<user>/AppData/Local/Temp/wsl-post-auth-finish.sh --print-bind-url'
 ```
 
 收到授权 payload 和 MiMo API Key 后执行：
@@ -75,7 +75,7 @@ $ssh='C:\Program Files\OpenSSH\ssh.exe'
 ```powershell
 $ssh='C:\Program Files\OpenSSH\ssh.exe'
 & $ssh -i 'C:\Users\<user>\.ssh\id_ed25519' '<windows-user>@<tailscale-ip>' `
-  'wsl.exe -d Ubuntu-24.04 -- env MILOCO_AUTH_PAYLOAD="<小米 OAuth payload>" MIMO_API_KEY="<MiMo API Key>" OMNI_MODEL="mimo-v2.5" OMNI_BASE_URL="https://token-plan-sgp.xiaomimimo.com/v1" bash /mnt/c/Users/17239/AppData/Local/Temp/wsl-post-auth-finish.sh'
+  'wsl.exe -d Ubuntu-24.04 -- env MILOCO_AUTH_PAYLOAD="<小米 OAuth payload>" MIMO_API_KEY="<MiMo API Key>" OMNI_MODEL="mimo-v2.5" OMNI_BASE_URL="https://token-plan-sgp.xiaomimimo.com/v1" bash /mnt/c/Users/<user>/AppData/Local/Temp/wsl-post-auth-finish.sh'
 ```
 
 如果需要指定家庭或摄像头：
@@ -83,7 +83,7 @@ $ssh='C:\Program Files\OpenSSH\ssh.exe'
 ```powershell
 $ssh='C:\Program Files\OpenSSH\ssh.exe'
 & $ssh -i 'C:\Users\<user>\.ssh\id_ed25519' '<windows-user>@<tailscale-ip>' `
-  'wsl.exe -d Ubuntu-24.04 -- env MILOCO_AUTH_PAYLOAD="<小米 OAuth payload>" MIMO_API_KEY="<MiMo API Key>" OMNI_MODEL="mimo-v2.5" OMNI_BASE_URL="https://token-plan-sgp.xiaomimimo.com/v1" MILOCO_HOME_ID="<home_id>" MILOCO_CAMERA_DIDS="<did1> <did2>" bash /mnt/c/Users/17239/AppData/Local/Temp/wsl-post-auth-finish.sh'
+  'wsl.exe -d Ubuntu-24.04 -- env MILOCO_AUTH_PAYLOAD="<小米 OAuth payload>" MIMO_API_KEY="<MiMo API Key>" OMNI_MODEL="mimo-v2.5" OMNI_BASE_URL="https://token-plan-sgp.xiaomimimo.com/v1" MILOCO_HOME_ID="<home_id>" MILOCO_CAMERA_DIDS="<did1> <did2>" bash /mnt/c/Users/<user>/AppData/Local/Temp/wsl-post-auth-finish.sh'
 ```
 
 脚本动作：
@@ -256,7 +256,7 @@ miloco-cli scope camera list --pretty
 miloco-cli scope camera enable --pretty '<did1>' '<did2>'
 ```
 
-最多开启数量以 `miloco-cli account status` 的 `max_enabled_cameras` 为准。WIN-home01 当前返回为 `4`。
+最多开启数量以 `miloco-cli account status` 的 `max_enabled_cameras` 为准。<windows-sample-host> 当前返回为 `4`。
 
 ## 6. 满血验收
 
@@ -285,10 +285,10 @@ access token is empty
 
 完成后更新：
 
-- [WIN-home01部署实录](win-home01-log.md)
+- [<windows-sample-host>部署实录](windows-sample-host-log.md)
 - [Windows部署预检与验收清单](preflight-checklist.md)
-- `E:\BaiduSyncdisk\obsidian repo\default\常用SSH信息\WIN-home01\README.md`
-- `E:\BaiduSyncdisk\obsidian repo\default\常用SSH信息\WIN-home01\connection.yaml`
+- `E:\BaiduSyncdisk\obsidian repo\default\常用SSH信息\<windows-sample-host>\README.md`
+- `E:\BaiduSyncdisk\obsidian repo\default\常用SSH信息\<windows-sample-host>\connection.yaml`
 
 至少记录：
 

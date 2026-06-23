@@ -1,4 +1,4 @@
-# WIN-home01 Miloco report
+# <windows-sample-host> Miloco report
 GeneratedAt=2026-06-22T04:57:16+08:00
 Target=<windows-user>@<tailscale-ip>
 Distro=Ubuntu-24.04
@@ -15,7 +15,7 @@ user=<wsl-user> home=/home/<wsl-user>
 [PASS] wsl.os
   detail: PRETTY_NAME=Ubuntu 24.04.3 LTS VERSION_ID=24.04  arch=x86_64
 [PASS] wsl.network_interfaces
-  detail: lo UNKNOWN 127.0.0.1/8 10.255.255.254/32 ::1/128 eth0 UP <tailscale-ip>/32 fd7a:115c:a1e0::6238:f015/128 fe80::8710:ddc9:26a4:e280/64 eth1 UP 192.168.31.10/24 loopback0 UP eth2 DOWN br-13ae67abde6d DOWN 172.18.0.1/16 docker0 DOWN 172.17.0.1/16
+  detail: lo UNKNOWN 127.0.0.1/8 <LAN_IP>.254/32 ::1/128 eth0 UP <tailscale-ip>/32 fd7a:115c:a1e0::6238:f015/128 fe80::8710:ddc9:26a4:e280/64 eth1 UP <LAN_IP>/24 loopback0 UP eth2 DOWN br-13ae67abde6d DOWN <LAN_IP>/16 docker0 DOWN <LAN_IP>/16
 [PASS] cmd.curl
   detail: /usr/bin/curl
 [PASS] cmd.miloco-cli
@@ -74,9 +74,9 @@ FAIL_COUNT=0
 
 请在浏览器中打开以下链接完成小米账号授权：
 
-  https://account.xiaomi.com/oauth2/authorize?redirect_uri=https%3A%2F%2Fmico.api.mijia.tech%2Flogin_redirect&client_id=2882303761520431603&response_type=code&device_id=mico.4010007daa7043c18e101c053be2f57f&state=864dcbd558ff9c17d916c9e7d4f9ce194c6ac41c&skip_confirm=False
+  <XIAOMI_OAUTH_URL>
 
-{"code": 0, "message": "OAuth URL generated successfully", "data": {"oauth_url": "https://account.xiaomi.com/oauth2/authorize?redirect_uri=https%3A%2F%2Fmico.api.mijia.tech%2Flogin_redirect&client_id=2882303761520431603&response_type=code&device_id=mico.4010007daa7043c18e101c053be2f57f&state=864dcbd558ff9c17d916c9e7d4f9ce194c6ac41c&skip_confirm=False"}}
+{"code": 0, "message": "OAuth URL generated successfully", "data": {"oauth_url": "<XIAOMI_OAUTH_URL>"}}
 
 授权完成后，请运行：
   miloco-cli account authorize <授权码>

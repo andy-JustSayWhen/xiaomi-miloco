@@ -163,7 +163,7 @@ function Copy-RequiredArtifacts {
     "## Included",
     "",
     "- Camera LAN override protection: do not mark LAN online when the SDK LAN table has no hit.",
-    "- docs/ knowledge base: install, cameras, FAQ, Windows runbooks, and sanitized WIN-home01 case notes.",
+    "- docs/ knowledge base: install, cameras, FAQ, Windows runbooks, and sanitized sample-host case notes.",
     "- Release package layout: extract and run root ``install.ps1``.",
     "",
     "## Maintainer Note",

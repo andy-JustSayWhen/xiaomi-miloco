@@ -105,7 +105,7 @@ wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/<user>/AppData/Local/Temp/diagnose.
 | UI 一致性 | Miloco WebUI 不再把已 connected 的摄像头显示为离线 |
 | 日志 | 后端日志无持续 camera/collector/processor/engine failed，无新的 audio decode 风暴 |
 
-WIN-home01 的实战根因与修复记录见 [WIN-home01部署实录](win-home01-log.md#2026-06-23 01:35 摄像头离线彻底修复：LAN 状态滞后、音频流、后台保活)。
+<windows-sample-host> 的实战根因与修复记录见 [<windows-sample-host>部署实录](windows-sample-host-log.md#2026-06-23 01:35 摄像头离线彻底修复：LAN 状态滞后、音频流、后台保活)。
 ## 6. 2026-06-23 补充：假 LIVE/黑屏的判定规则
 
 遇到“WebUI 显示 LIVE，但卡片或弹窗黑屏/一直正在连接/提示连不上摄像头”时，优先按下面规则处理：
@@ -119,7 +119,7 @@ WIN-home01 的实战根因与修复记录见 [WIN-home01部署实录](win-home01
 
 一句话结论：摄像头是否可用，以 decoded video 首帧和持续帧更新为准；`online`、`in_use`、SDK `reg_id` 都不是最终验收标准。
 
-WIN-home01 的对应实战记录见 [WIN-home01部署实录](win-home01-log.md#2026-06-23 02:05 摄像头二次修复：reg_id 不等于真实 connected，必须等首帧)。
+<windows-sample-host> 的对应实战记录见 [<windows-sample-host>部署实录](windows-sample-host-log.md#2026-06-23 02:05 摄像头二次修复：reg_id 不等于真实 connected，必须等首帧)。
 ### 日志判读补充
 
 摄像头排障时，日志中的“订阅尝试”和“真实连接”必须区分：
@@ -144,7 +144,7 @@ WIN-home01 的对应实战记录见 [WIN-home01部署实录](win-home01-log.md#2
 | WSL `networkingMode=Mirrored`、Windows 防火墙关闭、其他同网段摄像头可用 | 主机网络大概率不是全局故障 | 聚焦单个摄像头的 Wi-Fi、路由、设备固件、米家 App 实时预览 |
 | `connected=true` 但 `lan_online=false` | 可能是 LAN 状态字段滞后，真实视频流仍可用 | 以 decoded frame 和 `active_sources` 为准，不要仅凭 `lan_online` 判死刑 |
 
-WIN-home01 的实测例子：
+<windows-sample-host> 的实测例子：
 
 | did | 现象 | 结论 |
 |---|---|---|
@@ -161,7 +161,7 @@ Agent 执行顺序建议：
 
 ## 8. 2026-06-23 补充：LAN 状态修复不等于视频流修复
 
-本轮 WIN-home01 的关键经验是：`is_online=true` 只能说明设备在线状态可确认，不能说明 Miloco/OpenClaw 已经拿到真实画面。摄像头交付必须同时看两条链路：
+本轮 <windows-sample-host> 的关键经验是：`is_online=true` 只能说明设备在线状态可确认，不能说明 Miloco/OpenClaw 已经拿到真实画面。摄像头交付必须同时看两条链路：
 
 ```mermaid
 flowchart LR
@@ -183,13 +183,13 @@ flowchart LR
 }
 ```
 
-WIN-home01 当前实测：
+<windows-sample-host> 当前实测：
 
 ```json
 {
-  "<camera-did-living>": "192.168.31.56",
-  "<camera-did-bedside>": "192.168.31.248",
-  "<camera-did-desk>": "192.168.31.104"
+  "<camera-did-living>": "<LAN_IP>",
+  "<camera-did-bedside>": "<LAN_IP>",
+  "<camera-did-desk>": "<LAN_IP>"
 }
 ```
 
@@ -215,7 +215,7 @@ WIN-home01 当前实测：
 6. 检查 native SDK ABI 后再判断能不能从 Python 强制传参。当前 `libmiot_camera_lite.so` 暴露层没有公开的 `SpecificIP`、relay、SkipP2P 参数入口。
 7. 验收时逐个 did 点名，不允许只证明“有一个摄像头能看”就算完成。
 
-### WIN-home01 复盘规则
+### <windows-sample-host> 复盘规则
 
 | did | 最终归类 | 快速结论 |
 |---|---|---|
@@ -255,7 +255,7 @@ WIN-home01 当前实测：
 
 ## 10. 2026-06-23 最终复盘：Game/5G Wi-Fi 导致本地取流失败
 
-WIN-home01 家庭网络中，单台摄像头长期 `is_online=true` 但 `connected=false` 的最终根因，不是 PIN、subtype、音频、Windows 防火墙、WSL 全局网络或 Miloco 状态误判，而是该摄像头接入了 Game/5G SSID。米家 App 和云端在线状态正常，但 Miloco 本地 SDK/PPCS 数据面长期拿不到视频帧，表现为 `raw=0 decoded=0`。
+<windows-sample-host> 家庭网络中，单台摄像头长期 `is_online=true` 但 `connected=false` 的最终根因，不是 PIN、subtype、音频、Windows 防火墙、WSL 全局网络或 Miloco 状态误判，而是该摄像头接入了 Game/5G SSID。米家 App 和云端在线状态正常，但 Miloco 本地 SDK/PPCS 数据面长期拿不到视频帧，表现为 `raw=0 decoded=0`。
 
 最终解决动作：
 
@@ -284,7 +284,7 @@ WIN-home01 家庭网络中，单台摄像头长期 `is_online=true` 但 `connect
 | 单个 did `raw=0 decoded=0`，同主机其他 did 可出帧 | 不要先改 Miloco 全局逻辑，优先设备侧换普通 2.4G Wi-Fi、断电重启、固件更新 |
 | 换绑普通 2.4G 后恢复 | 记录 SSID 差异为根因，并做 3 次后台重启 + OpenClaw 问答验收 |
 
-详见 [WIN-home01 2026-06-23 摄像头 Wi-Fi 根因复盘](reports/WIN-home01-20260623-camera-wifi-root-cause.md)。
+详见 [<windows-sample-host> 2026-06-23 摄像头 Wi-Fi 根因复盘](reports/windows-sample-host-20260623-camera-wifi-root-cause.md)。
 
 ## 11. SSH 命令传输规则
 

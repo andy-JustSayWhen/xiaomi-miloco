@@ -216,12 +216,12 @@ access token is empty
 - 报告文件：
 ```
 
-## 6. WIN-home01 当前证据
+## 6. <windows-sample-host> 当前证据
 
 当前报告：
 
 ```text
-reports/WIN-home01-20260622-102255-full-ready.txt
+reports/windows-sample-host-20260622-102255-full-ready.txt
 ```
 
 已证明：
@@ -243,11 +243,11 @@ FAIL_COUNT=0
 miloco.account is_bound=true
 miloco.omni_api_key configured
 miloco.devices 127 device row(s)
-miloco.cameras <camera-did-desk> / 主卧 电脑桌上 / in_use=true / connected=true
+miloco.cameras <camera-did-desk> / <camera-desk> / in_use=true / connected=true
 miloco.logs_known_gaps No recent known-gap strings found in active Miloco logs
 ```
 
 结论：
 
-- WIN-home01 可以交付为“Miloco Windows 满血部署完成”。
+- <windows-sample-host> 可以交付为“Miloco Windows 满血部署完成”。
 - 首次 `Finish` 后如果遇到短暂 `supervisor_state=STARTING`，先等待并复核，不要重装。

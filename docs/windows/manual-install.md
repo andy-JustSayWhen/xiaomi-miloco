@@ -109,7 +109,7 @@ curl -I https://openclaw.ai/install-cli.sh
 
 ```bash
 curl -LsSf -o /tmp/miloco-install.sh \
-  https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh
+  https://github.com/<person-a>-JustSayWhen/easy-miloco/releases/latest/download/install.sh
 ```
 
 执行 Agent prepare：
@@ -302,4 +302,4 @@ http://127.0.0.1:<miloco_port>/
 http://127.0.0.1:18789/
 ```
 
-如果使用了 WIN-home01 这类端口冲突机器，`<miloco_port>` 是 `1886`；无冲突时通常是默认 `1810`。
+如果使用了 <windows-sample-host> 这类端口冲突机器，`<miloco_port>` 是 `1886`；无冲突时通常是默认 `1810`。

@@ -1,4 +1,4 @@
-﻿# Windows 部署资料包验收记录
+# Windows 部署资料包验收记录
 
 > 验收日期：2026-06-22 10:22
 > 验收对象：`packages/easy-miloco-v0.1-windows.zip`
@@ -8,7 +8,7 @@
 
 分发包可解压，包内 `SHA256SUMS.txt` 全部通过，脚本语法烟测通过。
 
-资料包完整性和脚本语法通过；WIN-home01 实机也已经完成后授权收尾并通过满血验收。
+资料包完整性和脚本语法通过；<windows-sample-host> 实机也已经完成后授权收尾并通过满血验收。
 
 zip SHA256：
 
@@ -115,7 +115,7 @@ wsl.exe -- bash -n /mnt/c/path/to/scripts/wsl-post-auth-finish.sh
 
 ## 当前部署状态
 
-WIN-home01 最新已验证：
+<windows-sample-host> 最新已验证：
 
 ```text
 Miloco running=true

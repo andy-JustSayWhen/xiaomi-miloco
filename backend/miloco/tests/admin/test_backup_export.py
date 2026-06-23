@@ -75,7 +75,7 @@ def _seed_home_profile(home: Path) -> None:
                 {
                     "id": "memory-1",
                     "type": "family",
-                    "content": "晚饭后提醒 Andy 散步。",
+                    "content": "晚饭后提醒 <person-a> 散步。",
                 }
             ]
         },
@@ -96,7 +96,7 @@ def _seed_db(home: Path) -> None:
     conn.execute(
         "INSERT INTO person (id, name, role, created_at, updated_at) "
         "VALUES (?, ?, ?, ?, ?)",
-        ("p1", "Andy", "爸爸", now, now),
+        ("p1", "<person-a>", "爸爸", now, now),
     )
     conn.execute(
         "INSERT INTO task (task_id, description, status, paused_at, created_at) "
@@ -121,7 +121,7 @@ def _seed_db(home: Path) -> None:
             1,
             '{"type":"state"}',
             "[]",
-            '["通过飞书消息提醒 Andy"]',
+            '["通过飞书消息提醒 <person-a>"]',
             "[]",
             None,
             "[]",
@@ -191,7 +191,7 @@ def test_build_agent_restore_pack_full(tmp_path):
 
     restore_task = tasks_restore["tasks"][0]
     assert restore_task["task"]["task_id"] == "desk_sit_30min"
-    assert restore_task["rules"][0]["action_descriptions"] == '["通过飞书消息提醒 Andy"]'
+    assert restore_task["rules"][0]["action_descriptions"] == '["通过飞书消息提醒 <person-a>"]'
     assert restore_task["restore_policy"] == {
         "default_status": "disabled",
         "notification_actions_require_remap": True,

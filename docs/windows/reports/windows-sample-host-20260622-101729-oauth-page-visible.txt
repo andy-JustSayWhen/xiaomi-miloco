@@ -1,12 +1,12 @@
-# WIN-home01 Miloco OAuth page visible report
+# <windows-sample-host> Miloco OAuth page visible report
 
 Time: 2026-06-22 10:17:29 +08:00
-Host: WIN-home01 through NetEase UU Remote
+Host: <windows-sample-host> through NetEase UU Remote
 
 Action:
 - Tested Computer Use plugin against local Windows.
 - Confirmed it can see NetEase UU Remote.
-- Selected the `WIN-home01` remote window.
+- Selected the `<windows-sample-host>` remote window.
 - The first coordinate click was blocked because the remote window was not foreground; after activating the target window, Computer Use input succeeded.
 - Double-clicked the desktop fallback shortcut `Miloco 小米授权`.
 

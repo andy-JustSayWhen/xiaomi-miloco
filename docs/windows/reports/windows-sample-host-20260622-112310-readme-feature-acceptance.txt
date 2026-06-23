@@ -1,10 +1,10 @@
-WIN-home01 README 特性验收原始记录
+<windows-sample-host> README 特性验收原始记录
 时间：2026-06-22 11:23
-方式：Computer Use plugin -> 网易 UU 远程 -> WIN-home01
+方式：Computer Use plugin -> 网易 UU 远程 -> <windows-sample-host>
 
 回链：
-[WIN-home01官方README特性验收.md](../win-home01-official-readme-validation.md)
-[WIN-home01部署实录.md](../win-home01-log.md)
+[<windows-sample-host>官方README特性验收.md](../windows-sample-host-official-readme-validation.md)
+[<windows-sample-host>部署实录.md](../windows-sample-host-log.md)
 
 一、P0 OpenClaw
 
@@ -52,7 +52,7 @@ WIN-home01 README 特性验收原始记录
 四、Miloco 面板
 
 - 概览页能看到 live camera 卡片
-- 确认到的画面标题：`主卧 电脑桌上 · 主卧`
+- 确认到的画面标题：`<camera-desk> · <room-bedroom>`
 - 设备页显示：`127 devices`、`13 rooms`
 
 五、最终判断

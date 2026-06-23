@@ -149,7 +149,7 @@ export all_proxy=http://127.0.0.1:7897
 Miloco 官方 prepare：
 
 ```bash
-curl -LsSf https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash -s -- --agent-prepare
+curl -LsSf https://github.com/<person-a>-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash -s -- --agent-prepare
 ```
 
 长时间无输出时，不要重复启动安装。另开终端查：
@@ -260,7 +260,7 @@ access token is empty
 | `1810` bind 失败 | Windows 端口保留或占用 | 改 `server.port/server.url` |
 | `doctor` 查不到 Hyper-V 防火墙 | WSL 内无法调用 Windows PowerShell 或权限不足 | Windows 管理员 PowerShell 手动查 |
 
-## 7. WIN-home01 当前基线
+## 7. <windows-sample-host> 当前基线
 
 本次实测基线：
 
@@ -269,4 +269,4 @@ access token is empty
 - `1810` 不可用原因：Windows excluded port range 包含 `1786-1885`
 - 当前状态：小米账号已绑定，MiMo API Key 已配置，设备和摄像头感知已通过
 - 脚本化验收：Windows 侧 `BASIC_READY_FROM_WINDOWS=yes`，WSL 侧 `BASIC_READY=yes`、`FULL_READY=yes`
-- 最终报告：`reports/WIN-home01-20260622-102255-full-ready.txt`
+- 最终报告：`reports/windows-sample-host-20260622-102255-full-ready.txt`

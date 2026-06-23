@@ -2,7 +2,7 @@
 
 > 生成日期：2026-06-22
 > 用途：收到小米 OAuth payload 和 MiMo API Key 后，如果 `Finish` 没有直接得到 `FULL_READY=yes`，按本页分层定位；同时作为最终交付前的审计清单。
-> 关联：[WIN-home01后授权收尾Runbook](win-home01-post-auth-runbook.md)、[Windows部署故障排除矩阵](troubleshooting.md)、[Windows满血验收证据清单](full-validation-evidence.md)
+> 关联：[<windows-sample-host>后授权收尾Runbook](windows-sample-host-post-auth-runbook.md)、[Windows部署故障排除矩阵](troubleshooting.md)、[Windows满血验收证据清单](full-validation-evidence.md)
 
 ## 官方流程锚点
 

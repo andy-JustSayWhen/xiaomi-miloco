@@ -144,7 +144,7 @@ curl -I https://openclaw.ai/install-cli.sh
 
 ```bash
 curl -LsSf -o /tmp/miloco-install.sh \
-  https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh
+  https://github.com/<person-a>-JustSayWhen/easy-miloco/releases/latest/download/install.sh
 chmod +x /tmp/miloco-install.sh
 export PATH="$HOME/.local/bin:$PATH"
 ```
@@ -333,9 +333,9 @@ FULL_READY=yes
 | `device list` 只有表头 | 常见原因是小米账号未绑定或 token 不可用 |
 | 日志 `多模态大模型 API Key 未配置` | MiMo API Key 没写入，不是安装失败 |
 
-## 12. WIN-home01 示例状态
+## 12. <windows-sample-host> 示例状态
 
-WIN-home01 当前已经达到：
+<windows-sample-host> 当前已经达到：
 
 ```text
 BASIC_READY_FROM_WINDOWS=yes

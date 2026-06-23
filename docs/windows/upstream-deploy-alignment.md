@@ -2,11 +2,11 @@
 
 > 核查日期：2026-06-22，最新复核：04:57
 > 对齐对象：Xiaomi Miloco 源码仓库 `README.zh.md`、`scripts/install-guide.md`、`scripts/install.sh`、`scripts/install.py`、`scripts/install.ps1`
-> 关联：[Windows部署总入口](index.md)、[部署指南](deployment-guide.md)、[WIN-home01部署实录](win-home01-log.md)
+> 关联：[Windows部署总入口](index.md)、[部署指南](deployment-guide.md)、[<windows-sample-host>部署实录](windows-sample-host-log.md)
 
 ## 结论
 
-当前 OB Windows 部署教程和 WIN-home01 实机部署路径与官方主线一致：
+当前 OB Windows 部署教程和 <windows-sample-host> 实机部署路径与官方主线一致：
 
 - Windows 原生不安装 Miloco，只在 WSL 内安装和运行。
 - 官方 release 安装入口仍是 `install.sh`，Agent 自动化入口是 `--agent-prepare` → 人工收集账号/模型信息 → `--agent-finish`。
@@ -14,7 +14,7 @@
 - WSL 摄像头本地流需要 mirrored networking 和 Hyper-V 防火墙入站放行。
 - OpenClaw 插件安装后需要重启 OpenClaw Gateway。
 
-WIN-home01 的差异属于 Windows/WSL 实机适配，不改变官方流程：
+<windows-sample-host> 的差异属于 Windows/WSL 实机适配，不改变官方流程：
 
 - 默认 `1810` 落入 Windows TCP excluded port range，所以改用 `1886`。
 - WSL 内没有 Linux `node` 且不能免密 sudo，所以用用户目录安装 Node 后再装 OpenClaw。
@@ -38,23 +38,23 @@ flowchart TD
 
 ## 官方步骤对齐表
 
-| 官方步骤 | 官方口径 | WIN-home01 实机处理 | 判断 |
+| 官方步骤 | 官方口径 | <windows-sample-host> 实机处理 | 判断 |
 | --- | --- | --- | --- |
-| 操作系统 | README 写明 macOS / Linux，Windows 请在 WSL 中运行；`install.ps1` 直接提示原生 Windows 不支持 | 使用 Windows 用户 `17239` 名下的 `Ubuntu-24.04` WSL2 | 已对齐 |
+| 操作系统 | README 写明 macOS / Linux，Windows 请在 WSL 中运行；`install.ps1` 直接提示原生 Windows 不支持 | 使用 Windows 用户 `<windows-user>` 名下的 `Ubuntu-24.04` WSL2 | 已对齐 |
 | WSL 网络 | README 要求摄像头本地流启用 `networkingMode=mirrored`，并放行 Hyper-V 防火墙 | `.wslconfig` 已为 mirrored，Hyper-V VM firewall `DefaultInboundAction=Allow` | 已对齐 |
 | 安装入口 | `curl -LsSf .../install.sh \| bash` | 下载到 `/tmp/miloco-install.sh` 后执行，便于重跑和观察 | 已对齐，执行形式更可控 |
 | Agent Step 1 | `install.sh --agent-prepare` 做环境检查、安装包、初始化服务，并输出 `AGENT_JSON` | 已执行；期间 `uv tool install` 长时间下载，按缓存增长判断继续等待 | 已对齐 |
 | Agent Step 2 | Agent 先处理账号授权，再处理 Omni 模型配置，禁止两个问题同时问 | 已先获取小米 OAuth payload，再写入 MiMo Key；`mimo-v2.5` 用于视觉，未误用不支持视觉的 `mimo-v2.5-pro` | 已完成 |
 | Agent Step 3 | `install.sh --agent-finish --account-auth ... --omni-api-key ...` 写入账号/模型、下载模型、安装插件 | 已先不带授权信息执行一次完成基础模型和 OpenClaw 插件；收到 payload 后用收尾脚本补齐账号、模型、重启和最终验收 | 已完成 |
 | OpenClaw 插件 | installer 安装 `miloco-openclaw-plugin`，并设置 tools / conversation access | 插件 `Status: loaded`，`allowConversationAccess=true`，`plugins doctor` 无问题 | 已对齐 |
-| 快速开始 | README 要求配置模型、绑定小米账号、开启摄像头感知 | 模型已配置；账号已绑定；设备 127 行；摄像头 `<camera-did-desk> / 主卧 电脑桌上` 在线、启用、已连接 | 已满血 |
+| 快速开始 | README 要求配置模型、绑定小米账号、开启摄像头感知 | 模型已配置；账号已绑定；设备 127 行；摄像头 `<camera-did-desk> / <camera-desk>` 在线、启用、已连接 | 已满血 |
 | 验收 | 官方常用命令包括 service status、logs、device list、config show；README 还要求 dashboard / doctor | OB 脚本额外区分 `BASIC_READY` 和 `FULL_READY` | 已增强，不偏离 |
 
 ## 适配项说明
 
 ### 1. 端口从 1810 改为 1886
 
-官方默认面板地址是 `http://<host>:1810/`。WIN-home01 上 Windows TCP excluded port range 包含 `1786-1885`，默认 `1810` 绑定失败，后端日志出现：
+官方默认面板地址是 `http://<host>:1810/`。<windows-sample-host> 上 Windows TCP excluded port range 包含 `1786-1885`，默认 `1810` 绑定失败，后端日志出现：
 
 ```text
 error while attempting to bind on address ('127.0.0.1', 1810): address already in use
@@ -75,7 +75,7 @@ error while attempting to bind on address ('127.0.0.1', 1810): address already i
 
 ### 2. OpenClaw 和 Node 的安装方式
 
-官方 installer 会安装 Miloco 的 OpenClaw 插件，但前提是目标环境可用 `openclaw`。WIN-home01 的 WSL 内没有 Linux `node`，且当前 WSL 用户不能免密 sudo，所以没有走 `apt`，而是把 Node 装到：
+官方 installer 会安装 Miloco 的 OpenClaw 插件，但前提是目标环境可用 `openclaw`。<windows-sample-host> 的 WSL 内没有 Linux `node`，且当前 WSL 用户不能免密 sudo，所以没有走 `apt`，而是把 Node 装到：
 
 ```text
 /home/<wsl-user>/.local/opt/node-v24.12.0-linux-x64
@@ -99,7 +99,7 @@ error while attempting to bind on address ('127.0.0.1', 1810): address already i
 
 它们不替代官方 `install.sh`。干净机器仍优先从官方 `--agent-prepare` / `--agent-finish` 开始。
 
-## 当前 WIN-home01 状态
+## 当前 <windows-sample-host> 状态
 
 已完成：
 
@@ -107,14 +107,14 @@ error while attempting to bind on address ('127.0.0.1', 1810): address already i
 - Miloco 后端：`http://127.0.0.1:1886/health` 返回 `{"status":"ok"}`。
 - OpenClaw Gateway：`http://127.0.0.1:18789/` running。
 - `miloco-openclaw-plugin` 已 loaded。
-- 诊断报告留档：`reports/WIN-home01-20260622-102255-full-ready.txt`。
+- 诊断报告留档：`reports/windows-sample-host-20260622-102255-full-ready.txt`。
 
 已完成：
 
 - `miloco-cli account status` 为 `is_bound=true`。
 - `model.omni.model=mimo-v2.5`，`model.omni.base_url=https://token-plan-sgp.xiaomimimo.com/v1`，API Key 已配置。
 - `miloco-cli device list` 返回 127 行设备。
-- `miloco-cli scope camera list --pretty` 返回摄像头 `<camera-did-desk> / 主卧 电脑桌上`，`in_use=true`，`connected=true`。
+- `miloco-cli scope camera list --pretty` 返回摄像头 `<camera-did-desk> / <camera-desk>`，`in_use=true`，`connected=true`。
 - `FULL_READY=yes`。
 
 10:22 复核结论：

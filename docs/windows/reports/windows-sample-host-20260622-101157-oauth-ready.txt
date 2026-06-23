@@ -1,9 +1,9 @@
-# WIN-home01 OAuth-ready report
+# <windows-sample-host> OAuth-ready report
 GeneratedAt=2026-06-22T10:11:57+08:00
 
 ## OAuth URL
 
-https://account.xiaomi.com/oauth2/authorize?redirect_uri=https%3A%2F%2Fmico.api.mijia.tech%2Flogin_redirect&client_id=2882303761520431603&response_type=code&device_id=mico.4010007daa7043c18e101c053be2f57f&state=864dcbd558ff9c17d916c9e7d4f9ce194c6ac41c&skip_confirm=False
+<XIAOMI_OAUTH_URL>
 
 ## Launch actions
 

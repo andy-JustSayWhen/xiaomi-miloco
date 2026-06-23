@@ -1,7 +1,7 @@
-# WIN-home01 Miloco UI smoke report
+# <windows-sample-host> Miloco UI smoke report
 
 Time: 2026-06-22 10:36:21 +08:00
-Method: Computer Use plugin -> NetEase UU Remote -> WIN-home01
+Method: Computer Use plugin -> NetEase UU Remote -> <windows-sample-host>
 
 Visual checks:
 
@@ -15,7 +15,7 @@ Visual checks:
    - Page loaded normally.
    - Header showed `mdidb` and `127 个设备`.
    - Overview showed live camera card with `LIVE`.
-   - Camera card displayed the room/camera view for `主卧`.
+   - Camera card displayed the room/camera view for `<room-bedroom>`.
 
 3. Miloco devices page
    - Left navigation `设备` opened normally.

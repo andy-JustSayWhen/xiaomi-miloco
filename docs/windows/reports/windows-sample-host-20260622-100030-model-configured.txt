@@ -1,43 +1,21 @@
-Miloco Windows deployment report
-GeneratedAt=2026-06-22T03:54:44
-Computer=WINANDYWU User=17239
-Distro=Ubuntu-24.04 MilocoPort=1886 OpenClawPort=18789
+# <windows-sample-host> Miloco report
+GeneratedAt=2026-06-22T10:00:30+08:00
+Target=<windows-user>@<tailscale-ip>
+Distro=Ubuntu-24.04
+MilocoPort=1886
+OpenClawPort=18789
 
+## Validate
 
-== Windows preflight ==
-== Windows Miloco preflight ==
-[INFO] windows.os
-  detail: Microsoft Windows 11 专业版 10.0.26200, build 26200, arch=AMD64, user=17239
-[PASS] windows.wsl_command
-  detail: wsl.exe is available.
-[PASS] windows.wsl_distro
-  detail: Ubuntu-24.04 exists and is WSL2.
-[PASS] windows.wslconfig.mirrored
-  detail: C:\Users\<user>\.wslconfig contains networkingMode=mirrored.
-[PASS] windows.port.1886
-  detail: Port 1886 is not in Windows excluded TCP ranges.
-[PASS] windows.hyperv_firewall
-  detail: All visible Hyper-V VM firewall settings allow inbound by default.
-[PASS] windows.ssh_client
-  detail: ssh.exe is available.
-[PASS] windows.proxy
-  detail: http://127.0.0.1:7897 is reachable.
-[PASS] windows.miloco_health
-  detail: {"status":"ok"}
-[PASS] windows.openclaw_gateway
-  detail: HTTP response ok (10642 chars).
-BASIC_READY_FROM_WINDOWS=yes
-FAIL_COUNT=0
-WARN_COUNT=0
 
 == WSL Miloco validation ==
 == WSL Miloco validation ==
-generated_at=2026-06-22T03:54:48+08:00
+generated_at=2026-06-22T10:06:46+08:00
 user=<wsl-user> home=/home/<wsl-user>
 [PASS] wsl.os
   detail: PRETTY_NAME=Ubuntu 24.04.3 LTS VERSION_ID=24.04  arch=x86_64
 [PASS] wsl.network_interfaces
-  detail: lo UNKNOWN 127.0.0.1/8 10.255.255.254/32 ::1/128 eth0 UP <tailscale-ip>/32 fd7a:115c:a1e0::6238:f015/128 fe80::8710:ddc9:26a4:e280/64 eth1 UP 192.168.31.10/24 loopback0 UP eth2 DOWN br-13ae67abde6d DOWN 172.18.0.1/16 docker0 DOWN 172.17.0.1/16
+  detail: lo UNKNOWN 127.0.0.1/8 <LAN_IP>.254/32 ::1/128 eth0 UP <tailscale-ip>/32 fd7a:115c:a1e0::6238:f015/128 fe80::8710:ddc9:26a4:e280/64 eth1 UP <LAN_IP>/24 loopback0 UP eth2 DOWN br-13ae67abde6d DOWN <LAN_IP>/16 docker0 DOWN <LAN_IP>/16
 [PASS] cmd.curl
   detail: /usr/bin/curl
 [PASS] cmd.miloco-cli
@@ -45,7 +23,7 @@ user=<wsl-user> home=/home/<wsl-user>
 [PASS] cmd.openclaw
   detail: /home/<wsl-user>/.openclaw/bin/openclaw
 [PASS] miloco.service_status
-  detail: {"running": true, "managed": true, "pid": 5196, "uptime_seconds": 2677, "log_file": "/home/<wsl-user>/.openclaw/miloco/log/miloco-backend.log", "server": {"url": "http://127.0.0.1:1886"}}
+  detail: {"running": true, "managed": true, "pid": 11501, "uptime_seconds": 417, "log_file": "/home/<wsl-user>/.openclaw/miloco/log/miloco-backend.log", "server": {"url": "http://127.0.0.1:1886"}}
 [PASS] miloco.health
   detail: {"status":"ok"}
 [PASS] openclaw.gateway_status
@@ -57,9 +35,8 @@ user=<wsl-user> home=/home/<wsl-user>
 [WARN] miloco.account
   detail: {"code": 0, "message": "Bind status checked successfully", "data": {"is_bound": false, "max_enabled_cameras": 4}}
   hint: Finish Xiaomi OAuth authorization: miloco-cli account bind/authorize.
-[WARN] miloco.omni_api_key
-  detail: empty
-  hint: Set model.omni.api_key and restart Miloco.
+[PASS] miloco.omni_api_key
+  detail: configured
 [WARN] miloco.devices
   detail: # did|device_name|room|category|online
   hint: Expected before Xiaomi account is bound; after binding, device rows should appear.
@@ -84,11 +61,10 @@ user=<wsl-user> home=/home/<wsl-user>
   hint: These warnings usually mean Xiaomi OAuth or Omni API key is still missing.
 BASIC_READY=yes
 FULL_READY=no
-PASS_COUNT=11
-WARN_COUNT=5
+PASS_COUNT=12
+WARN_COUNT=4
 FAIL_COUNT=0
 
-== Report summary ==
-PreflightExitCode=0
-ValidateExitCode=0
-ReportPath=C:\Users\<user>\AppData\Local\Temp\miloco-win01-report.txt
+## Masked config
+
+{"debug": false, "server": {"url": "http://127.0.0.1:1886", "token": "***", "tls_verify": false, "python_bin": "/home/<wsl-user>/.local/share/uv/tools/miloco/bin/python", "tls_certfile": "", "tls_keyfile": "", "port": 1886}, "agent": {"webhook_url": "http://127.0.0.1:18789/miloco/webhook", "auth_bearer": "<AGENT_WEBHOOK_BEARER>"}, "model": {"omni": {"model": "mimo-v2.5", "base_url": "https://token-plan-sgp.xiaomimimo.com/v1", "api_key": "***"}}}

@@ -1,10 +1,10 @@
-# WIN-home01 2026-06-23 摄像头 Wi-Fi 根因复盘
+# <windows-sample-host> 2026-06-23 摄像头 Wi-Fi 根因复盘
 
 用途：沉淀单台摄像头“米家在线、Miloco 设备状态在线、但视频流长期 `connected=false`”的排障结论。
 
 ## 一句话结论
 
-主卧摄像头最终恢复的关键动作，不是继续改 PIN、subtype、音频或防火墙，而是把摄像头统一换绑到普通 2.4G Wi-Fi。此前失败摄像头接在 Game/5G SSID，稳定摄像头接在普通 2.4G SSID。这个网络差异导致米家 App 能看到在线，但 Miloco 本地拉流/PPCS 数据面长期拿不到视频帧。
+<room-bedroom>摄像头最终恢复的关键动作，不是继续改 PIN、subtype、音频或防火墙，而是把摄像头统一换绑到普通 2.4G Wi-Fi。此前失败摄像头接在 Game/5G SSID，稳定摄像头接在普通 2.4G SSID。这个网络差异导致米家 App 能看到在线，但 Miloco 本地拉流/PPCS 数据面长期拿不到视频帧。
 
 ## 现象
 
@@ -12,16 +12,16 @@
 
 | 摄像头角色 | Wi-Fi | 现象 |
 | --- | --- | --- |
-| 稳定主卧摄像头 | 普通 2.4G Wi-Fi | Miloco 可取流 |
-| 失败主卧摄像头 | Game/5G Wi-Fi | 米家在线，但 Miloco `connected=false`，direct probe `raw=0 decoded=0` |
-| 客厅摄像头 | 普通网络 | Miloco 可取流 |
+| 稳定<room-bedroom>摄像头 | 普通 2.4G Wi-Fi | Miloco 可取流 |
+| 失败<room-bedroom>摄像头 | Game/5G Wi-Fi | 米家在线，但 Miloco `connected=false`，direct probe `raw=0 decoded=0` |
+| <room-living>摄像头 | 普通网络 | Miloco 可取流 |
 
 换绑后：
 
 - `miloco-cli scope camera list --pretty` 显示三台摄像头均 `is_online=true / in_use=true / connected=true`。
-- 3 轮重启 `miloco-backend` 后，主卧两个摄像头均能恢复 `connected=true`。
+- 3 轮重启 `miloco-backend` 后，<room-bedroom>两个摄像头均能恢复 `connected=true`。
 - Miloco 后端日志出现失败摄像头的 realtime perception。
-- OpenClaw 对“主卧有几个摄像头，画面是什么”能回答摄像头数量并描述画面内容。
+- OpenClaw 对“<room-bedroom>有几个摄像头，画面是什么”能回答摄像头数量并描述画面内容。
 
 ## 已排除的非根因
 
@@ -40,7 +40,7 @@
 2. 等摄像头重新上线后，重启 Miloco 后台。
 3. 用 `miloco-cli scope camera list --pretty` 验证每台摄像头均 `connected=true`。
 4. 重启 `miloco-backend` 3 次，确认每次最终都能恢复三台摄像头连接。
-5. 用 OpenClaw 问答验收“主卧有几个摄像头，画面是什么”，确认 Agent 能基于画面回答。
+5. 用 OpenClaw 问答验收“<room-bedroom>有几个摄像头，画面是什么”，确认 Agent 能基于画面回答。
 
 ## 代码侧辅助修复的作用
 

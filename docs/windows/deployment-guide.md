@@ -1,4 +1,4 @@
-﻿# 部署指南
+# 部署指南
 
 ## 支持环境
 
@@ -40,8 +40,8 @@ Windows 用户先从 [Windows部署总入口](index.md) 开始。该入口会引
 ## 实机部署实录
 
 - [Windows 部署总入口](index.md)：Windows 玩家第一入口，串联诊断报告、Agent/人工教程、决策树、后授权收尾和满血验收。
-- [官方部署流程对齐核查](upstream-deploy-alignment.md)：把 README、`scripts/install-guide.md`、installer 参数和 WIN-home01 实机适配逐项对齐。
-- [WIN-home01 部署实录](win-home01-log.md)：远程 Windows 电脑通过 WSL 部署 Miloco 的实时记录，包含 `wsl --install` 粘贴错误、发行版已存在、下一步进入 WSL 安装等处理。
+- [官方部署流程对齐核查](upstream-deploy-alignment.md)：把 README、`scripts/install-guide.md`、installer 参数和 <windows-sample-host> 实机适配逐项对齐。
+- [<windows-sample-host> 部署实录](windows-sample-host-log.md)：远程 Windows 电脑通过 WSL 部署 Miloco 的实时记录，包含 `wsl --install` 粘贴错误、发行版已存在、下一步进入 WSL 安装等处理。
 - [Windows 部署预检与验收清单](preflight-checklist.md)：部署前/部署后逐项打勾，区分基础安装和满血验收。
 - [Windows 满血验收证据清单](full-validation-evidence.md)：定义最终交付时哪些输出能证明满血完成，哪些只是基础就绪。
 - [Windows 部署决策树](decision-tree.md)：按当前状态选择下一条命令，覆盖 WSL、网络、端口、OpenClaw、账号、Key、设备和摄像头分支。
@@ -52,8 +52,8 @@ Windows 用户先从 [Windows部署总入口](index.md) 开始。该入口会引
 - [Agent 一键部署提示词](agent-prompt.md)：可复制给具备 SSH 能力的 Agent 的完整提示词。
 - [Windows 部署教程：Agent 一键版](agent-install.md)：把 SSH、WSL、Miloco、OpenClaw、插件安装和验证交给 Agent 的复用模板。
 - [Windows 部署教程：人工手动版](manual-install.md)：人工一步步在 Windows + WSL 中完成部署的命令清单。
-- [WIN-home01 授权阶段用户操作卡片](win-home01-auth-card.md)：用户回来后只需照做的小米 OAuth 和 MiMo API Key 提供清单。
-- [WIN-home01 后授权收尾 Runbook](win-home01-post-auth-runbook.md)：收到小米 OAuth 授权码和 MiMo API Key 后，把 WIN-home01 推进到满血验收的执行清单。
+- [<windows-sample-host> 授权阶段用户操作卡片](windows-sample-host-auth-card.md)：用户回来后只需照做的小米 OAuth 和 MiMo API Key 提供清单。
+- [<windows-sample-host> 后授权收尾 Runbook](windows-sample-host-post-auth-runbook.md)：收到小米 OAuth 授权码和 MiMo API Key 后，把 <windows-sample-host> 推进到满血验收的执行清单。
 - [Windows 后授权失败排障与交付审计](post-auth-troubleshooting.md)：`Finish` 没有一次性跑到 `FULL_READY=yes` 时按层级排障，并定义最终交付审计证据。
 - [Windows 部署预检与验收脚本](../scripts/README.md)：把 Windows 预检、WSL 服务验收、基础/满血状态判断做成可复制运行的脚本。
 
@@ -66,7 +66,7 @@ Windows 用户先从 [Windows部署总入口](index.md) 开始。该入口会引
 ### 方式二：Release 一行安装
 
 ```bash
-curl -LsSf https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash
+curl -LsSf https://github.com/<person-a>-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash
 ```
 
 `install.sh` 只负责引导 uv 和 Python，然后执行 `scripts/install.py`。核心安装流程在 Python 脚本内，包括环境检查、包安装、临时服务初始化、小米账号绑定、模型配置、感知模型下载和 OpenClaw 插件安装。

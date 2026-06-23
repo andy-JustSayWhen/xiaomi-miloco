@@ -1,4 +1,4 @@
-WIN-home01 OpenClaw camera full acceptance
+<windows-sample-host> OpenClaw camera full acceptance
 Time: 2026-06-22 13:07 Asia/Shanghai
 
 Goal:
@@ -8,9 +8,9 @@ Final result:
 PASS. OpenClaw chat page confirmed all 3 cameras are visible.
 
 Camera list:
-<camera-did-desk> | 主卧 电脑桌上 | 主卧 | online=true | in_use=true | connected=true
-<camera-did-bedside>  | 床边置物架   | 主卧 | online=true | in_use=true | connected=true
-<camera-did-living> | 摄像头 客厅   | 客厅 | online=true | in_use=true | connected=true
+<camera-did-desk> | <camera-desk> | <room-bedroom> | online=true | in_use=true | connected=true
+<camera-did-bedside>  | <camera-bedside>   | <room-bedroom> | online=true | in_use=true | connected=true
+<camera-did-living> | <camera-living>   | <room-living> | online=true | in_use=true | connected=true
 
 Important configs:
 Miloco URL: http://127.0.0.1:1886/
@@ -51,13 +51,13 @@ Backups:
 OpenClaw chat page answer:
 All three cameras queried successfully.
 
-<camera-did-desk> / 主卧 电脑桌上:
+<camera-did-desk> / <camera-desk>:
 White desk, black keyboard, mouse, cup with straw, black shelf in background, purple yoga ball, no person or pet.
 
-<camera-did-bedside> / 床边置物架:
+<camera-did-bedside> / <camera-bedside>:
 Bright computer monitor, desk with keyboard and mouse, clothes rack on the side, no person or pet.
 
-<camera-did-living> / 摄像头 客厅:
+<camera-did-living> / <camera-living>:
 Living room scene; a girl sitting on the sofa and a boy standing on the right side.
 
 Conclusion quoted from OpenClaw page:

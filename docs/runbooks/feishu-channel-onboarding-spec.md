@@ -11,13 +11,13 @@
 - Miloco OpenClaw 插件注册 `miloco_im_push`、`miloco_notify_bind`、`miloco_habit_suggest`。
 - 插件配置包含 `notifySessionKey`, 用于指定 Miloco 主动通知投递到哪个 OpenClaw IM session。
 - `miloco-notify` skill 已定义「绑定通知频道」的自然语言流程。
-- WIN01 已手工验证过 OpenClaw 接入飞书、agent 飞书出站、Miloco `miloco_im_push` 推送到飞书。
+- <windows-sample-host> 已手工验证过 OpenClaw 接入飞书、agent 飞书出站、Miloco `miloco_im_push` 推送到飞书。
 
 但这些能力还没有形成新用户可发现、可重复执行、可验收的 onboarding 流程。一键安装目前会安装 Miloco OpenClaw 插件和注册工具白名单, 但不会安装或配置 Feishu channel, 也不会引导用户完成飞书授权、绑定通知会话、验证真实入站。
 
 ## 原手工接入路径
 
-来源: `docs/windows/win-home01-log.md` 的 `2026-06-22 18:47-19:00 OpenClaw 接入飞书消息渠道` 留档。
+来源: `docs/windows/windows-sample-host-log.md` 的 `2026-06-22 18:47-19:00 OpenClaw 接入飞书消息渠道` 留档。
 
 已验证路径:
 
@@ -231,7 +231,7 @@ openclaw message send \
 
 脚本辅助路径:
 
-若是安装器/自动化场景, 可在明确拿到 `open_id` 且出站验证通过后, 补齐 session store entry, 再写入 `notifySessionKey`。这是 WIN01 手工验收用过的路径。
+若是安装器/自动化场景, 可在明确拿到 `open_id` 且出站验证通过后, 补齐 session store entry, 再写入 `notifySessionKey`。这是 <windows-sample-host> 手工验收用过的路径。
 
 绑定要求:
 
@@ -254,7 +254,7 @@ openclaw message send \
 
 ### 真实入站验收
 
-这是补齐 WIN01 留档缺口的必做项:
+这是补齐 <windows-sample-host> 留档缺口的必做项:
 
 1. 用户从飞书客户端给 bot 发送一条消息, 如「Miloco 入站测试」。
 2. OpenClaw Gateway 收到事件。
@@ -400,7 +400,7 @@ Miloco notify ready:
 
 分三步推进:
 
-1. 先实现 `docs/scripts/wsl-feishu-channel-onboard.sh` 和 `--status/--validate`, 用脚本固化 WIN01 手工路径。
+1. 先实现 `docs/scripts/wsl-feishu-channel-onboard.sh` 和 `--status/--validate`, 用脚本固化 <windows-sample-host> 手工路径。
 2. 再把 Windows workflow 接上 `-Action Feishu`, 让一键包用户可以从桌面/PowerShell 继续配置。
 3. 最后把安装器摘要和 `miloco-notify` 运行时提示接上, 形成安装后和首次通知时的双入口。
 

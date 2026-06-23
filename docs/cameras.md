@@ -20,8 +20,8 @@ WebUI 中“实时画面能看到”说明流连接可能成功；Minicloud 或 
 | 摄像头 | 当前结论 | 说明 |
 | --- | --- | --- |
 | 客厅摄像头 | 已验证可用 | WebUI 可见实时画面，OpenClaw 可基于画面回答。 |
-| 主卧电脑桌上 | 间歇可用 | 曾在 WIN-home01 上成功出帧并被 OpenClaw 描述画面；后续出现 LAN 表无命中、旧 IP 不可达的问题。 |
-| 主卧床边置物架 | 已修复过离线误报路径，仍需现场观察 | 曾出现 WebUI 能看到画面但左上角报错、Minicloud 显示离线。修复方向是区分 `online`、`lan_online`、`connected`，避免 UI 只按单一状态误判。 |
+| <camera-desk> | 间歇可用 | 曾在 <windows-sample-host> 上成功出帧并被 OpenClaw 描述画面；后续出现 LAN 表无命中、旧 IP 不可达的问题。 |
+| <camera-bedside> | 已修复过离线误报路径，仍需现场观察 | 曾出现 WebUI 能看到画面但左上角报错、Minicloud 显示离线。修复方向是区分 `online`、`lan_online`、`connected`，避免 UI 只按单一状态误判。 |
 
 ## 过期 LAN override
 

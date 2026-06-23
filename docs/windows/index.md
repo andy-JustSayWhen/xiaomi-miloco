@@ -69,13 +69,13 @@ powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action A
 - `miloco-cli scope camera list --pretty` 能列出目标摄像头。
 - 摄像头按 [camera-runbook.md](camera-runbook.md) 逐个核对 `online`、`lan_online`、`connected`、`active_sources` 和 OpenClaw 视觉描述。
 
-## WIN-home01 脱敏案例
+## <windows-sample-host> 脱敏案例
 
-WIN-home01 是本 fork v0.1 的第一台实机部署样本，已沉淀为脱敏案例：
+<windows-sample-host> 是本 fork v0.1 的第一台实机部署样本，已沉淀为脱敏案例：
 
-- [win-home01-log.md](win-home01-log.md)
-- [win-home01-readiness-audit.md](win-home01-readiness-audit.md)
-- [win-home01-official-readme-validation.md](win-home01-official-readme-validation.md)
-- [win-home01-post-auth-runbook.md](win-home01-post-auth-runbook.md)
+- [windows-sample-host-log.md](windows-sample-host-log.md)
+- [windows-sample-host-readiness-audit.md](windows-sample-host-readiness-audit.md)
+- [windows-sample-host-official-readme-validation.md](windows-sample-host-official-readme-validation.md)
+- [windows-sample-host-post-auth-runbook.md](windows-sample-host-post-auth-runbook.md)
 - [validation-record.md](validation-record.md)
-- [reports/WIN-home01-20260623-camera-wifi-root-cause.md](reports/WIN-home01-20260623-camera-wifi-root-cause.md)
+- [reports/windows-sample-host-20260623-camera-wifi-root-cause.md](reports/windows-sample-host-20260623-camera-wifi-root-cause.md)

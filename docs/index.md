@@ -34,12 +34,12 @@ Agent 必须先读：
 
 | 目录 | 用途 |
 | --- | --- |
-| [windows/](windows/index.md) | Windows 安装、预检、故障、验收、WIN-home01 实录 |
+| [windows/](windows/index.md) | Windows 安装、预检、故障、验收、<windows-sample-host> 实录 |
 | [runbooks/](runbooks/change-and-debug-runbook.md) | 变更、排障、发版前检查 |
 | [tests/](tests/test-guide.md) | 测试矩阵和验收清单 |
 | [meta/](meta/source-map.md) | 源码地图和维护日志 |
 | [scripts/](scripts/README.md) | 从 OB 迁入的预检与验收脚本 |
-| [windows/reports/](windows/reports/) | WIN-home01 部署和摄像头验收报告 |
+| [windows/reports/](windows/reports/) | <windows-sample-host> 部署和摄像头验收报告 |
 
 ## v0.2 边界
 

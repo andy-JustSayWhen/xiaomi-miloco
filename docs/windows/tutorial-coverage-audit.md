@@ -2,7 +2,7 @@
 
 > 审计日期：2026-06-22
 > 目的：确认 [Windows部署教程-Agent一键版](agent-install.md) 和 [Windows部署教程-人工手动版](manual-install.md) 是否覆盖“任意 Windows 电脑”部署 Miloco 时的主要状态分支。
-> 结论：教程已覆盖基础部署、常见 Windows/WSL 差异、网络/代理、OpenClaw、后授权和满血验收；WIN-home01 已用用户提供的小米 OAuth payload 和 MiMo Key 完成满血闭环。
+> 结论：教程已覆盖基础部署、常见 Windows/WSL 差异、网络/代理、OpenClaw、后授权和满血验收；<windows-sample-host> 已用用户提供的小米 OAuth payload 和 MiMo Key 完成满血闭环。
 
 ## 覆盖矩阵
 
@@ -19,9 +19,9 @@
 | WSL 无 Linux Node | 自动用户目录安装 Node | 第 6 节给出 Node tarball 方案 | [Windows部署故障排除矩阵](troubleshooting.md) | 已覆盖 |
 | OpenClaw gateway 缺失 | 安装 CLI/Gateway 并验证插件 loaded | 第 6/7 节手动安装和验证 | [Windows部署决策树](decision-tree.md) | 已覆盖 |
 | 官方 Agent 三步 | 写明 `--agent-prepare`、收集账号/Key、`--agent-finish --account-auth ... --omni-api-key ...` | 第 7/8 节区分带参/不带参 finish | [官方部署流程对齐核查](upstream-deploy-alignment.md) | 已覆盖 |
-| 小米 OAuth 未提供 | 标记只能基础就绪，等待用户 | 第 8/9 节回到授权 | [WIN-home01授权阶段用户操作卡片](win-home01-auth-card.md) | 已覆盖，但依赖用户 |
-| MiMo API Key 未提供 | 标记只能基础就绪，等待用户 | 第 8/9 节回到模型配置 | [WIN-home01授权阶段用户操作卡片](win-home01-auth-card.md) | 已覆盖，但依赖用户 |
-| 多家庭/多摄像头 | Finish 支持 `HomeId` / `CameraDids` | 手动版提示 home/camera 命令 | [WIN-home01后授权收尾Runbook](win-home01-post-auth-runbook.md) | 已覆盖 |
+| 小米 OAuth 未提供 | 标记只能基础就绪，等待用户 | 第 8/9 节回到授权 | [<windows-sample-host>授权阶段用户操作卡片](windows-sample-host-auth-card.md) | 已覆盖，但依赖用户 |
+| MiMo API Key 未提供 | 标记只能基础就绪，等待用户 | 第 8/9 节回到模型配置 | [<windows-sample-host>授权阶段用户操作卡片](windows-sample-host-auth-card.md) | 已覆盖，但依赖用户 |
+| 多家庭/多摄像头 | Finish 支持 `HomeId` / `CameraDids` | 手动版提示 home/camera 命令 | [<windows-sample-host>后授权收尾Runbook](windows-sample-host-post-auth-runbook.md) | 已覆盖 |
 | 生成报告交付排障 | `-Action Report` | 第 1 节和总入口提示报告 | [scripts/README](../scripts/README.md) | 已覆盖 |
 | 满血验收 | 要求账号、Key、设备、摄像头、日志同时通过 | 第 9 节同样要求 | [Windows满血验收证据清单](full-validation-evidence.md) | 已覆盖 |
 
@@ -34,9 +34,9 @@
 - 多家庭、多摄像头时，用户可能需要选择目标 home 和摄像头 did。
 - 摄像头本地流需要目标 Windows/WSL 与摄像头所在局域网实际可达；异地部署只能控制云端设备，不能默认承担本地摄像头持续感知。
 
-## WIN-home01 当前审计结论
+## <windows-sample-host> 当前审计结论
 
-WIN-home01 已覆盖并通过：
+<windows-sample-host> 已覆盖并通过：
 
 ```text
 BASIC_READY_FROM_WINDOWS=yes
@@ -46,7 +46,7 @@ PreflightExitCode=0
 ValidateExitCode=0
 ```
 
-WIN-home01 满血证据：
+<windows-sample-host> 满血证据：
 
 ```text
 account.is_bound=true
@@ -66,4 +66,4 @@ FAIL_COUNT=0
 
 - 如果新增一个 Windows 实机坑位，先判断它属于“新场景”还是已有矩阵中的具体例子。
 - 新场景必须同时更新本页、[Windows部署决策树](decision-tree.md)、[Windows部署故障排除矩阵](troubleshooting.md)，必要时更新 Agent/人工教程。
-- 如果只是 WIN-home01 的特例，优先追加到 [WIN-home01部署实录](win-home01-log.md)，不要直接写成通用步骤。
+- 如果只是 <windows-sample-host> 的特例，优先追加到 [<windows-sample-host>部署实录](windows-sample-host-log.md)，不要直接写成通用步骤。

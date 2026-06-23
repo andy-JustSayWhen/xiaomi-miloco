@@ -1,4 +1,4 @@
-﻿# Windows 部署资料包发布清单
+# Windows 部署资料包发布清单
 
 > 生成日期：2026-06-22
 > 用途：把 Windows 部署教程、脚本和验收材料作为一套可分发资料包交给其他玩家或 Agent。
@@ -18,7 +18,7 @@
 | [Windows部署故障排除矩阵](troubleshooting.md) | 已经看到报错时查根因和修复 |
 | [Windows部署教程覆盖审计](tutorial-coverage-audit.md) | 发布前确认主要 Windows 场景是否已覆盖 |
 | [Windows后授权失败排障与交付审计](post-auth-troubleshooting.md) | 后授权 `Finish` 没跑满时分层排障，最终交付前审计证据 |
-| [WIN-home01部署完成度审计](win-home01-readiness-audit.md) | WIN-home01 当前完成项、满血证据和踩坑闭环 |
+| [<windows-sample-host>部署完成度审计](windows-sample-host-readiness-audit.md) | <windows-sample-host> 当前完成项、满血证据和踩坑闭环 |
 | [Windows部署资料包版本说明](release-notes-template.md) | 资料包版本口径、生成规则和 hash 自引用处理 |
 
 ### 脚本目录
@@ -113,8 +113,8 @@ easy-miloco-v0.1-windows/
 │   ├── Windows部署资料包验收记录.md
 │   ├── Windows部署资料包版本说明.md
 │   ├── Windows后授权失败排障与交付审计.md
-│   ├── WIN-home01部署完成度审计.md
-│   ├── WIN-home01后授权收尾Runbook.md
+│   ├── <windows-sample-host>部署完成度审计.md
+│   ├── <windows-sample-host>后授权收尾Runbook.md
 │   ├── Windows部署预检与验收清单.md
 │   ├── Windows满血验收证据清单.md
 │   └── 官方部署流程对齐核查.md
@@ -179,12 +179,12 @@ FULL_READY=yes
 这套 Windows 部署资料分为 Agent 一键版和人工手动版。先从 Windows部署总入口开始；如果已经拿到 scripts 文件夹，先运行 win-miloco-workflow.ps1 -Action Report 生成诊断报告。基础服务通过不等于满血，最终必须看到 FULL_READY=yes。
 ```
 
-## WIN-home01 当前状态
+## <windows-sample-host> 当前状态
 
 最新报告：
 
 ```text
-reports/WIN-home01-20260622-102255-full-ready.txt
+reports/windows-sample-host-20260622-102255-full-ready.txt
 ```
 
 关键状态：
@@ -199,7 +199,7 @@ FULL_READY=yes
 
 - 小米账号 `is_bound=true`。
 - 设备列表 127 行。
-- 摄像头 `<camera-did-desk> / 主卧 电脑桌上` 在线、`in_use=true`、`connected=true`。
+- 摄像头 `<camera-did-desk> / <camera-desk>` 在线、`in_use=true`、`connected=true`。
 - MiMo/Omni 使用 `mimo-v2.5` + `https://token-plan-sgp.xiaomimimo.com/v1`。
 
 后续维护复核：

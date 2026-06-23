@@ -1,4 +1,4 @@
-# WIN-home01 Miloco full-ready validation report
+# <windows-sample-host> Miloco full-ready validation report
 
 Time: 2026-06-22 10:22:55 +08:00
 Host: <windows-user>@<tailscale-ip>
@@ -31,8 +31,8 @@ account.nickname=mdidb
 model.omni.api_key=configured
 device_rows=127
 camera.did=<camera-did-desk>
-camera.name=主卧 电脑桌上
-camera.room=主卧
+camera.name=<camera-desk>
+camera.room=<room-bedroom>
 camera.is_online=true
 camera.in_use=true
 camera.connected=true

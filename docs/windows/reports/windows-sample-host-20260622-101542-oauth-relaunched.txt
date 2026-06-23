@@ -1,16 +1,16 @@
-# WIN-home01 Miloco OAuth relaunch report
+# <windows-sample-host> Miloco OAuth relaunch report
 
 Time: 2026-06-22 10:15:42 +08:00
 Host: <windows-user>@<tailscale-ip>
 Distro: Ubuntu-24.04
 
 Action:
-- Relaunched Xiaomi OAuth authorize URL on WIN01 through Windows OpenSSH.
+- Relaunched Xiaomi OAuth authorize URL on <windows-sample-host> through Windows OpenSSH.
 - Used PowerShell -EncodedCommand to avoid URL `&` being split by the remote shell.
 - Refreshed desktop fallback files for the current Windows user.
 
 OAuth URL:
-https://account.xiaomi.com/oauth2/authorize?redirect_uri=https%3A%2F%2Fmico.api.mijia.tech%2Flogin_redirect&client_id=2882303761520431603&response_type=code&device_id=mico.4010007daa7043c18e101c053be2f57f&state=864dcbd558ff9c17d916c9e7d4f9ce194c6ac41c&skip_confirm=False
+<XIAOMI_OAUTH_URL>
 
 Remote result:
 - C:\Users\<user>\Desktop\miloco-xiaomi-oauth.url length=298
