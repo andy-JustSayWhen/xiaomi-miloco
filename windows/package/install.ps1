@@ -53,12 +53,92 @@ function ConvertTo-WslPath {
   throw "Only drive-letter Windows paths can be converted to WSL paths: $WindowsPath"
 }
 
-function Ensure-Wsl {
-  if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
-    Fail "wsl.exe not found. Enable WSL first, then rerun install.ps1."
+function Check-Prerequisites {
+  $failed = $false
+
+  # 1. 操作系统版本：Windows 11 22H2+ (build >= 22621)
+  $build = [System.Environment]::OSVersion.Version.Build
+  if ($build -lt 22621) {
+    Write-Host "[FAIL] 当前 Windows 版本过低 (Build $build)，需要 Windows 11 22H2+ (Build 22621+)。" -ForegroundColor Red
+    $failed = $true
+  } else {
+    Write-Host "[OK] Windows Build $build" -ForegroundColor Green
   }
 
-  $list = (& wsl.exe -l -v 2>&1 | Out-String) -replace "`0", ""
+  # 2. 管理员权限
+  $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+  if (-not $isAdmin) {
+    Write-Host "[FAIL] 需要管理员权限。请右键 install.bat → '以管理员身份运行'。" -ForegroundColor Red
+    $failed = $true
+  } else {
+    Write-Host "[OK] 管理员权限" -ForegroundColor Green
+  }
+
+  # 3. 网络访问 GitHub
+  Write-Host "正在检测网络..." -ForegroundColor Gray
+  $reachable = $false
+  try {
+    $tcp = New-Object System.Net.Sockets.TcpClient
+    $iar = $tcp.BeginConnect("github.com", 443, $null, $null)
+    $waited = $iar.AsyncWaitHandle.WaitOne(5000)
+    if ($waited -and $tcp.Connected) { $reachable = $true }
+    $tcp.Close()
+  } catch {}
+
+  if (-not $reachable) {
+    Write-Host "[WARN] 无法连接 github.com:443，后续下载可能失败。" -ForegroundColor Yellow
+    Write-Host "  如需加速，参见 README 的"下载加速"章节。" -ForegroundColor Yellow
+  } else {
+    Write-Host "[OK] 网络可达 GitHub" -ForegroundColor Green
+  }
+
+  if ($failed) {
+    Write-Host ""
+    Write-Host "请修复以上问题后重新运行 install.bat。" -ForegroundColor Yellow
+    exit 1
+  }
+  Write-Host ""
+}
+
+function Ensure-Wsl {
+  # 1. wsl.exe 不存在
+  if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+    Write-Host ""
+    Write-Host "[FAIL] 未检测到 WSL (wsl.exe)。" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "修复方法：" -ForegroundColor Yellow
+    Write-Host "  1. 打开 Microsoft Store，搜索 'Windows Subsystem for Linux'，点击安装"
+    Write-Host "  2. 或在管理员 PowerShell 中执行: wsl --install"
+    Write-Host "  3. 安装完成后重启电脑，再重新运行 install.bat"
+    Write-Host ""
+    exit 1
+  }
+
+  # 2. wsl.exe 存在但内部损坏 — 用 try/catch 捕获
+  $list = $null
+  try {
+    $list = (& wsl.exe -l -v 2>&1 | Out-String) -replace "`0", ""
+  } catch {
+    $list = $null
+  }
+
+  # wsl.exe -l -v 返回非零退出码或空输出 → WSL 组件异常
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($list)) {
+    Write-Host ""
+    Write-Host "[FAIL] WSL 组件异常 (wsl.exe 存在但无法正常工作)。" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "修复方法：" -ForegroundColor Yellow
+    Write-Host "  1. 打开 Microsoft Store，搜索 'Windows Subsystem for Linux'"
+    Write-Host "  2. 点击'获取'或'更新'，重新安装 WSL 组件"
+    Write-Host "  3. 安装完成后，在 PowerShell 中执行: wsl --update"
+    Write-Host "  4. 再重新运行 install.bat"
+    Write-Host ""
+    Write-Host "如果仍无法解决，请访问: https://aka.ms/wslmanualinstall" -ForegroundColor Gray
+    Write-Host ""
+    exit 1
+  }
+
+  # 3. WSL 正常，检查发行版
   if ($list -match [regex]::Escape($Distro)) {
     return
   }
@@ -70,7 +150,14 @@ function Ensure-Wsl {
     exit $LASTEXITCODE
   }
 
-  Fail "$Distro not found. Rerun with -InstallWsl, or install it manually with: wsl --install -d $Distro"
+  Write-Host ""
+  Write-Host "[FAIL] WSL 中未找到 $Distro。" -ForegroundColor Red
+  Write-Host ""
+  Write-Host "修复方法：" -ForegroundColor Yellow
+    Write-Host "  在 PowerShell 中执行: wsl --install -d $Distro"
+    Write-Host "  安装完成后重新运行 install.bat"
+  Write-Host ""
+  exit 1
 }
 
 function Invoke-WslBash {
@@ -233,6 +320,7 @@ function Invoke-Workflow {
 }
 
 function Invoke-Prepare {
+  Check-Prerequisites
   Require-File $ManifestPath
   Require-File $InstallSh
   Ensure-Wsl
