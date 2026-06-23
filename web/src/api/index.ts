@@ -25,6 +25,8 @@ import type {
   PerfGateScoreRow,
   PerfLatencyPoint,
   PerfAgentRun,
+  PerformanceReportDetail,
+  PerformanceReportMeta,
   PerfOmniErrorPoint,
   PerfRtfPoint,
   PerfStagePercentiles,
@@ -471,6 +473,21 @@ export async function listPerfAgentRuns(
   const since = windowToSince(w);
   return apiFetch<PerfAgentRun[]>(
     `/api/agent_runs?since=${since}&limit=${limit}`,
+  );
+}
+
+export async function listPerformanceReports(): Promise<PerformanceReportMeta[]> {
+  const data = await apiFetch<{ reports: PerformanceReportMeta[] }>(
+    "/api/performance-reports",
+  );
+  return data.reports;
+}
+
+export async function getPerformanceReport(
+  filename: string,
+): Promise<PerformanceReportDetail> {
+  return apiFetch<PerformanceReportDetail>(
+    `/api/performance-reports/${encodeURIComponent(filename)}`,
   );
 }
 

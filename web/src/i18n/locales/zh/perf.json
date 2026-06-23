@@ -163,5 +163,17 @@
     "timingSubtitle": "按时间段聚合 P50 / P75 / P95 / P99",
     "timingEmpty": "所选时间内暂无数据。",
     "timingChartAria": "近期处理耗时折线图"
+  },
+  "perfReports": {
+    "title": "性能报告",
+    "count": "共 {{count}} 份",
+    "refresh": "刷新",
+    "runs": "运行记录",
+    "detail": "报告详情",
+    "duration": "耗时 {{value}}",
+    "empty": "暂无性能报告。",
+    "noSelection": "未选择报告。",
+    "errList": "性能报告列表加载失败",
+    "errDetail": "性能报告详情加载失败"
   }
 }

@@ -61,6 +61,9 @@ from miloco.observability.performance_report import (
     report_path,
     write_performance_report,
 )
+from miloco.observability.performance_report_router import (
+    router as performance_report_router,
+)
 from miloco.observability.router import router as observability_router
 from miloco.perception.events_router import router as events_router
 from miloco.perception.router import router as perception_router
@@ -527,6 +530,7 @@ app.include_router(monitor_router, prefix="/api")
 # AttributeError → 500。跟 perception_router /metrics 端点的 perf 门控对齐。
 if _settings.perf.enabled:
     app.include_router(observability_router)
+app.include_router(performance_report_router)
 
 
 @app.get("/health", include_in_schema=False)

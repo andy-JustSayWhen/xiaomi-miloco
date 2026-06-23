@@ -11,6 +11,8 @@
     "activityHint": "回看发生过的事",
     "usage": "模型",
     "usageHint": "看模型和 Token 开销",
+    "performance": "性能",
+    "performanceHint": "查看性能报告",
     "loginMiot": "点击登录米家",
     "bound": "已绑定"
   }

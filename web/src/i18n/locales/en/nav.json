@@ -11,6 +11,8 @@
     "activityHint": "Review what happened",
     "usage": "Models",
     "usageHint": "Model & token usage",
+    "performance": "Performance",
+    "performanceHint": "View performance reports",
     "loginMiot": "Tap to sign in to Xiaomi Home",
     "bound": "Connected"
   }

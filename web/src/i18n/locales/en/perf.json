@@ -163,5 +163,17 @@
     "timingSubtitle": "P50 / P75 / P95 / P99 aggregated by time bucket",
     "timingEmpty": "No data in the selected period.",
     "timingChartAria": "Recent latency line chart"
+  },
+  "perfReports": {
+    "title": "Performance Reports",
+    "count": "{{count}} reports",
+    "refresh": "Refresh",
+    "runs": "Runs",
+    "detail": "Report detail",
+    "duration": "Duration {{value}}",
+    "empty": "No performance reports.",
+    "noSelection": "No report selected.",
+    "errList": "Failed to load performance reports",
+    "errDetail": "Failed to load performance report"
   }
 }

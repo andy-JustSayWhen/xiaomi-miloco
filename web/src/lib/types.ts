@@ -507,6 +507,26 @@ export interface PerfAgentRun {
   jsonl_path: string | null;
 }
 
+// ── 每次运行的 Markdown 性能报告 ───────────────────────────────
+
+export interface PerformanceReportMeta {
+  id: string;
+  filename: string;
+  size_bytes: number;
+  mtime: number;
+  run_id: string | null;
+  status: string | null;
+  app_version: string | null;
+  started_at: string | null;
+  ended_at: string | null;
+  duration: string | null;
+  perf_enabled: string | null;
+}
+
+export interface PerformanceReportDetail extends PerformanceReportMeta {
+  content: string;
+}
+
 // === Memory monitor (/monitor/memory + /monitor/memory/series) ===
 
 export interface MemoryCategory {

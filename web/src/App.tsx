@@ -39,6 +39,7 @@ import { ToastHost, toast } from "./components/Toast";
 import { UsagePage } from "./components/UsagePage";
 import type { HomeId } from "./lib/types";
 import { PerfPage } from "./components/PerfPage";
+import { PerformanceReportsPage } from "./components/PerformanceReportsPage";
 import { IconMoon, IconSun } from "./lib/icons";
 import { useTheme } from "./hooks/useTheme";
 import { useTranslation } from "react-i18next";
@@ -351,6 +352,8 @@ function MainApp() {
       }
       case "usage":
         return <UsagePage />;
+      case "performance":
+        return <PerformanceReportsPage />;
     }
   };
 
