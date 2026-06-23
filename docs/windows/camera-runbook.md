@@ -222,3 +222,72 @@ WIN-home01 当前实测：
 | `<camera-did-living>` | 正常出帧 | 作为全局网络与 Miloco 流程可用的对照组 |
 | `<camera-did-bedside>` | PIN + stall 重连问题 | 传入 PIN `<CAMERA_PIN>` 后可出帧；后续停帧由 manager 重建恢复 |
 | `<camera-did-desk>` | 设备/机型/PPCS 视频数据面问题 | 单播 LAN 与 PIN 都通过，但 native SDK 无帧，不能再写成“已验收” |
+
+## 9. 2026-06-23 补充：坏 LAN override 与首帧熔断
+
+### LAN override 只能修状态，不能造画面
+
+`camera_lan_overrides.json` 只应在“已确认该 IP 可由 MIoT LAN 表命中或真实可达”时使用。不能因为米家云端 `online=true` 就强行写成 `lan_online=true/local_ip=<ip>`。
+
+| 证据 | 正确判断 | Agent 动作 |
+| --- | --- | --- |
+| override IP ping 不通，`ip neigh` 是 `FAILED/INCOMPLETE` | override 过期或设备不在该地址 | 移除该 did 的 override，不要假标 LAN 在线 |
+| `get_cameras_async()` 原始字段 `local_ip=null`，LAN 表也无该 did | 主机没有发现摄像头 LAN 地址 | 转设备侧：Wi-Fi、路由器 DHCP、米家 App 实时预览、断电重启 |
+| 加 override 后只改变 `is_online/local_ip`，但仍无 decoded frame | 只修了设备状态层，没有修视频流层 | 继续查 SDK start result、raw/decoded 计数、PPCS 日志 |
+
+### 首帧超时要分“有 LAN hint”和“无 LAN hint”
+
+`Started decode video frame stream ... reg_id=N` 只说明 SDK 接受订阅，不说明有画面。首帧超时后的处理必须分流：
+
+| 类型 | 处理 |
+| --- | --- |
+| 无首帧 + 无 `lan_online/local_ip` | 进入长冷却，例如 300 秒；不要立即反复 rebuild，避免 native SDK 崩溃 |
+| 无首帧 + 有 `lan_online=true` 或 `local_ip` | 允许 manager rebuild；这类摄像头可能只是短时 stall，重建后可恢复 |
+| 曾经有 decoded frame 后 stall | 允许 disconnect + rebuild；按最终 `connected=true` 和 active_sources 判断 |
+
+### 诊断脚本不得误删 OAuth
+
+写临时 MIoT / LAN 探针时，不要调用会删除账号 KV 的路径。资源释放和账号解绑必须分开：
+
+- 普通资源释放：`await proxy.deinit()`。
+- 用户主动解绑：由 `MiotService.unbind_miot()` 显式清理账号信息。
+- 如果发现 `perceive devices=[]` 且 `account status is_bound=false`，先检查 `miloco.db` 的 MIOT token 是否还在，不要继续排摄像头。
+
+## 10. 2026-06-23 最终复盘：Game/5G Wi-Fi 导致本地取流失败
+
+WIN-home01 家庭网络中，单台摄像头长期 `is_online=true` 但 `connected=false` 的最终根因，不是 PIN、subtype、音频、Windows 防火墙、WSL 全局网络或 Miloco 状态误判，而是该摄像头接入了 Game/5G SSID。米家 App 和云端在线状态正常，但 Miloco 本地 SDK/PPCS 数据面长期拿不到视频帧，表现为 `raw=0 decoded=0`。
+
+最终解决动作：
+
+1. 在米家 App 中把所有摄像头统一接入普通 2.4G Wi-Fi，避免使用 Game/5G SSID、访客网络或可能做客户端隔离的 SSID。
+2. 等设备重新上线后，重启 Miloco 后台。
+3. 用 `miloco-cli scope camera list --pretty` 确认目标摄像头均为 `is_online=true / in_use=true / connected=true`。
+4. 重启 Miloco 后台 3 次，每次等待 API ready 后确认摄像头最终恢复 `connected=true`。
+5. 在 OpenClaw 中提问摄像头画面，确认 Agent 能回答房间内有几台摄像头并描述画面。
+
+本例排除项：
+
+| 排除项 | 证据 |
+| --- | --- |
+| PIN | 目标摄像头 PIN 已关闭或传入正确 PIN 后仍无帧 |
+| 画质/subtype | LOW/HIGH 和多个 raw subtype 都试过，仍 `raw=0 decoded=0` |
+| 音频 | 关闭音频后仍失败 |
+| Windows 防火墙 | Domain/Private/Public 均 disabled 后仍失败 |
+| WSL/Miloco 全局网络 | 同一主机上其他摄像头可出帧 |
+| 状态误判 issue | 设备已经 `is_online=true`，失败在视频数据面 |
+
+后续遇到同类问题的优先级：
+
+| 现象 | 优先动作 |
+| --- | --- |
+| 米家在线，Miloco `connected=false`，且其他摄像头正常 | 先检查失败摄像头是否接在不同 SSID、5G/Game Wi-Fi、访客网络或隔离网络 |
+| 单个 did `raw=0 decoded=0`，同主机其他 did 可出帧 | 不要先改 Miloco 全局逻辑，优先设备侧换普通 2.4G Wi-Fi、断电重启、固件更新 |
+| 换绑普通 2.4G 后恢复 | 记录 SSID 差异为根因，并做 3 次后台重启 + OpenClaw 问答验收 |
+
+详见 [WIN-home01 2026-06-23 摄像头 Wi-Fi 根因复盘](reports/WIN-home01-20260623-camera-wifi-root-cause.md)。
+
+## 11. SSH 命令传输规则
+
+远程 Windows + SSH 排障时，不要把复杂的管道、重定向和多层引号继续硬拼在一行里。固定方法见 [SSH 命令传输方法](ssh-command-transfer.md)。
+
+一句话规则：简单命令直传，复杂命令落脚本，CLI 尽量走绝对路径，不再现场修引号。

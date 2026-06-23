@@ -1,5 +1,27 @@
 # 维护日志
 
+## 2026-06-23 整合 Obsidian easy-miloco 有效内容
+
+目的：
+
+- 将 Obsidian `easy-miloco` 笔记中仍有复用价值的部署、摄像头排障和 SSH 命令传输经验合并回仓库 `docs/`。
+- 保留仓库版文档已有的脱敏和 Markdown 链接整理，不用 Obsidian 原文覆盖。
+- 不迁入缓存、下载包、`.env` 和重复资料包内容。
+
+新增：
+
+- `docs/windows/ssh-command-transfer.md`
+- `docs/windows/reports/WIN-home01-20260623-camera-wifi-root-cause.md`
+- `docs/runbooks/nas01-openclaw-miloco-install.md`
+
+更新：
+
+- `docs/windows/camera-runbook.md`
+- `docs/windows/index.md`
+- `docs/index.md`
+- `docs/meta/source-map.md`
+- `docs/meta/maintenance-log.md`
+
 ## 2026-06-23 新增性能报告与 WebUI 规格复盘
 
 目的：

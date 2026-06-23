@@ -45,6 +45,15 @@
 - 观测和健康：`observability`、`node_monitor`
 - 每次运行性能报告：`observability/performance_report.py` 生成 Markdown；`observability/performance_report_router.py` 暴露 `/api/performance-reports`；Web 面板入口在 `web/src/components/PerformanceReportsPage.tsx`。
 
+## 运维和排障文档入口
+
+- `docs/windows/camera-runbook.md`：摄像头离线、黑屏、OpenClaw 看不到画面的快速定位。
+- `docs/windows/ssh-command-transfer.md`：远程 Windows OpenSSH 到 WSL 的命令传输、脚本化和 patch 传输规则。
+- `docs/runbooks/change-and-debug-runbook.md`：变更、排障、日志、回滚和验收的通用流程。
+- `docs/runbooks/make-release-package.md`：生成 Windows 分发包的步骤。
+- `docs/runbooks/nas01-openclaw-miloco-install.md`：NAS 类 Linux 主机安装 OpenClaw + Miloco 时的网络和下载源经验。
+- `docs/runbooks/performance-report-webui-spec.md`：性能报告产物、API、WebUI 入口和打包要求。
+
 ## MIoT SDK
 
 入口和职责：
