@@ -109,7 +109,7 @@ curl -I https://openclaw.ai/install-cli.sh
 
 ```bash
 curl -LsSf -o /tmp/miloco-install.sh \
-  https://github.com/<person-a>-JustSayWhen/easy-miloco/releases/latest/download/install.sh
+  https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh
 ```
 
 执行 Agent prepare：

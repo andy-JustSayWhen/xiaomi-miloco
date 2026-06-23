@@ -149,7 +149,7 @@ export all_proxy=http://127.0.0.1:7897
 Miloco 官方 prepare：
 
 ```bash
-curl -LsSf https://github.com/<person-a>-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash -s -- --agent-prepare
+curl -LsSf https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash -s -- --agent-prepare
 ```
 
 长时间无输出时，不要重复启动安装。另开终端查：

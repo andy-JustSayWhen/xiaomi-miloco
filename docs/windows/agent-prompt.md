@@ -41,7 +41,7 @@
 - WSL: 检查 ~/.wslconfig 是否 mirrored networking
 
 安装：
-- 下载 https://github.com/<person-a>-JustSayWhen/easy-miloco/releases/latest/download/install.sh
+- 下载 https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh
 - 运行 bash /tmp/miloco-install.sh --agent-prepare
 - 如果 uv 长时间无输出，检查 ps/ss/du，不要重复启动安装
 - 如果 1810 绑定失败且在 Windows excluded range 内，改 Miloco 到未占用端口，如 1886，并同步 server.url

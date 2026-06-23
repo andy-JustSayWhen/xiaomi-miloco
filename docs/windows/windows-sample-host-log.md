@@ -69,7 +69,7 @@ Set-NetFirewallHyperVVMSetting -Name '{40E0AC32-46A5-438A-A0B2-2B479E8F2E90}' -D
 进入 Ubuntu 后执行：
 
 ```bash
-curl -LsSf https://github.com/<person-a>-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash
+curl -LsSf https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash
 ```
 
 安装完成后：

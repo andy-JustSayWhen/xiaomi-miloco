@@ -66,7 +66,7 @@ Windows 用户先从 [Windows部署总入口](index.md) 开始。该入口会引
 ### 方式二：Release 一行安装
 
 ```bash
-curl -LsSf https://github.com/<person-a>-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash
+curl -LsSf https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash
 ```
 
 `install.sh` 只负责引导 uv 和 Python，然后执行 `scripts/install.py`。核心安装流程在 Python 脚本内，包括环境检查、包安装、临时服务初始化、小米账号绑定、模型配置、感知模型下载和 OpenClaw 插件安装。
