@@ -985,12 +985,11 @@ class MiotService:
             # 开了也不出画面、徒占上限名额。只拦「开启」——已启用的设备掉线后仍保留
             # inUse=true(允许态不被强制改),且可正常被「关闭」(disable 不走这条校验)。
             connected = self._connected_camera_dids()
-            # 在线口径与 list_cameras_with_state 的 is_online 一致：MiOT 在线或本地流已连上。
+            # Match list_cameras_with_state so cloud-online cameras can be
+            # re-enabled even when lan_online is stale false.
             def _online(did: str) -> bool:
                 info = cameras[did]
-                cloud_online = bool(getattr(info, "online", False)) and bool(
-                    getattr(info, "lan_online", False)
-                )
+                cloud_online = bool(getattr(info, "online", False))
                 return cloud_online or did in connected
 
             offline_enable = [d for d in enable_dids if not _online(d)]

@@ -341,6 +341,25 @@ async def test_toggle_camera_allows_connected_camera_with_stale_lan_offline():
 
 
 @pytest.mark.asyncio
+async def test_toggle_camera_allows_cloud_online_camera_with_stale_lan_offline():
+    kv = _FakeKV(
+        {
+            ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"]),
+            ScopeConfigKeys.CAMERA_BLACK_LIST_KEY: json.dumps(["c1"]),
+        }
+    )
+    svc = _make_service(
+        devices={"c1": _camera("c1")},
+        cameras={"c1": _camera("c1", lan_online=False)},
+        kv=kv,
+    )
+
+    res = await svc.toggle_camera([{"did": "c1", "in_use": True}])
+
+    assert any(c["did"] == "c1" and c["in_use"] is True for c in res)
+
+
+@pytest.mark.asyncio
 async def test_toggle_camera_batch_atomic():
     """全部 did 校验通过后才一起写入；任一未知则整批拒绝。"""
     kv = _FakeKV({ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"])})
