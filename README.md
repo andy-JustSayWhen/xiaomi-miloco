@@ -16,6 +16,18 @@
 
 打开 [GitHub Release](https://github.com/andy-JustSayWhen/easy-miloco/releases)，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，双击文件夹根目录内的 `install.ps1`。
 
+#### 下载加速
+
+如遇 GitHub 下载缓慢，可尝试以下方式：
+
+1. **配置 GitHub 加速代理**
+   - 可选网站：[gh-proxy.com](https://gh-proxy.com/) 或 [gitwarp.com](https://www.gitwarp.com/)
+   - 使用方法：打开上述任一网站，按页面提示操作（也可自行搜索或问 AI）
+
+2. **从网盘下载**
+   - [夸克网盘备份](https://pan.quark.cn/s/22f5fb48488d)
+   - 网盘为下载副本，版本基准仍以 GitHub Release 为准
+
 ## 环境依赖
 
 下载 release 包后，用户可能遇到以下依赖或系统能力要求：
