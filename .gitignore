@@ -38,6 +38,9 @@ plugins/openclaw/skills/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+*.log
+*.pid
 
 # Local agent/build scratch
 .codex/
@@ -52,6 +55,12 @@ __pycache__
 *.py[oc]
 .pytest_cache/
 .ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
 
 # Backend test artifacts
 .test_cache
@@ -71,6 +80,8 @@ testcases
 
 # Misc
 .DS_Store
+Thumbs.db
+desktop.ini
 *.pem
 *.key
 temp
@@ -78,6 +89,7 @@ temp
 
 # IDE
 .vscode
+.idea/
 .claude/*
 CLAUDE.md
 openspec
