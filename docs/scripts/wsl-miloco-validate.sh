@@ -47,7 +47,7 @@ print_field() {
     sed 's/^ //; s/ $//' |
     awk 'NF { print }' |
     head -n "$max_lines" |
-    fold -s -w 96 |
+    fold -s -w 72 |
     sed 's/^/    /'
   if [ "${line_count:-0}" -gt "$max_lines" ]; then
     printf '    ... (%s line(s) omitted)\n' "$((line_count - max_lines))"

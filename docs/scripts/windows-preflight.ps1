@@ -59,7 +59,7 @@ function Write-WrappedText {
   param(
     [string]$Text,
     [string]$Indent = "    ",
-    [int]$Width = 96,
+    [int]$Width = 72,
     [int]$MaxLines = 24
   )
 

@@ -146,7 +146,7 @@ function Invoke-Report {
   $reportFile = $ReportPath
   if ([string]::IsNullOrWhiteSpace($reportFile)) {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
-    $reportFile = Join-Path $env:TEMP "miloco-deploy-report-$stamp.txt"
+    $reportFile = Join-Path (Get-Location) "miloco-deploy-report-$stamp.txt"
   }
 
   $reportDir = Split-Path -Parent $reportFile

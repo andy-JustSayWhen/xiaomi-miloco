@@ -16,6 +16,16 @@
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+try {
+  if ([Console]::BufferHeight -lt 3000) {
+    [Console]::BufferHeight = 3000
+  }
+  if ([Console]::BufferWidth -lt 100) {
+    [Console]::BufferWidth = 100
+  }
+} catch {
+  # Some hosted consoles do not allow resizing the buffer.
+}
 
 $PackageRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ManifestPath = Join-Path $PackageRoot "manifest.json"
@@ -920,12 +930,14 @@ function Open-WhenReady {
   param([int]$Port)
 
   $deadline = (Get-Date).AddSeconds(60)
+  $ready = $false
   while ((Get-Date) -lt $deadline) {
     $tcp = New-Object Net.Sockets.TcpClient
     try {
       $iar = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
       if ($iar.AsyncWaitHandle.WaitOne(1000)) {
         $tcp.EndConnect($iar)
+        $ready = $true
         break
       }
     } catch {
@@ -934,7 +946,16 @@ function Open-WhenReady {
     }
     Start-Sleep -Seconds 1
   }
-  Start-Process ("http://127.0.0.1:{0}/" -f $Port)
+  if ($ready) {
+    Start-Process ("http://127.0.0.1:{0}/" -f $Port)
+    return
+  }
+
+  Write-Host ("端口 {0} 在 60 秒内还没有响应，所以暂时没有自动打开浏览器。" -f $Port) -ForegroundColor Yellow
+  Write-Host "这通常表示服务还在启动、启动失败，或端口被占用。" -ForegroundColor Yellow
+  Write-Host "可查看 WSL 内日志：" -ForegroundColor Yellow
+  Write-Host "  /tmp/miloco-desktop-start.log" -ForegroundColor Yellow
+  Write-Host "  /tmp/openclaw-desktop-restart.log" -ForegroundColor Yellow
 }
 
 function Get-MilocoPortConfigCommand {
