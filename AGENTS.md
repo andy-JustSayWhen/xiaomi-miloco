@@ -12,6 +12,8 @@
 - Before code edits, check `git status`.
 - Commit small useful checkpoints. Commit frequency should favor rollback safety over tidiness.
 - Push when a checkpoint is useful remotely, after tests, or when the user asks. Do not keep saying "later" when a commit/push is practical now.
+- Before replacing or uploading any GitHub Release asset, ask the user for explicit confirmation. Do not auto-clobber release zips after every fix.
+- If GitHub release upload/download or git network operations are slow, use the local Clash proxy at `http://127.0.0.1:7897` before waiting indefinitely.
 - Never commit local secrets, credentials, Azure VM passwords, diagnostic reports containing private data, node_modules, build caches, or temporary VM transfer files.
 - `.local-secrets/`, `.codegraph/`, `.codex/`, `dist/`, caches, and generated dependency folders must stay ignored.
 

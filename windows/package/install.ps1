@@ -40,6 +40,8 @@ $script:ResolvedDistroInfo = $null
 $script:MilocoPort = $MilocoPort
 $script:ExistingRestorePackPath = ""
 $script:WslExe = ""
+$script:ConsoleLogPath = ""
+$script:TranscriptStarted = $false
 
 function Exit-Installer {
   param([int]$Code = 0)
@@ -52,6 +54,12 @@ function Exit-Installer {
       Write-Host "安装向导已暂停。请先按上面的中文提示处理问题。" -ForegroundColor Yellow
     }
     Read-Host "按回车关闭窗口"
+  }
+  if ($script:TranscriptStarted) {
+    try {
+      Stop-Transcript | Out-Null
+    } catch {
+    }
   }
   exit $Code
 }
@@ -88,6 +96,32 @@ function Write-Warn {
   Write-Host ("[需要注意] {0}" -f $Message) -ForegroundColor Yellow
 }
 
+function Start-InstallerLog {
+  $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+  $script:ConsoleLogPath = Join-Path $PackageRoot ("miloco-install-console-{0}.txt" -f $stamp)
+  try {
+    Start-Transcript -LiteralPath $script:ConsoleLogPath -Force | Out-Null
+    $script:TranscriptStarted = $true
+    Write-Host ("[说明] 本次安装窗口日志会保存到：{0}" -f $script:ConsoleLogPath) -ForegroundColor Gray
+  } catch {
+    $script:TranscriptStarted = $false
+    Write-Warn ("无法启动安装窗口日志记录：{0}" -f $_.Exception.Message)
+  }
+}
+
+function Read-InstallerInput {
+  param([string]$Prompt)
+
+  $value = Read-Host $Prompt
+  if ($script:TranscriptStarted) {
+    try {
+      Add-Content -Encoding utf8 -LiteralPath $script:ConsoleLogPath -Value ("[INPUT] {0}: {1}" -f $Prompt, $value)
+    } catch {
+    }
+  }
+  return $value
+}
+
 function Fail {
   param([string]$Message)
   Write-Host ""
@@ -112,7 +146,7 @@ function Stop-ForUser {
   }
   Write-Host ""
   if ($OfferRestart) {
-    $answer = Read-Host "请重启电脑后再次运行安装。回复 y 立即重启，直接按回车则先关闭窗口"
+    $answer = Read-InstallerInput "请重启电脑后再次运行安装。回复 y 立即重启，直接按回车则先关闭窗口"
     if ($answer.Trim() -ieq "y") {
       Write-Host ""
       Write-Info "正在重启 Windows。重启后请重新双击 install.bat。"
@@ -1416,6 +1450,104 @@ function Start-UserUrl {
   }
 }
 
+function ConvertTo-MilocoAuthPayload {
+  param([string]$UserInput)
+
+  $value = $UserInput.Trim()
+  if ([string]::IsNullOrWhiteSpace($value)) {
+    return ""
+  }
+  $codeMatch = [regex]::Match($value, '(?:[?&]|\b)code=([^&\s]+)')
+  $stateMatch = [regex]::Match($value, '(?:[?&]|\b)state=([^&\s]+)')
+  if ($codeMatch.Success -and $stateMatch.Success) {
+    $code = [System.Uri]::UnescapeDataString($codeMatch.Groups[1].Value)
+    $state = [System.Uri]::UnescapeDataString($stateMatch.Groups[1].Value)
+    $json = @{ code = $code; state = $state } | ConvertTo-Json -Compress
+    return [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($json))
+  }
+  return $value
+}
+
+function Get-OpenAiModelIds {
+  param(
+    [string]$BaseUrl,
+    [string]$ApiKey
+  )
+
+  $base = $BaseUrl.Trim().TrimEnd("/")
+  if ([string]::IsNullOrWhiteSpace($base) -or [string]::IsNullOrWhiteSpace($ApiKey)) {
+    return @()
+  }
+  $modelsUrl = $base + "/models"
+  try {
+    $headers = @{ Authorization = "Bearer $ApiKey" }
+    $resp = Invoke-RestMethod -Method Get -Uri $modelsUrl -Headers $headers -TimeoutSec 20
+    $ids = New-Object System.Collections.Generic.List[string]
+    foreach ($item in @($resp.data)) {
+      if ($item -and -not [string]::IsNullOrWhiteSpace([string]$item.id)) {
+        $ids.Add([string]$item.id) | Out-Null
+      }
+    }
+    return @($ids.ToArray() | Sort-Object -Unique)
+  } catch {
+    Write-Warn ("模型列表获取失败：{0}" -f $_.Exception.Message)
+    Write-Warn ("已尝试接口：{0}" -f $modelsUrl)
+    return @()
+  }
+}
+
+function Select-OmniModel {
+  param(
+    [string]$BaseUrl,
+    [string]$ApiKey,
+    [string]$DefaultModel
+  )
+
+  Write-Host ""
+  Write-Host "下面选择的是 Miloco 摄像头视觉理解/家庭感知模型，不是 OpenClaw 主聊天模型。" -ForegroundColor Cyan
+  Write-Host "请选择支持视觉/多模态的模型；例如 Xiaomi MIMO 里应优先用 mimo-v2.5，不要把不支持视觉的 mimo-v2.5-pro 配到这里。" -ForegroundColor Yellow
+  $modelIds = @(Get-OpenAiModelIds -BaseUrl $BaseUrl -ApiKey $ApiKey)
+  if ($modelIds.Count -eq 0) {
+    $manual = (Read-InstallerInput ("没有拿到模型列表。请粘贴视觉模型名；直接回车使用 {0}" -f $DefaultModel)).Trim()
+    if ([string]::IsNullOrWhiteSpace($manual)) {
+      return $DefaultModel
+    }
+    return $manual
+  }
+
+  $preferred = $DefaultModel
+  if ($modelIds -contains "mimo-v2.5") {
+    $preferred = "mimo-v2.5"
+  } elseif ($modelIds -contains "xiaomi/mimo-v2.5") {
+    $preferred = "xiaomi/mimo-v2.5"
+  }
+  Write-Host ""
+  Write-Host ("已通过 {0}/models 获取到可用模型：" -f $BaseUrl.Trim().TrimEnd("/")) -ForegroundColor Green
+  for ($i = 0; $i -lt $modelIds.Count; $i++) {
+    $mark = ""
+    if ($modelIds[$i] -eq $preferred) {
+      $mark = "  推荐用于视觉"
+    } elseif ($modelIds[$i] -match 'pro$') {
+      $mark = "  通常更适合 OpenClaw 主聊天，未必支持视觉"
+    }
+    Write-Host ("  {0}. {1}{2}" -f ($i + 1), $modelIds[$i], $mark)
+  }
+  while ($true) {
+    $choice = (Read-InstallerInput ("请输入模型编号；直接回车使用 {0}" -f $preferred)).Trim()
+    if ([string]::IsNullOrWhiteSpace($choice)) {
+      return $preferred
+    }
+    $idx = 0
+    if ([int]::TryParse($choice, [ref]$idx) -and $idx -ge 1 -and $idx -le $modelIds.Count) {
+      return $modelIds[$idx - 1]
+    }
+    if ($modelIds -contains $choice) {
+      return $choice
+    }
+    Write-Warn "输入无效，请输入列表编号，或直接回车使用推荐模型。"
+  }
+}
+
 function Invoke-FinishWorkflowOnce {
   param(
     [string]$FinishAuthPayload,
@@ -1489,7 +1621,9 @@ function Invoke-InteractivePostAuthSetup {
 
   Write-Host ""
   Write-Host "请在浏览器里完成小米账号登录和授权。" -ForegroundColor Yellow
-  $interactiveAuthPayload = (Read-Host "授权完成后，把页面返回的授权码/完整内容粘贴到这里；暂时没有就直接回车跳过").Trim()
+  Write-Host "如果浏览器跳到 https://127.0.0.1/ 后显示无法访问，这是正常现象。" -ForegroundColor Yellow
+  Write-Host "请复制浏览器地址栏里包含 code= 和 state= 的完整地址，粘贴回这里。" -ForegroundColor Yellow
+  $interactiveAuthPayload = (Read-InstallerInput "授权完成后，粘贴授权码或完整回调地址；暂时没有就直接回车跳过").Trim()
   if ([string]::IsNullOrWhiteSpace($interactiveAuthPayload)) {
     Write-Warn "已跳过小米账号授权收尾。基础服务仍可用，稍后可以重新运行 install.ps1 -Action Finish。"
     if ($FromFinishAction) {
@@ -1497,6 +1631,7 @@ function Invoke-InteractivePostAuthSetup {
     }
     return 0
   }
+  $interactiveAuthPayload = ConvertTo-MilocoAuthPayload $interactiveAuthPayload
 
   Write-Host ""
   Write-Host "提示：如果您没有自己的大模型API，可以申请下述任意的免费试用API。" -ForegroundColor Yellow
@@ -1508,14 +1643,14 @@ function Invoke-InteractivePostAuthSetup {
   foreach ($option in $apiOptions) {
     Write-Host ("{0} [{1}] {2}" -f $option.Id, $option.Name, $option.Url)
   }
-  $apiChoice = (Read-Host "如需打开申请页面，请输入 01/02/03；已有 Key 直接回车").Trim()
+  $apiChoice = (Read-InstallerInput "如需打开申请页面，请输入 01/02/03；已有 Key 直接回车").Trim()
   $selectedApi = $apiOptions | Where-Object { $_.Id -eq $apiChoice -or $_.ShortId -eq $apiChoice } | Select-Object -First 1
   if ($selectedApi) {
     Start-UserUrl -Url $selectedApi.Url -Label ($selectedApi.Name + " API 申请页")
   }
 
   Write-Host ""
-  $interactiveApiKey = (Read-Host "请粘贴 API Key；暂时没有就直接回车跳过").Trim()
+  $interactiveApiKey = (Read-InstallerInput "请粘贴 API Key；暂时没有就直接回车跳过").Trim()
   if ([string]::IsNullOrWhiteSpace($interactiveApiKey)) {
     Write-Warn "已跳过 API 配置。稍后拿到 Key 后可以重新运行 install.ps1 -Action Finish。"
     if ($FromFinishAction) {
@@ -1527,9 +1662,9 @@ function Invoke-InteractivePostAuthSetup {
   $defaultBaseUrl = if ($selectedApi) { $selectedApi.BaseUrl } else { $OmniBaseUrl }
   $defaultModel = if ($selectedApi -and -not [string]::IsNullOrWhiteSpace($selectedApi.Model)) { $selectedApi.Model } else { $OmniModel }
   if ([string]::IsNullOrWhiteSpace($defaultBaseUrl)) {
-    $interactiveBaseUrl = (Read-Host "请粘贴 Base URL，例如 https://.../v1；此项不能为空").Trim()
+    $interactiveBaseUrl = (Read-InstallerInput "请粘贴 Base URL，例如 https://.../v1；此项不能为空").Trim()
   } else {
-    $interactiveBaseUrl = (Read-Host ("请粘贴 Base URL；直接回车使用 {0}" -f $defaultBaseUrl)).Trim()
+    $interactiveBaseUrl = (Read-InstallerInput ("请粘贴 Base URL；直接回车使用 {0}" -f $defaultBaseUrl)).Trim()
   }
   if ([string]::IsNullOrWhiteSpace($interactiveBaseUrl) -and -not [string]::IsNullOrWhiteSpace($defaultBaseUrl)) {
     $interactiveBaseUrl = $defaultBaseUrl
@@ -1541,16 +1676,17 @@ function Invoke-InteractivePostAuthSetup {
     }
     return 0
   }
-  $interactiveModel = (Read-Host ("请粘贴模型名；直接回车使用 {0}" -f $defaultModel)).Trim()
-  if ([string]::IsNullOrWhiteSpace($interactiveModel)) {
-    $interactiveModel = $defaultModel
-  }
+  $interactiveModel = Select-OmniModel -BaseUrl $interactiveBaseUrl -ApiKey $interactiveApiKey -DefaultModel $defaultModel
 
   Write-Host ""
   Write-Info "正在写入小米账号授权和大模型 API 配置。"
   $finishCode = Invoke-FinishWorkflowOnce -FinishAuthPayload $interactiveAuthPayload -FinishMimoApiKey $interactiveApiKey -FinishOmniModel $interactiveModel -FinishOmniBaseUrl $interactiveBaseUrl -NoStrictFull
   if ($finishCode -eq 0) {
     Write-Ok "账号授权和 API 配置已执行完成。"
+    Write-Host ""
+    Write-Host "说明：刚才配置的是 Miloco 摄像头视觉理解/家庭感知模型，并同步给 Miloco OpenClaw 插件使用。" -ForegroundColor Cyan
+    Write-Host "OpenClaw 主聊天模型是另一套配置；如果 OpenClaw 聊天提示没有 provider API Key，需要在 OpenClaw 的模型/代理设置里继续配置主聊天 LLM。" -ForegroundColor Yellow
+    Write-Host "推荐思路：Miloco 视觉用支持视觉的模型，例如 mimo-v2.5；OpenClaw 主聊天可用更强的文本模型，例如 mimo-v2.5-pro。" -ForegroundColor Yellow
   } else {
     Write-Warn ("账号/API 收尾没有完全成功，退出码：{0}。请保留窗口输出或诊断报告继续排查。" -f $finishCode)
   }
@@ -1955,6 +2091,8 @@ exit 0
   Write-Ok "Miloco/OpenClaw 插件、Miloco 数据目录、后台任务和桌面入口已完成清理。"
   Exit-Installer 0
 }
+
+Start-InstallerLog
 
 switch ($Action) {
   "Prepare" { Invoke-Prepare }

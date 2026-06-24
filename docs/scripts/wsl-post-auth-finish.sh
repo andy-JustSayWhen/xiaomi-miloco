@@ -128,6 +128,38 @@ run_cmd miloco-cli config set \
   model.omni.api_key "$MIMO_API_KEY" \
   --no-restart
 
+log "Writing OpenClaw Miloco plugin Omni fallback config"
+if [ "$DRY_RUN" -eq 1 ]; then
+  printf '[DRY_RUN] update ~/.openclaw/openclaw.json plugin miloco-openclaw-plugin omni_* config\n'
+else
+  python3 - <<'PY'
+import json
+import os
+import shutil
+from datetime import datetime
+from pathlib import Path
+
+path = Path.home() / ".openclaw" / "openclaw.json"
+if not path.exists():
+    print(f"[WARN] OpenClaw config not found: {path}")
+    raise SystemExit(0)
+
+data = json.loads(path.read_text(encoding="utf-8"))
+plugins = data.setdefault("plugins", {}).setdefault("entries", {})
+entry = plugins.setdefault("miloco-openclaw-plugin", {})
+config = entry.setdefault("config", {})
+config["omni_model"] = os.environ.get("OMNI_MODEL", "")
+config["omni_base_url"] = os.environ.get("OMNI_BASE_URL", "")
+config["omni_api_key"] = os.environ.get("MIMO_API_KEY", "")
+
+backup = path.with_name(path.name + ".bak.miloco-omni-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+shutil.copy2(path, backup)
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+print(f"[OK] OpenClaw Miloco plugin config updated; backup={backup}")
+PY
+fi
+log "Note: the above config is for Miloco visual perception and the Miloco OpenClaw plugin. OpenClaw main chat LLM provider is separate."
+
 if [ -n "$MILOCO_HOME_ID" ]; then
   log "Switching Miloco home: ${MILOCO_HOME_ID}"
   run_cmd miloco-cli scope home switch --pretty "$MILOCO_HOME_ID"
