@@ -63,8 +63,8 @@ Miloco for Windows v0.2 仅对 Windows 11 22H2 及以上版本提供完整一键
 ├── assets/               # README / 文档图片素材
 ├── backend/              # Miloco 后端
 ├── cli/                  # miloco-cli
-├── docs/                 # 本 fork 新增：教程、部署指南、FAQ、runbook、release 说明
-├── knowledge/            # 项目知识库
+├── docs/                 # 部署、排障、发版和 Windows 一键包文档
+├── knowledge/            # 架构、功能、设计和研发知识库
 ├── plugins/              # OpenClaw 插件和 skills
 ├── scripts/              # 官方安装/构建脚本
 ├── web/                  # Miloco WebUI
