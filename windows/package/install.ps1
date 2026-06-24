@@ -500,20 +500,46 @@ function Resolve-WslDistro {
   if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($list)) {
     Write-Info "WSL 命令存在，但当前状态异常，正在尝试自动更新和修复。"
     & $wslExe --update
-    if ($InstallIfMissing) {
-      & $wslExe --install -d $Distro
+    $updateCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    Start-Sleep -Seconds 2
+    try {
+      $list = (& $wslExe -l -v 2>&1 | Out-String) -replace "`0", ""
+    } catch {
+      $list = $null
     }
-    if ($LASTEXITCODE -ne 0) {
+    $listCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+
+    if (($listCode -ne 0 -or [string]::IsNullOrWhiteSpace($list)) -and $InstallIfMissing) {
+      Write-Info "WSL 更新后仍没有返回发行版列表，正在尝试安装 Ubuntu-24.04。"
+      & $wslExe --install -d $Distro
+      $installCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+      Start-Sleep -Seconds 2
+      try {
+        $list = (& $wslExe -l -v 2>&1 | Out-String) -replace "`0", ""
+      } catch {
+        $list = $null
+      }
+      $listCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+      if ($installCode -ne 0 -and ($listCode -ne 0 -or [string]::IsNullOrWhiteSpace($list))) {
+        Stop-ForUser "WSL 自动修复失败。" @(
+          "请先确认 Windows 已开启 CPU 虚拟化。",
+          "然后打开 Microsoft Store 更新 WSL，或在管理员 PowerShell 里运行：wsl --update",
+          "处理好后重新双击 install.bat。"
+        )
+      }
+    }
+
+    if ($listCode -ne 0 -or [string]::IsNullOrWhiteSpace($list)) {
+      if ($updateCode -ne 0) {
+        Write-Warn ("wsl --update 退出码：{0}" -f $updateCode)
+      }
       Stop-ForUser "WSL 自动修复失败。" @(
         "请先确认 Windows 已开启 CPU 虚拟化。",
         "然后打开 Microsoft Store 更新 WSL，或在管理员 PowerShell 里运行：wsl --update",
         "处理好后重新双击 install.bat。"
       )
     }
-    Stop-ForUser "WSL 已修复，可能需要重启电脑。" @(
-      "请重启 Windows。",
-      "重启后重新双击 install.bat，安装会自动继续。"
-    ) -OfferRestart
+    Write-Ok "WSL 自动修复后已恢复可用，继续安装。"
   }
 
   $rows = @(Get-WslDistroRows $list)
