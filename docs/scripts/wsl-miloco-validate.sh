@@ -32,25 +32,47 @@ FAIL_COUNT=0
 BASIC_READY=yes
 FULL_READY=yes
 
+print_field() {
+  local label="$1"
+  local text="${2:-}"
+  local max_lines="${3:-24}"
+  local line_count
+
+  [ -z "$text" ] && return
+  printf '  %s:\n' "$label"
+  line_count="$(printf '%s\n' "$text" | sed 's/\r//g' | awk 'NF { c++ } END { print c + 0 }')"
+  printf '%s\n' "$text" |
+    sed 's/\r//g' |
+    sed 's/[[:space:]][[:space:]]*/ /g' |
+    sed 's/^ //; s/ $//' |
+    awk 'NF { print }' |
+    head -n "$max_lines" |
+    fold -s -w 96 |
+    sed 's/^/    /'
+  if [ "${line_count:-0}" -gt "$max_lines" ]; then
+    printf '    ... (%s line(s) omitted)\n' "$((line_count - max_lines))"
+  fi
+}
+
 pass() {
   PASS_COUNT=$((PASS_COUNT + 1))
   printf '[PASS] %s\n' "$1"
-  [ "${2:-}" != "" ] && printf '  detail: %s\n' "$2"
+  print_field "detail" "${2:-}"
 }
 
 warn() {
   WARN_COUNT=$((WARN_COUNT + 1))
   printf '[WARN] %s\n' "$1"
-  [ "${2:-}" != "" ] && printf '  detail: %s\n' "$2"
-  [ "${3:-}" != "" ] && printf '  hint: %s\n' "$3"
+  print_field "detail" "${2:-}"
+  print_field "hint" "${3:-}" 8
 }
 
 fail() {
   FAIL_COUNT=$((FAIL_COUNT + 1))
   BASIC_READY=no
   printf '[FAIL] %s\n' "$1"
-  [ "${2:-}" != "" ] && printf '  detail: %s\n' "$2"
-  [ "${3:-}" != "" ] && printf '  hint: %s\n' "$3"
+  print_field "detail" "${2:-}"
+  print_field "hint" "${3:-}" 8
 }
 
 mark_full_missing() {
@@ -79,7 +101,7 @@ else
 fi
 
 if command -v ip >/dev/null 2>&1; then
-  ip_br="$(ip -br addr 2>/dev/null | tr '\n' ' | ' | sed 's/[[:space:]][[:space:]]*/ /g')"
+  ip_br="$(ip -br addr 2>/dev/null | sed -n '1,12p')"
   pass "wsl.network_interfaces" "$ip_br"
 else
   warn "wsl.network_interfaces" "ip command not found."
@@ -95,8 +117,8 @@ done
 
 if command -v miloco-cli >/dev/null 2>&1; then
   service_status="$(run_capture 10 miloco-cli service status)"
-  if printf '%s' "$service_status" | grep -Eiq 'running|true|url=http'; then
-    pass "miloco.service_status" "$(printf '%s' "$service_status" | tr '\n' ' | ')"
+  if printf '%s' "$service_status" | grep -Eiq '"running"[[:space:]]*:[[:space:]]*true|running=true|url=http'; then
+    pass "miloco.service_status" "$service_status"
   else
     fail "miloco.service_status" "$service_status" "Run: miloco-cli service start"
   fi
@@ -107,21 +129,21 @@ if command -v curl >/dev/null 2>&1; then
   if printf '%s' "$health" | grep -q '"status":"ok"'; then
     pass "miloco.health" "$health"
   else
-    fail "miloco.health" "$health" "Check server.port/server.url and service logs."
+    fail "miloco.health" "$health" "Check server.url and service logs."
   fi
 fi
 
 if command -v openclaw >/dev/null 2>&1; then
   gateway_status="$(run_capture 10 openclaw gateway status)"
   if printf '%s' "$gateway_status" | grep -Eiq 'runtime.*running|connectivity.*ok|running'; then
-    pass "openclaw.gateway_status" "$(printf '%s' "$gateway_status" | tr '\n' ' | ')"
+    pass "openclaw.gateway_status" "$gateway_status"
   else
     fail "openclaw.gateway_status" "$gateway_status" "Run: openclaw gateway start or inspect the user systemd service."
   fi
 
   plugin_status="$(run_capture 10 openclaw plugins inspect miloco-openclaw-plugin)"
   if printf '%s' "$plugin_status" | grep -Eiq 'Status:[[:space:]]*loaded|loaded'; then
-    pass "openclaw.miloco_plugin" "$(printf '%s' "$plugin_status" | grep -Ei 'Status:|Name:|Version:' | tr '\n' ' | ')"
+    pass "openclaw.miloco_plugin" "$(printf '%s\n' "$plugin_status" | grep -Ei 'Status:|Name:|Version:' | sed -n '1,8p')"
   else
     fail "openclaw.miloco_plugin" "$plugin_status" "Install/enable the miloco-openclaw-plugin, then restart gateway."
   fi
@@ -163,7 +185,10 @@ if command -v miloco-cli >/dev/null 2>&1; then
   fi
 
   cameras="$(run_capture 15 miloco-cli scope camera list --pretty)"
-  if printf '%s' "$cameras" | grep -Eq '"data"[[:space:]]*:[[:space:]]*\[[[:space:]]*\]|\[\s*\]'; then
+  if printf '%s' "$cameras" | grep -Eiq '"error"|cannot connect|connection refused'; then
+    mark_full_missing
+    warn "miloco.cameras" "$cameras" "Miloco backend is not reachable. Start Miloco first, then check camera scope."
+  elif printf '%s' "$cameras" | grep -Eq '"data"[[:space:]]*:[[:space:]]*\[[[:space:]]*\]|\[\s*\]'; then
     mark_full_missing
     warn "miloco.cameras" "$cameras" "Camera scope is empty. Bind account, select home, then enable target cameras."
   elif [ -n "$cameras" ]; then

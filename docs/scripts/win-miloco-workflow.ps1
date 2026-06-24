@@ -1,4 +1,4 @@
-param(
+﻿param(
   [ValidateSet("Preflight", "Validate", "BindUrl", "Finish", "AllBasic", "Report")]
   [string]$Action = "AllBasic",
   [string]$Distro = "Ubuntu-24.04",
@@ -52,7 +52,6 @@ function Require-File {
 function Invoke-WindowsPreflight {
   $script = Join-Path $ScriptDir "windows-preflight.ps1"
   Require-File $script
-  Write-Step "Windows preflight"
   $preflightParams = @{
     Distro = $Distro
     MilocoPort = $MilocoPort
@@ -73,7 +72,12 @@ function Invoke-WslScript {
 
   $script = Join-Path $ScriptDir $ScriptName
   Require-File $script
-  $wslScript = ConvertTo-WslPath $script
+  $id = [guid]::NewGuid().ToString("N").Substring(0, 8)
+  $tmpScript = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-workflow-$id.sh"
+  $scriptText = [System.IO.File]::ReadAllText($script, [System.Text.UTF8Encoding]::new($false, $true))
+  $scriptText = ($scriptText -replace "`r`n", "`n") -replace "`r", "`n"
+  [System.IO.File]::WriteAllText($tmpScript, $scriptText, [System.Text.UTF8Encoding]::new($false))
+  $wslScript = ConvertTo-WslPath $tmpScript
 
   $wslArgs = @("-d", $Distro, "--")
   if ($EnvVars.Count -gt 0) {
@@ -90,12 +94,15 @@ function Invoke-WslScript {
   if ($ShowCommand) {
     Write-Host ("wsl.exe {0}" -f ($wslArgs -join " "))
   }
-  & wsl.exe @wslArgs
-  $script:WorkflowExitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  try {
+    & wsl.exe @wslArgs
+    $script:WorkflowExitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  } finally {
+    Remove-Item -Force -LiteralPath $tmpScript -ErrorAction SilentlyContinue
+  }
 }
 
 function Invoke-WslValidate {
-  Write-Step "WSL Miloco validation"
   $extra = @()
   if ($StrictFull) { $extra += "--strict-full" }
   Invoke-WslScript -ScriptName "wsl-miloco-validate.sh" -ExtraArgs $extra -EnvVars @{
@@ -152,6 +159,32 @@ function Invoke-Report {
     $powershellExe = (Get-Command powershell.exe -ErrorAction Stop).Source
   }
 
+  function Invoke-ReportCommand {
+    param(
+      [string]$Label,
+      [string[]]$CommandArgs
+    )
+
+    Write-Host ("正在写入 {0}..." -f $Label)
+    $output = & $powershellExe @CommandArgs 2>&1 | ForEach-Object {
+      if ($_ -is [System.Management.Automation.ErrorRecord]) {
+        $_.Exception.Message
+      } else {
+        $_.ToString()
+      }
+    }
+    $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    foreach ($line in $output) {
+      $line | Out-File -FilePath $reportFile -Encoding UTF8 -Append
+    }
+    if ($code -eq 0) {
+      Write-Host ("[OK] {0}已写入报告。" -f $Label)
+    } else {
+      Write-Host ("[需要注意] {0}返回退出码 {1}，详情看报告文件。" -f $Label, $code)
+    }
+    return $code
+  }
+
   $header = @(
     "Miloco Windows deployment report",
     ("GeneratedAt={0}" -f (Get-Date -Format "s")),
@@ -160,7 +193,8 @@ function Invoke-Report {
     ""
   )
   $header | Set-Content -LiteralPath $reportFile -Encoding UTF8
-  $header | ForEach-Object { Write-Host $_ }
+  Write-Host "正在生成 Miloco Windows 诊断报告..."
+  Write-Host ("报告路径：{0}" -f $reportFile)
 
   $preflightArgs = @(
     "-NoProfile", "-ExecutionPolicy", "Bypass",
@@ -172,12 +206,7 @@ function Invoke-Report {
     "-ProxyUrl", $ProxyUrl
   )
   if ($Json) { $preflightArgs += "-Json" }
-  & $powershellExe @preflightArgs 2>&1 | ForEach-Object {
-    $line = $_.ToString()
-    Write-Host $line
-    $line | Out-File -FilePath $reportFile -Encoding UTF8 -Append
-  }
-  $preflightCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  $preflightCode = Invoke-ReportCommand -Label "Windows 宿主机检查" -CommandArgs $preflightArgs
 
   $validateArgs = @(
     "-NoProfile", "-ExecutionPolicy", "Bypass",
@@ -188,12 +217,7 @@ function Invoke-Report {
     "-OpenClawPort", [string]$OpenClawPort
   )
   if ($StrictFull) { $validateArgs += "-StrictFull" }
-  & $powershellExe @validateArgs 2>&1 | ForEach-Object {
-    $line = $_.ToString()
-    Write-Host $line
-    $line | Out-File -FilePath $reportFile -Encoding UTF8 -Append
-  }
-  $validateCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  $validateCode = Invoke-ReportCommand -Label "WSL / Miloco 检查" -CommandArgs $validateArgs
 
   $summary = @(
     "",
@@ -203,9 +227,10 @@ function Invoke-Report {
     ("ReportPath={0}" -f $reportFile)
   )
   $summary | ForEach-Object {
-    Write-Host $_
     $_ | Out-File -FilePath $reportFile -Encoding UTF8 -Append
   }
+  Write-Host ("Windows 检查退出码：{0}" -f $preflightCode)
+  Write-Host ("WSL / Miloco 检查退出码：{0}" -f $validateCode)
 
   if ($preflightCode -ne 0) {
     $script:WorkflowExitCode = $preflightCode
@@ -213,7 +238,7 @@ function Invoke-Report {
     $script:WorkflowExitCode = $validateCode
   }
 
-  Write-Host ("Report saved to: {0}" -f $reportFile)
+  Write-Host ("报告已保存到：{0}" -f $reportFile)
 }
 
 try {

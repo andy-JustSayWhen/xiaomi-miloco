@@ -79,15 +79,16 @@ run_cmd() {
   fi
 }
 
-need_cmd miloco-cli
-need_cmd openclaw
 need_cmd curl
+need_cmd miloco-cli
 
 if [ "$PRINT_BIND_URL" -eq 1 ]; then
   log "Generating Xiaomi account bind URL"
   miloco-cli account bind --no-wait
   exit $?
 fi
+
+need_cmd openclaw
 
 log "Pre-checking Miloco service"
 miloco-cli service status || {

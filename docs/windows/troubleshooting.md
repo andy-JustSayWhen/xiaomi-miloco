@@ -26,7 +26,7 @@
 | 现象 | 定位命令 | 根因 | 修复 | 验收 |
 | --- | --- | --- | --- | --- |
 | Miloco 后端反复重启 | `tail -n 100 ~/.openclaw/miloco/log/miloco-backend.log` | 后端 bind 失败 | 看具体错误 | `miloco-cli service status` running |
-| `address already in use ('127.0.0.1', 1810)` | Windows: `netsh interface ipv4 show excludedportrange protocol=tcp` | 默认 `1810` 落入 Windows excluded port range 或被进程占用 | 改 `~/.openclaw/miloco/config.json` 的 `server.port` 和 `server.url`，例如 `1886` | `curl http://127.0.0.1:1886/health` 返回 ok |
+| `address already in use ('127.0.0.1', 1810)` | Windows: `netsh interface ipv4 show excludedportrange protocol=tcp` | 默认 `1810` 落入 Windows excluded port range 或被进程占用 | 改 `~/.openclaw/miloco/config.json` 的 `server.url`，例如 `http://127.0.0.1:1886` | `curl http://127.0.0.1:1886/health` 返回 ok |
 | Windows 浏览器打不开 WSL 服务 | Windows: `curl.exe -fsS http://127.0.0.1:<port>/health` | mirrored/端口/服务状态问题 | 先确认 WSL 内 health，再确认 Windows 侧端口 | Windows 侧 `curl.exe` 成功 |
 | 摄像头实时流打不开 | `miloco-cli doctor` | WSL NAT 或 Hyper-V 防火墙入站阻断 | `.wslconfig` 设置 `networkingMode=mirrored`，Hyper-V 防火墙 DefaultInboundAction=Allow | `doctor` WSL 网络通过，Windows 管理员确认 Allow |
 

@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Version = "v0.2",
   [string]$ArtifactVersion = "",
   [ValidateSet("stable", "preview")]
@@ -38,6 +38,37 @@ function Require-File {
   param([string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) {
     throw "Required file not found: $Path"
+  }
+}
+
+function Copy-Utf8BomFile {
+  param(
+    [string]$Source,
+    [string]$Destination
+  )
+
+  $text = [System.IO.File]::ReadAllText($Source, [System.Text.UTF8Encoding]::new($false, $true))
+  [System.IO.File]::WriteAllText($Destination, $text, [System.Text.UTF8Encoding]::new($true))
+}
+
+function Copy-Utf8NoBomLfFile {
+  param(
+    [string]$Source,
+    [string]$Destination
+  )
+
+  $text = [System.IO.File]::ReadAllText($Source, [System.Text.UTF8Encoding]::new($false, $true))
+  $text = ($text -replace "`r`n", "`n") -replace "`r", "`n"
+  [System.IO.File]::WriteAllText($Destination, $text, [System.Text.UTF8Encoding]::new($false))
+}
+
+function Normalize-ShellScripts {
+  param([string]$Root)
+
+  Get-ChildItem -LiteralPath $Root -Recurse -File -Filter "*.sh" | ForEach-Object {
+    $text = [System.IO.File]::ReadAllText($_.FullName, [System.Text.UTF8Encoding]::new($false, $true))
+    $text = ($text -replace "`r`n", "`n") -replace "`r", "`n"
+    [System.IO.File]::WriteAllText($_.FullName, $text, [System.Text.UTF8Encoding]::new($false))
   }
 }
 
@@ -110,8 +141,10 @@ function Copy-RequiredArtifacts {
     throw "dist/miloco-linux-x86_64-*.tar.gz not found. Build artifacts are incomplete."
   }
 
-  Copy-Item -LiteralPath (Join-Path $RepoRoot "windows\package\install.ps1") -Destination (Join-Path $PackageRoot "install.ps1") -Force
-  Copy-Item -LiteralPath $installSh -Destination (Join-Path $PackageRoot "payload\install.sh") -Force
+  Copy-Item -LiteralPath (Join-Path $RepoRoot "windows\package\install.bat") -Destination (Join-Path $PackageRoot "install.bat") -Force
+  Copy-Utf8BomFile -Source (Join-Path $RepoRoot "windows\package\install.ps1") -Destination (Join-Path $PackageRoot "install.ps1")
+  $installShDst = Join-Path $PackageRoot "payload\install.sh"
+  Copy-Utf8NoBomLfFile -Source $installSh -Destination $installShDst
   Copy-Item -LiteralPath $linuxBundle.FullName -Destination (Join-Path $PackageRoot "payload\$($linuxBundle.Name)") -Force
 
   $manifest = Get-Content -Encoding utf8 -LiteralPath $distManifest -Raw | ConvertFrom-Json
@@ -122,37 +155,48 @@ function Copy-RequiredArtifacts {
   } -Force
   $manifest | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 -LiteralPath (Join-Path $PackageRoot "manifest.json")
 
-  Copy-Item -LiteralPath (Join-Path $RepoRoot "docs\scripts\win-miloco-workflow.ps1") -Destination (Join-Path $PackageRoot "scripts\windows\win-miloco-workflow.ps1") -Force
-  Copy-Item -LiteralPath (Join-Path $RepoRoot "docs\scripts\windows-preflight.ps1") -Destination (Join-Path $PackageRoot "scripts\windows\windows-preflight.ps1") -Force
+  Copy-Utf8BomFile -Source (Join-Path $RepoRoot "docs\scripts\win-miloco-workflow.ps1") -Destination (Join-Path $PackageRoot "scripts\windows\win-miloco-workflow.ps1")
+  Copy-Utf8BomFile -Source (Join-Path $RepoRoot "docs\scripts\windows-preflight.ps1") -Destination (Join-Path $PackageRoot "scripts\windows\windows-preflight.ps1")
   
   $validateSrc = Join-Path $RepoRoot "docs\scripts\wsl-miloco-validate.sh"
   $validateDst = Join-Path $PackageRoot "scripts\windows\wsl-miloco-validate.sh"
-  [System.IO.File]::WriteAllText($validateDst, ([System.IO.File]::ReadAllText($validateSrc).Replace("`r`n", "`n")), [System.Text.UTF8Encoding]::new($false))
+  Copy-Utf8NoBomLfFile -Source $validateSrc -Destination $validateDst
 
   $finishSrc = Join-Path $RepoRoot "docs\scripts\wsl-post-auth-finish.sh"
   $finishDst = Join-Path $PackageRoot "scripts\windows\wsl-post-auth-finish.sh"
-  [System.IO.File]::WriteAllText($finishDst, ([System.IO.File]::ReadAllText($finishSrc).Replace("`r`n", "`n")), [System.Text.UTF8Encoding]::new($false))
+  Copy-Utf8NoBomLfFile -Source $finishSrc -Destination $finishDst
 
   Copy-Item -Recurse -LiteralPath (Join-Path $RepoRoot "docs") -Destination (Join-Path $PackageRoot "docs") -Force
+  Normalize-ShellScripts -Root $PackageRoot
 
   $packageReadme = @(
     "# easy-miloco $Version",
     "",
-    "1. Extract this folder.",
-    "2. Run ``install.ps1`` with PowerShell, or execute:",
+    "## 用户安装方式",
+    "",
+    "1. 解压这个文件夹。",
+    "2. 双击根目录里的 ``install.bat``。",
+    "3. 如果 Windows 弹出管理员权限窗口，请选择同意。",
+    "4. 安装向导会自动检查环境、自动安装能自动安装的依赖；需要你处理时，会用中文说明下一步。",
+    "",
+    "## WSL / Ubuntu 说明",
+    "",
+    "安装器不会把 Ubuntu-24.04 当成唯一可用名字。它会先检测已有 Ubuntu WSL2 的真实注册名和基础能力；只要 WSL version 2、glibc >= 2.28、CPU 架构是 x86_64/aarch64，并且 bash、curl、systemd user 命令可用，就会复用该发行版。",
+    "",
+    "Ubuntu 22.04 及以上推荐；Ubuntu 20.04 可以继续但会提示风险；没有任何可用 Ubuntu 时，安装器才会默认安装 Ubuntu-24.04。",
+    "",
+    "## 高级备用方式",
+    "",
+    "普通用户不需要运行下面的命令。只有在 bat 被安全软件拦截、或维护者要求你手动运行时，才打开管理员 PowerShell 执行：",
     "",
     "``````powershell",
     "Set-ExecutionPolicy -Scope Process Bypass -Force",
     ".\install.ps1",
     "``````",
     "",
-    "If Ubuntu WSL is not installed:",
+    "## 下载校验",
     "",
-    "``````powershell",
-    ".\install.ps1 -InstallWsl",
-    "``````",
-    "",
-    "GitHub Release is the version source of truth. Quark drive is only a mirror; verify the ``.sha256`` file after downloading a mirror copy."
+    "GitHub Release 是版本基准。夸克网盘只是下载副本；从网盘下载后，请用同名 ``.sha256`` 文件核对。"
   ) -join [Environment]::NewLine
   $packageReadme | Set-Content -Encoding utf8 -LiteralPath (Join-Path $PackageRoot "README.md")
 
@@ -163,14 +207,14 @@ function Copy-RequiredArtifacts {
     "",
     "- Windows one-click deployment package refresh.",
     "- Desktop console menu now exposes restart OpenClaw, restart Miloco, restart both, stop services, and stop WSL.",
-    "- Includes root ``install.ps1``, Miloco Linux x86_64 local bundle, Windows diagnostics scripts, docs, and SHA256.",
+    "- Includes root ``install.bat`` and ``install.ps1``, Miloco Linux x86_64 local bundle, Windows diagnostics scripts, docs, and SHA256.",
     "- Target OS: Windows 11 22H2+.",
     "",
     "## Included",
     "",
     "- Camera LAN override protection: do not mark LAN online when the SDK LAN table has no hit.",
     "- docs/ knowledge base: install, cameras, FAQ, Windows runbooks, and sanitized sample-host case notes.",
-    "- Release package layout: extract and run root ``install.ps1``.",
+    "- Release package layout: extract and double-click root ``install.bat``.",
     "",
     "## Maintainer Note",
     "",
@@ -208,6 +252,7 @@ function Test-Package {
   try {
     Expand-Archive -LiteralPath $ZipPath -DestinationPath $tmp -Force
     $root = Join-Path $tmp $PackageName
+    Require-File (Join-Path $root "install.bat")
     Require-File (Join-Path $root "install.ps1")
     Require-File (Join-Path $root "manifest.json")
     Require-File (Join-Path $root "SHA256SUMS.txt")
@@ -215,6 +260,37 @@ function Test-Package {
     Require-File (Join-Path $root "docs\AGENT.md")
     $null = [scriptblock]::Create((Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "install.ps1") -Raw))
     $null = [scriptblock]::Create((Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "scripts\windows\win-miloco-workflow.ps1") -Raw))
+
+    $installBatBytes = [System.IO.File]::ReadAllBytes((Join-Path $root "install.bat"))
+    if (@($installBatBytes | Where-Object { $_ -gt 127 }).Count -ne 0) {
+      throw "install.bat must be ASCII-only."
+    }
+
+    $installPs1 = Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "install.ps1") -Raw
+    $launcherBatMatch = [regex]::Match($installPs1, "(?s)\`$bat\s*=\s*@'\r?\n(?<bat>.*?)\r?\n'@")
+    if (-not $launcherBatMatch.Success) {
+      throw "Miloco desktop launcher bat template not found."
+    }
+    if ([regex]::Matches($launcherBatMatch.Groups["bat"].Value, "[^\x00-\x7F]").Count -ne 0) {
+      throw "Generated Miloco desktop launcher bat template must be ASCII-only."
+    }
+
+    $consolePs1Match = [regex]::Match($installPs1, "(?s)\`$ps1\s*=\s*@'\r?\n(?<ps1>.*?)\r?\n'@")
+    if (-not $consolePs1Match.Success) {
+      throw "Miloco desktop console ps1 template not found."
+    }
+    $consolePs1 = $consolePs1Match.Groups["ps1"].Value.Replace("__DISTRO__", "Ubuntu-24.04").Replace("__MILOCO_PORT__", "1886").Replace("__OPENCLAW_PORT__", "18789")
+    $null = [scriptblock]::Create($consolePs1)
+
+    $shellScripts = Get-ChildItem -LiteralPath $root -Recurse -File -Filter "*.sh"
+    foreach ($scriptPath in $shellScripts) {
+      $bytes = [System.IO.File]::ReadAllBytes($scriptPath.FullName)
+      for ($i = 0; $i -lt ($bytes.Length - 1); $i++) {
+        if ($bytes[$i] -eq 13 -and $bytes[$i + 1] -eq 10) {
+          throw "Shell script must use LF line endings: $($scriptPath.FullName)"
+        }
+      }
+    }
   } finally {
     Remove-Item -Recurse -Force -LiteralPath $tmp -ErrorAction SilentlyContinue
   }

@@ -70,7 +70,7 @@ flowchart TD
   D --> E["运行 --agent-prepare"]
   E --> F{"1810 能绑定吗"}
   F -- "能" --> G["Miloco 默认 1810 启动"]
-  F -- "不能" --> H["查 excludedportrange 并改 server.port/server.url"]
+  F -- "不能" --> H["查 excludedportrange 并改 server.url"]
   H --> G
   G --> I["安装/启动 OpenClaw gateway"]
   I --> J{"账号和 MiMo Key 已提供吗"}

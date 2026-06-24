@@ -110,7 +110,7 @@
 
 关键修复：
 
-- 默认 `1810` 位于 <windows-sample-host> Windows TCP excluded port range `1786-1885` 内，改 Miloco `server.port=1886`、`server.url=http://127.0.0.1:1886`。
+- 默认 `1810` 位于 <windows-sample-host> Windows TCP excluded port range `1786-1885` 内，改 Miloco `server.url=http://127.0.0.1:1886`。
 - WSL 内无 Linux `node` 且不能免密 sudo，改为用户目录安装 Node，再安装 OpenClaw CLI/Gateway。
 - 复杂 WSL 命令避免直接嵌套在 Windows OpenSSH 字符串里，改用上传脚本后执行。
 

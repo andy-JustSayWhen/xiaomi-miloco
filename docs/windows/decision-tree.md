@@ -41,7 +41,7 @@ flowchart TD
   E -- "可访问" --> F["按官方 install.sh --agent-prepare 安装 Miloco"]
   E1 --> F
   F --> G{"Miloco health 是否通过"}
-  G -- "1810 bind 失败" --> G1["查 Windows excludedportrange，改 server.port/server.url"]
+  G -- "1810 bind 失败" --> G1["查 Windows excludedportrange，改 server.url"]
   G -- "通过" --> H["安装/启动 OpenClaw Gateway，运行 --agent-finish"]
   G1 --> H
   H --> I{"OpenClaw 插件 loaded 吗"}

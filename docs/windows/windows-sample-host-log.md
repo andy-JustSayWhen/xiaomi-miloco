@@ -2448,7 +2448,7 @@ miloco.account is_bound=false
 | 家庭面板能开但摄像头实时流打不开 | WSL 默认 NAT 或 Hyper-V 防火墙阻断 LAN UDP | 配置 `.wslconfig` mirrored networking，放行 Hyper-V 防火墙，然后 `wsl --shutdown` |
 | PowerShell 原生执行 `scripts/install.ps1` 失败 | Miloco 官方脚本主动禁止原生 Windows 安装 | 进入 WSL 后执行 Linux 安装命令 |
 | `uv tool install` 十几分钟无输出 | 正在下载/解析大型 Python 依赖；用缓存大小和 `ss -tpn` 判断是否仍在推进 | 不要叠加启动第二个安装；缓存不增长时再诊断 |
-| `1810` 绑定失败，日志显示 `address already in use` | <windows-sample-host> 的 Windows TCP excluded port range 包含 `1786-1885`，WSL mirrored 下影响 Linux bind | 不删除系统端口保留，改 Miloco `server.port=1886`、`server.url=http://127.0.0.1:1886` |
+| `1810` 绑定失败，日志显示 `address already in use` | <windows-sample-host> 的 Windows TCP excluded port range 包含 `1786-1885`，WSL mirrored 下影响 Linux bind | 不删除系统端口保留，改 Miloco `server.url=http://127.0.0.1:1886` |
 | 远程 SSH 命令里 `&&`、管道、`$HOME` 被错误解析 | Windows OpenSSH 默认 shell 先解析命令，再进入 WSL | 复杂脚本上传文件后用 `wsl.exe -- bash /mnt/c/.../script.sh` 执行 |
 | PowerShell 生成 bash 脚本后首行异常或参数带 `\r` | `Set-Content -Encoding UTF8` 可能写 BOM/CRLF | 用无 BOM/LF 写入，或在 WSL 侧生成脚本 |
 

@@ -1,4 +1,4 @@
-param(
+﻿param(
   [ValidateSet("Prepare", "Report", "BindUrl", "Finish", "Validate")]
   [string]$Action = "Prepare",
   [string]$Distro = "Ubuntu-24.04",
@@ -10,7 +10,8 @@ param(
   [string]$OmniBaseUrl = "https://api.xiaomimimo.com/v1",
   [string]$HomeId = "",
   [string]$CameraDids = "",
-  [switch]$InstallWsl
+  [switch]$InstallWsl,
+  [switch]$PauseOnExit
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,23 +23,130 @@ $PayloadDir = Join-Path $PackageRoot "payload"
 $WindowsScriptsDir = Join-Path $PackageRoot "scripts\windows"
 $Workflow = Join-Path $WindowsScriptsDir "win-miloco-workflow.ps1"
 $InstallSh = Join-Path $PayloadDir "install.sh"
+$script:PhaseIndex = 0
+$script:PhaseTotal = 10
+$script:ResolvedDistro = ""
+$script:ResolvedDistroInfo = $null
+
+function Exit-Installer {
+  param([int]$Code = 0)
+
+  if ($PauseOnExit) {
+    Write-Host ""
+    if ($Code -eq 0) {
+      Write-Host "安装向导已完成。你可以先按上面的中文提示继续下一步。" -ForegroundColor Green
+    } else {
+      Write-Host "安装向导已暂停。请先按上面的中文提示处理问题。" -ForegroundColor Yellow
+    }
+    Read-Host "按回车关闭窗口"
+  }
+  exit $Code
+}
+
+function Write-Banner {
+  Write-Host ""
+  Write-Host "========================================" -ForegroundColor Cyan
+  Write-Host "        easy-miloco Windows 安装向导" -ForegroundColor Cyan
+  Write-Host "========================================" -ForegroundColor Cyan
+  Write-Host ""
+  Write-Host "正在自动检查和安装，请不要关闭窗口。" -ForegroundColor White
+  Write-Host "能自动处理的步骤会自动处理；需要你参与时，我会停下来说明下一步。" -ForegroundColor White
+}
 
 function Write-Step {
   param([string]$Message)
+  $script:PhaseIndex += 1
   Write-Host ""
-  Write-Host ("== {0} ==" -f $Message) -ForegroundColor Cyan
+  Write-Host ("[{0}/{1}] {2}" -f $script:PhaseIndex, $script:PhaseTotal, $Message) -ForegroundColor Cyan
+}
+
+function Write-Ok {
+  param([string]$Message)
+  Write-Host ("[OK] {0}" -f $Message) -ForegroundColor Green
+}
+
+function Write-Info {
+  param([string]$Message)
+  Write-Host ("[正在处理] {0}" -f $Message) -ForegroundColor Cyan
+}
+
+function Write-Warn {
+  param([string]$Message)
+  Write-Host ("[需要注意] {0}" -f $Message) -ForegroundColor Yellow
 }
 
 function Fail {
   param([string]$Message)
-  Write-Host ("[FAIL] {0}" -f $Message) -ForegroundColor Red
-  exit 1
+  Write-Host ""
+  Write-Host ("[失败] {0}" -f $Message) -ForegroundColor Red
+  Write-Host ""
+  Write-Host "请先按上面的提示处理，然后重新双击 install.bat。" -ForegroundColor Yellow
+  Exit-Installer 1
+}
+
+function Stop-ForUser {
+  param(
+    [string]$Title,
+    [string[]]$Lines,
+    [int]$ExitCode = 1
+  )
+
+  Write-Host ""
+  Write-Host ("[需要你处理] {0}" -f $Title) -ForegroundColor Yellow
+  foreach ($line in $Lines) {
+    Write-Host $line -ForegroundColor Yellow
+  }
+  Write-Host ""
+  Exit-Installer $ExitCode
+}
+
+function Get-ReportTroubleshootingLines {
+  param([string]$ReportPath)
+
+  $lines = New-Object System.Collections.Generic.List[string]
+  $followUpLines = New-Object System.Collections.Generic.List[string]
+  if (-not (Test-Path -LiteralPath $ReportPath)) {
+    $lines.Add("诊断报告没有生成成功，请把安装窗口截图发给维护者。") | Out-Null
+    return $lines.ToArray()
+  }
+
+  $text = Get-Content -Encoding utf8 -LiteralPath $ReportPath -Raw
+  if ($text -match 'server":\s*\{\s*"url":\s*"http://127\.0\.0\.1:(\d+)"' -and [int]$Matches[1] -ne $MilocoPort) {
+    $lines.Add(("Miloco 已启动，但正在运行的旧服务还在使用端口 {0}，本安装包需要使用端口 {1}。请重新运行 install.bat；新版安装器会先关闭旧进程，再写入端口 {1} 并等待服务启动成功。" -f $Matches[1], $MilocoPort)) | Out-Null
+  }
+  if ($text -match '\[FAIL\]\s+miloco\.health') {
+    $lines.Add(("Miloco 后端没有在 http://127.0.0.1:{0}/health 正常响应。请不要反复覆盖安装，先把这个诊断报告发给维护者。" -f $MilocoPort)) | Out-Null
+  }
+  if ($text -match '\[FAIL\]\s+openclaw\.miloco_plugin|Plugin not found:\s*miloco-openclaw-plugin') {
+    $lines.Add("OpenClaw 已安装并运行，但 Miloco 插件还没有装进 OpenClaw。我会在下次安装时自动安装本包自带的插件。") | Out-Null
+  }
+  if ($text -match 'access token is empty|is_bound"\s*:\s*false') {
+    $followUpLines.Add("小米账号还没有完成授权。基础服务正常后，需要继续按提示完成小米账号绑定。") | Out-Null
+  }
+  if ($text -match 'API Key 未配置|miloco\.omni_api_key|api_key.*empty') {
+    $followUpLines.Add("MiMo API Key 还没有配置。基础服务正常后，需要继续填写 MiMo API Key。") | Out-Null
+  }
+
+  if ($lines.Count -eq 0) {
+    if ($followUpLines.Count -gt 0) {
+      $lines.Add("基础服务已经通过，下面是后续需要你手动完成的配置。") | Out-Null
+    } else {
+      $lines.Add("诊断发现服务还没到可用状态，但没有识别到常见原因。请把诊断报告发给维护者。") | Out-Null
+    }
+  } elseif ($followUpLines.Count -gt 0) {
+    $lines.Add("下面这些是基础服务正常后再做的配置，不是当前安装失败的主要原因：") | Out-Null
+  }
+  foreach ($followUpLine in $followUpLines) {
+    $lines.Add($followUpLine) | Out-Null
+  }
+  $lines.Add(("诊断报告位置：{0}" -f $ReportPath)) | Out-Null
+  return $lines.ToArray()
 }
 
 function Require-File {
   param([string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) {
-    Fail "Required file not found: $Path"
+    Fail "安装包缺少必要文件：$Path。请重新下载完整的 zip 包，不要只复制其中一部分文件。"
   }
 }
 
@@ -53,29 +161,320 @@ function ConvertTo-WslPath {
   throw "Only drive-letter Windows paths can be converted to WSL paths: $WindowsPath"
 }
 
+function ConvertTo-VersionOrNull {
+  param([string]$Value)
+  if ([string]::IsNullOrWhiteSpace($Value)) {
+    return $null
+  }
+  $clean = ($Value.Trim() -replace "[^0-9.].*$", "")
+  try {
+    return [version]$clean
+  } catch {
+    return $null
+  }
+}
+
+function Test-VersionAtLeast {
+  param(
+    [string]$Actual,
+    [string]$Minimum
+  )
+  $actualVersion = ConvertTo-VersionOrNull $Actual
+  $minimumVersion = ConvertTo-VersionOrNull $Minimum
+  return ($null -ne $actualVersion -and $null -ne $minimumVersion -and $actualVersion -ge $minimumVersion)
+}
+
+function Get-WslDistroRows {
+  param([string]$RawList)
+
+  $rows = New-Object System.Collections.Generic.List[object]
+  foreach ($line in (($RawList -replace "`0", "") -split "`r?`n")) {
+    $text = $line.Trim()
+    if ([string]::IsNullOrWhiteSpace($text)) { continue }
+    if ($text -match "^(NAME|名称)\s+") { continue }
+    $text = ($text -replace "^\*\s*", "").Trim()
+    if ($text -match "^(.+?)\s{2,}.+?\s+(\d+)\s*$") {
+      $rows.Add([pscustomobject]@{
+        Name = $Matches[1].Trim()
+        WslVersion = [int]$Matches[2]
+        Raw = $line
+      }) | Out-Null
+    }
+  }
+  return @($rows.ToArray())
+}
+
+function Invoke-DistroProbe {
+  param([string]$Name)
+
+  $probe = @'
+set +e
+read_os_value() {
+  key="$1"
+  if [ -r /etc/os-release ]; then
+    grep -E "^${key}=" /etc/os-release | head -n 1 | cut -d= -f2- | sed 's/^"//; s/"$//'
+  fi
+}
+
+printf 'BASH_OK=yes\n'
+printf 'ID=%s\n' "$(read_os_value ID)"
+printf 'VERSION_ID=%s\n' "$(read_os_value VERSION_ID)"
+printf 'PRETTY_NAME=%s\n' "$(read_os_value PRETTY_NAME)"
+
+glibc=""
+if command -v getconf >/dev/null 2>&1; then
+  glibc="$(getconf GNU_LIBC_VERSION 2>/dev/null | awk '{print $2}')"
+fi
+if [ -z "$glibc" ]; then
+  glibc="$(ldd --version 2>&1 | sed -n '1s/.* //p')"
+fi
+printf 'GLIBC_VERSION=%s\n' "$glibc"
+
+printf 'ARCH=%s\n' "$(uname -m 2>/dev/null)"
+command -v curl >/dev/null 2>&1 && printf 'CURL_OK=yes\n' || printf 'CURL_OK=no\n'
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl --user show-environment >/dev/null 2>&1 && printf 'SYSTEMD_USER_OK=yes\n' || printf 'SYSTEMD_USER_OK=no\n'
+else
+printf 'SYSTEMD_USER_OK=no\n'
+fi
+'@
+
+  $id = [guid]::NewGuid().ToString('N').Substring(0, 8)
+  $winTmp = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-distro-probe-$id.sh"
+  $wslTmp = "/tmp/miloco-distro-probe-$id.sh"
+  [System.IO.File]::WriteAllText($winTmp, ($probe -replace "`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
+  $wslMnt = ConvertTo-WslPath $winTmp
+  try {
+    $output = & wsl.exe -d $Name -- bash -lc "cp '${wslMnt}' '${wslTmp}' && bash '${wslTmp}'; rc=`$?; rm -f '${wslTmp}'; exit `$rc" 2>&1 | ForEach-Object {
+      if ($_ -is [System.Management.Automation.ErrorRecord]) {
+        $_.Exception.Message
+      } else {
+        $_.ToString()
+      }
+    }
+    $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  } finally {
+    Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
+  }
+  $values = @{}
+  foreach ($line in (($output | Out-String).Trim() -split "`r?`n")) {
+    if ($line -match "^([A-Z_]+)=(.*)$") {
+      $values[$Matches[1]] = $Matches[2].Trim()
+    }
+  }
+  return [pscustomobject]@{
+    Name = $Name
+    Code = $code
+    Values = $values
+    Raw = (($output | Out-String).Trim())
+  }
+}
+
+function Test-DistroCapability {
+  param(
+    [object]$Row,
+    [object]$Probe
+  )
+
+  $values = $Probe.Values
+  $reasons = New-Object System.Collections.Generic.List[string]
+  $warnings = New-Object System.Collections.Generic.List[string]
+
+  $isUbuntu = ($values["ID"] -eq "ubuntu" -or $Row.Name -match "(?i)ubuntu")
+  if (-not $isUbuntu) {
+    $reasons.Add("不是 Ubuntu 发行版") | Out-Null
+  }
+  if ($Row.WslVersion -ne 2) {
+    $reasons.Add("WSL version 不是 2") | Out-Null
+  }
+  if ($Probe.Code -ne 0 -or $values["BASH_OK"] -ne "yes") {
+    $reasons.Add("bash 无法运行") | Out-Null
+  }
+
+  $arch = $values["ARCH"]
+  if ($arch -notin @("x86_64", "aarch64")) {
+    $reasons.Add("CPU 架构不是 x86_64/aarch64：$arch") | Out-Null
+  }
+
+  $glibc = $values["GLIBC_VERSION"]
+  if (-not (Test-VersionAtLeast $glibc "2.28")) {
+    $reasons.Add("glibc 低于 2.28：$glibc") | Out-Null
+  }
+
+  $ubuntuVersion = $values["VERSION_ID"]
+  if (-not (Test-VersionAtLeast $ubuntuVersion "20.04")) {
+    $reasons.Add("Ubuntu 版本低于 20.04：$ubuntuVersion") | Out-Null
+  } elseif (-not (Test-VersionAtLeast $ubuntuVersion "22.04")) {
+    $warnings.Add("Ubuntu $ubuntuVersion 理论可用，但低于推荐版本 22.04。") | Out-Null
+  }
+
+  if ($values["CURL_OK"] -ne "yes") {
+    $reasons.Add("curl 不可用") | Out-Null
+  }
+  if ($values["SYSTEMD_USER_OK"] -ne "yes") {
+    $reasons.Add("systemd user 命令不可用") | Out-Null
+  }
+
+  $rank = 99
+  if ($reasons.Count -eq 0) {
+    if (Test-VersionAtLeast $ubuntuVersion "24.04") {
+      $rank = 1
+    } elseif (Test-VersionAtLeast $ubuntuVersion "22.04") {
+      $rank = 2
+    } elseif (Test-VersionAtLeast $ubuntuVersion "20.04") {
+      $rank = 3
+    }
+  }
+
+  return [pscustomobject]@{
+    Name = $Row.Name
+    WslVersion = $Row.WslVersion
+    UbuntuVersion = $ubuntuVersion
+    PrettyName = $values["PRETTY_NAME"]
+    GlibcVersion = $glibc
+    Arch = $arch
+    Eligible = ($reasons.Count -eq 0)
+    Rank = $rank
+    PreferredName = if ($Row.Name -eq $Distro) { 0 } else { 1 }
+    Reasons = @($reasons)
+    Warnings = @($warnings)
+    Probe = $Probe
+  }
+}
+
+function Resolve-WslDistro {
+  param([bool]$InstallIfMissing = $true)
+
+  if (-not [string]::IsNullOrWhiteSpace($script:ResolvedDistro)) {
+    return $script:ResolvedDistro
+  }
+
+  ## WSL 检测：检查 wsl.exe 是否存在。这里检测的是 WSL 命令，不是 Ubuntu 发行版。
+  if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+    Write-Info "没有检测到 WSL 命令，正在尝试启用 Windows 的 WSL 组件。"
+    & dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+    $wslFeatureCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    & dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+    $vmFeatureCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    if ($wslFeatureCode -ne 0 -or $vmFeatureCode -ne 0) {
+      Stop-ForUser "WSL 组件启用失败。" @(
+        "这通常不是安装包坏了，而是 Windows 系统组件没有成功打开。",
+        "请确认当前窗口是管理员权限，并检查 BIOS/任务管理器里 CPU 虚拟化是否已开启。",
+        "处理好后重新双击 install.bat。"
+      )
+    }
+    Stop-ForUser "WSL 组件已启用，需要重启电脑。" @(
+      "请现在重启 Windows。",
+      "重启后重新双击 install.bat，安装会自动继续。"
+    )
+  }
+
+  ## WSL 真实注册名列表：读取 wsl.exe -l -v，不再只相信默认名字 Ubuntu-24.04。
+  $list = $null
+  try {
+    $list = (& wsl.exe -l -v 2>&1 | Out-String) -replace "`0", ""
+  } catch {
+    $list = $null
+  }
+
+  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($list)) {
+    Write-Info "WSL 命令存在，但当前状态异常，正在尝试自动更新和修复。"
+    & wsl.exe --update
+    if ($InstallIfMissing) {
+      & wsl.exe --install -d $Distro
+    }
+    if ($LASTEXITCODE -ne 0) {
+      Stop-ForUser "WSL 自动修复失败。" @(
+        "请先确认 Windows 已开启 CPU 虚拟化。",
+        "然后打开 Microsoft Store 更新 WSL，或在管理员 PowerShell 里运行：wsl --update",
+        "处理好后重新双击 install.bat。"
+      )
+    }
+    Stop-ForUser "WSL 已修复，可能需要重启电脑。" @(
+      "请重启 Windows。",
+      "重启后重新双击 install.bat，安装会自动继续。"
+    )
+  }
+
+  $rows = @(Get-WslDistroRows $list)
+  $evaluations = New-Object System.Collections.Generic.List[object]
+  foreach ($row in $rows) {
+    ## Ubuntu 能力检测：进入真实注册名，读取 /etc/os-release、glibc、架构、curl、systemd user。
+    $probe = Invoke-DistroProbe $row.Name
+    $evaluations.Add((Test-DistroCapability -Row $row -Probe $probe)) | Out-Null
+  }
+
+  $eligible = @($evaluations | Where-Object { $_.Eligible } | Sort-Object Rank, PreferredName, @{ Expression = { ConvertTo-VersionOrNull $_.UbuntuVersion }; Descending = $true }, Name)
+  if ($eligible.Count -gt 0) {
+    $selected = $eligible[0]
+    $script:ResolvedDistro = $selected.Name
+    $script:ResolvedDistroInfo = $selected
+    Write-Ok ("WSL Ubuntu：使用真实注册名 {0}（{1}，glibc {2}，{3}）。" -f $selected.Name, $selected.PrettyName, $selected.GlibcVersion, $selected.Arch)
+    foreach ($warning in $selected.Warnings) {
+      Write-Warn $warning
+    }
+    return $script:ResolvedDistro
+  }
+
+  if ($evaluations.Count -gt 0) {
+    Write-Warn "没有找到满足最低能力要求的 Ubuntu 发行版。"
+    foreach ($item in $evaluations) {
+      $reasonText = if ($item.Reasons.Count -gt 0) { $item.Reasons -join "；" } else { "未知原因" }
+      Write-Host ("  {0}: {1}" -f $item.Name, $reasonText) -ForegroundColor Yellow
+    }
+  }
+
+  ## Ubuntu 自动安装：只有没有可用 Ubuntu 时，才默认安装 Ubuntu-24.04。
+  if ($InstallIfMissing) {
+    Write-Info "没有可用的 Ubuntu 发行版，正在默认安装 Ubuntu-24.04。"
+    & wsl.exe --install -d $Distro
+    if ($LASTEXITCODE -ne 0) {
+      Stop-ForUser "Ubuntu 自动安装失败。" @(
+        "请检查网络是否可访问 Microsoft Store / WSL 下载源。",
+        "如果 Windows 提示需要先重启，请先重启。",
+        "处理好后重新双击 install.bat。"
+      )
+    }
+    Stop-ForUser "$Distro 已开始安装。" @(
+      "如果 Windows 弹出 Ubuntu 窗口，请按提示创建 Ubuntu 用户名和密码。",
+      "如果 Windows 提示需要重启，请先重启。",
+      "完成后重新双击 install.bat，安装会自动继续。"
+    )
+  }
+
+  Fail "没有找到可用的 Ubuntu WSL 发行版。请先安装 Ubuntu 24.04，或重新双击 install.bat 让安装器自动安装。"
+}
+
+function Get-ResolvedDistro {
+  if ([string]::IsNullOrWhiteSpace($script:ResolvedDistro)) {
+    Resolve-WslDistro -InstallIfMissing $false | Out-Null
+  }
+  return $script:ResolvedDistro
+}
+
 function Check-Prerequisites {
   $failed = $false
+  $blockers = New-Object System.Collections.Generic.List[string]
 
-  # 1. 操作系统版本：Windows 11 22H2+ (build >= 22621)
   $build = [System.Environment]::OSVersion.Version.Build
   if ($build -lt 22621) {
-    Write-Host "[FAIL] 当前 Windows 版本过低 (Build $build)，需要 Windows 11 22H2+ (Build 22621+)。" -ForegroundColor Red
+    Write-Host ("[失败] 操作系统版本：当前 Windows Build {0}，需要 Windows 11 22H2+，也就是 Build 22621 或更高。" -f $build) -ForegroundColor Red
+    $blockers.Add("请先升级 Windows。升级后重新双击 install.bat。") | Out-Null
     $failed = $true
   } else {
-    Write-Host "[OK] Windows Build $build" -ForegroundColor Green
+    Write-Ok "操作系统版本：Windows Build $build，满足 Windows 11 22H2+ 要求。"
   }
 
-  # 2. 管理员权限
   $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
   if (-not $isAdmin) {
-    Write-Host "[FAIL] 需要管理员权限。请右键 install.bat → '以管理员身份运行'。" -ForegroundColor Red
+    Write-Host "[失败] 管理员权限：当前窗口不是管理员模式。" -ForegroundColor Red
+    $blockers.Add("请关闭这个窗口，重新双击 install.bat，并在弹出的管理员权限窗口里选择同意。") | Out-Null
     $failed = $true
   } else {
-    Write-Host "[OK] 管理员权限" -ForegroundColor Green
+    Write-Ok "管理员权限：已获得。"
   }
 
-  # 3. 网络与 GitHub 加速测速
-  Write-Host "正在检测网络与代理加速测速..." -ForegroundColor Gray
+  Write-Info "正在检测 GitHub 下载网络和加速节点。"
   $endpoints = @(
     @{ Name = "直连"; Url = "https://github.com"; Prefix = "" },
     @{ Name = "gh-proxy.org"; Url = "https://v4.gh-proxy.org"; Prefix = "https://v4.gh-proxy.org/" },
@@ -102,68 +501,21 @@ function Check-Prerequisites {
   }
 
   if ($fastest) {
-    Write-Host ("[OK] 网络连通。选中最快节点: {0} ({1}ms)" -f $fastest.Name, $minTime) -ForegroundColor Green
+    Write-Ok ("下载网络：已连通，当前最快节点是 {0}，耗时约 {1}ms。" -f $fastest.Name, $minTime)
     $global:GITHUB_PROXY_PREFIX = $fastest.Prefix
   } else {
-    Write-Host "[WARN] 无法连接到 GitHub 及任何加速节点，后续下载可能会失败。" -ForegroundColor Yellow
+    Write-Warn "没有连通 GitHub 或加速节点。安装包里已有 Miloco 主程序，但 OpenClaw/Node 等依赖后续可能下载失败。"
+    Write-Host "建议：如果后面卡在下载，请换网络，或按 README 的下载加速说明处理。" -ForegroundColor Yellow
     $global:GITHUB_PROXY_PREFIX = ""
   }
 
   if ($failed) {
-    Write-Host ""
-    Write-Host "请修复以上问题后重新运行 install.bat。" -ForegroundColor Yellow
-    exit 1
+    Stop-ForUser "环境依赖没有通过。" $blockers.ToArray()
   }
-  Write-Host ""
 }
 
 function Ensure-Wsl {
-  # 1. wsl.exe 不存在
-  if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
-    Write-Host "[INFO] 未检测到 WSL (wsl.exe)，正在尝试自动安装..." -ForegroundColor Cyan
-    & wsl.exe --install -d $Distro
-    if ($LASTEXITCODE -ne 0) {
-       Write-Host "[FAIL] WSL 安装失败。请检查主板 BIOS 是否已开启 CPU 虚拟化，并确保网络畅通。" -ForegroundColor Red
-       exit 1
-    }
-    Write-Host "[WARN] WSL 安装已完成，请重启电脑后再次运行 install.bat 以继续。" -ForegroundColor Yellow
-    exit 1
-  }
-
-  # 2. wsl.exe 存在但内部损坏 — 用 try/catch 捕获
-  $list = $null
-  try {
-    $list = (& wsl.exe -l -v 2>&1 | Out-String) -replace "`0", ""
-  } catch {
-    $list = $null
-  }
-
-  # wsl.exe -l -v 返回非零退出码或空输出 → WSL 组件异常
-  if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($list)) {
-    Write-Host "[INFO] WSL 组件异常，正在尝试自动修复更新..." -ForegroundColor Cyan
-    & wsl.exe --update
-    & wsl.exe --install -d $Distro
-    if ($LASTEXITCODE -ne 0) {
-      Write-Host "[FAIL] WSL 自动修复失败。请打开微软商店手动更新 WSL，或检查 BIOS 虚拟化设置。" -ForegroundColor Red
-      exit 1
-    }
-    Write-Host "[WARN] 修复完成，可能需要重启电脑。请重启后再次运行 install.bat。" -ForegroundColor Yellow
-    exit 1
-  }
-
-  # 3. WSL 正常，检查发行版
-  if ($list -match [regex]::Escape($Distro)) {
-    return
-  }
-
-  Write-Host "[INFO] 发现 WSL，但缺少 $Distro 发行版。正在自动安装..." -ForegroundColor Cyan
-  & wsl.exe --install -d $Distro
-  if ($LASTEXITCODE -ne 0) {
-    Write-Host "[FAIL] 发行版安装失败。请检查网络连接或尝试重启电脑。" -ForegroundColor Red
-    exit 1
-  }
-  Write-Host "[WARN] 发行版安装完成！如果 Windows 提示需要重启或创建 Ubuntu 默认用户，请先完成操作，然后再重新运行 install.bat。" -ForegroundColor Yellow
-  exit 1
+  Resolve-WslDistro -InstallIfMissing $true | Out-Null
 }
 
 function Invoke-WslBash {
@@ -177,12 +529,163 @@ function Invoke-WslBash {
   $winTmp = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-$id.sh"
   [System.IO.File]::WriteAllText($winTmp, $Script, [System.Text.UTF8Encoding]::new($false))
   $wslMnt = ConvertTo-WslPath $winTmp
+  $resolvedDistro = Get-ResolvedDistro
 
-  & wsl.exe -d $Distro -- bash -lc "cp '${wslMnt}' '${wslTmp}' && bash '${wslTmp}'; rc=`$?; rm -f '${wslTmp}'; exit `$rc"
-  $code = $LASTEXITCODE
-  Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
-  if ($code -ne 0) {
-    exit $code
+  try {
+    & wsl.exe -d $resolvedDistro -- cp $wslMnt $wslTmp
+    $copyCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    if ($copyCode -ne 0) {
+      Fail "无法把临时脚本复制到 WSL，退出码 $copyCode。请把窗口内容发给维护者。"
+    }
+
+    & wsl.exe -d $resolvedDistro -- bash $wslTmp
+    $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    if ($code -ne 0) {
+      Fail "WSL 内命令执行失败，退出码 $code。上方通常有具体错误，请把窗口内容或诊断报告发给维护者。"
+    }
+  } finally {
+    & wsl.exe -d $resolvedDistro -- rm -f $wslTmp *> $null
+    Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
+  }
+}
+
+function Invoke-WslBashText {
+  param([string]$Script)
+
+  $Script = $Script -replace "`r`n", "`n"
+  $id = [guid]::NewGuid().ToString('N').Substring(0, 8)
+  $wslTmp = "/tmp/miloco-probe-$id.sh"
+  $winTmp = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-probe-$id.sh"
+  [System.IO.File]::WriteAllText($winTmp, $Script, [System.Text.UTF8Encoding]::new($false))
+  $wslMnt = ConvertTo-WslPath $winTmp
+  $resolvedDistro = Get-ResolvedDistro
+
+  $copyOutput = & wsl.exe -d $resolvedDistro -- cp $wslMnt $wslTmp 2>&1 | ForEach-Object {
+    if ($_ -is [System.Management.Automation.ErrorRecord]) {
+      $_.Exception.Message
+    } else {
+      $_.ToString()
+    }
+  }
+  $copyCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  if ($copyCode -ne 0) {
+    Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
+    return [pscustomobject]@{
+      code = $copyCode
+      text = (($copyOutput | Out-String).Trim())
+    }
+  }
+
+  try {
+    $output = & wsl.exe -d $resolvedDistro -- bash $wslTmp 2>&1 | ForEach-Object {
+      if ($_ -is [System.Management.Automation.ErrorRecord]) {
+        $_.Exception.Message
+      } else {
+        $_.ToString()
+      }
+    }
+    $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  } finally {
+    & wsl.exe -d $resolvedDistro -- rm -f $wslTmp *> $null
+    Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
+  }
+  return [pscustomobject]@{
+    code = $code
+    text = (($output | Out-String).Trim())
+  }
+}
+
+function Get-ExistingInstallStatus {
+  $probe = @'
+set +e
+export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+kv() { printf '%s=%s\n' "$1" "$2"; }
+has_cmd() { command -v "$1" >/dev/null 2>&1 && printf yes || printf no; }
+
+kv MILOCO_CLI "$(has_cmd miloco-cli)"
+kv OPENCLAW_CLI "$(has_cmd openclaw)"
+[ -d "$HOME/.openclaw/miloco" ] && kv MILOCO_HOME yes || kv MILOCO_HOME no
+
+if command -v miloco-cli >/dev/null 2>&1; then
+  status="$(miloco-cli service status 2>/dev/null)"
+  printf '%s' "$status" | grep -Eiq 'running|true|url=http' && kv MILOCO_SERVICE yes || kv MILOCO_SERVICE no
+else
+  kv MILOCO_SERVICE no
+fi
+
+if command -v curl >/dev/null 2>&1; then
+  curl -fsS --max-time 2 "http://127.0.0.1:__MILOCO_PORT__/health" >/dev/null 2>&1 && kv MILOCO_HEALTH yes || kv MILOCO_HEALTH no
+  curl -fsS --max-time 2 "http://127.0.0.1:__OPENCLAW_PORT__/" >/dev/null 2>&1 && kv OPENCLAW_HTTP yes || kv OPENCLAW_HTTP no
+else
+  kv MILOCO_HEALTH no
+  kv OPENCLAW_HTTP no
+fi
+
+if command -v openclaw >/dev/null 2>&1; then
+  openclaw plugins inspect miloco-openclaw-plugin 2>/dev/null | grep -Eiq 'Status:[[:space:]]*loaded|loaded' && kv MILOCO_PLUGIN yes || kv MILOCO_PLUGIN no
+else
+  kv MILOCO_PLUGIN no
+fi
+exit 0
+'@
+  $probe = $probe.Replace("__MILOCO_PORT__", [string]$MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
+  $result = Invoke-WslBashText $probe
+  $values = @{}
+  foreach ($line in ($result.text -split "`r?`n")) {
+    if ($line -match "^([A-Z_]+)=(.*)$") {
+      $values[$Matches[1]] = $Matches[2].Trim()
+    }
+  }
+
+  $signals = @("MILOCO_CLI", "OPENCLAW_CLI", "MILOCO_HOME", "MILOCO_SERVICE", "MILOCO_HEALTH", "OPENCLAW_HTTP", "MILOCO_PLUGIN")
+  $detected = $false
+  foreach ($signal in $signals) {
+    if ($values[$signal] -eq "yes") {
+      $detected = $true
+      break
+    }
+  }
+
+  return [pscustomobject]@{
+    detected = $detected
+    values = $values
+    raw = $result.text
+  }
+}
+
+function Confirm-OverwriteExistingInstall {
+  param([object]$Status)
+
+  if (-not $Status.detected) {
+    Write-Ok "没有发现已有 Miloco/OpenClaw 安装痕迹。"
+    return
+  }
+
+  Write-Host ""
+  Write-Host "[需要确认] 检测到这台电脑上已经有 Miloco / OpenClaw 安装痕迹。" -ForegroundColor Yellow
+  Write-Host "当前检测结果：" -ForegroundColor Yellow
+  foreach ($name in @("MILOCO_CLI", "OPENCLAW_CLI", "MILOCO_HOME", "MILOCO_SERVICE", "MILOCO_HEALTH", "OPENCLAW_HTTP", "MILOCO_PLUGIN")) {
+    $value = if ($Status.values.ContainsKey($name)) { $Status.values[$name] } else { "unknown" }
+    Write-Host ("  {0}: {1}" -f $name, $value) -ForegroundColor Yellow
+  }
+  Write-Host ""
+  Write-Host "请选择下一步：" -ForegroundColor Yellow
+  Write-Host "  C = 覆盖安装/修复：保留已有配置，重新执行安装和启动步骤。" -ForegroundColor Yellow
+  Write-Host "  Q = 退出：不改动当前安装。" -ForegroundColor Yellow
+
+  while ($true) {
+    $choice = (Read-Host "请输入 C 或 Q").Trim().ToUpperInvariant()
+    if ($choice -eq "C") {
+      Write-Info "已选择覆盖安装/修复，继续执行。"
+      return
+    }
+    if ($choice -eq "Q") {
+      Stop-ForUser "已按你的选择退出。" @(
+        "当前安装没有被改动。",
+        "如果之后想重新安装，请再次双击 install.bat，并选择 C。"
+      ) 0
+    }
+    Write-Host "请输入 C 或 Q。" -ForegroundColor Yellow
   }
 }
 
@@ -197,6 +700,7 @@ function Get-PowerShellExe {
 }
 
 function Install-DesktopLauncher {
+  $resolvedDistro = Get-ResolvedDistro
   $desktop = [Environment]::GetFolderPath("Desktop")
   if ([string]::IsNullOrWhiteSpace($desktop) -or -not (Test-Path -LiteralPath $desktop)) {
     Write-Host "[WARN] Desktop folder not found; skipped Miloco desktop launcher."
@@ -205,114 +709,202 @@ function Install-DesktopLauncher {
 
   $launcherName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
   $launcher = Join-Path $desktop $launcherName
+  $psLauncher = Join-Path $desktop "miloco-console.ps1"
   $bat = @'
 @echo off
 setlocal
-chcp 65001 >nul
+set "POWERSHELL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+set "SCRIPT=%~dp0miloco-console.ps1"
 
-set "DISTRO=__DISTRO__"
-set "MILOCO_PORT=__MILOCO_PORT__"
-set "OPENCLAW_PORT=__OPENCLAW_PORT__"
-
-:main_menu
-cls
-echo ========================================
-echo        Miloco / OpenClaw 控制台
-echo ========================================
-echo.
-echo   1. 重启 OpenClaw 面板
-echo   2. 重启 Miloco 面板
-echo   3. 重启 Miloco + OpenClaw
-echo   4. 关闭 OpenClaw + Miloco
-echo   5. 关闭 WSL
-echo   0. 退出
-echo.
-choice /c 123450 /n /m "请选择 [1/2/3/4/5/0]: "
-
-if errorlevel 6 goto exit
-if errorlevel 5 goto stop_wsl
-if errorlevel 4 goto stop_services
-if errorlevel 3 goto restart_all
-if errorlevel 2 goto restart_miloco
-if errorlevel 1 goto restart_openclaw
-
-:restart_openclaw
-echo.
-echo 正在重启 OpenClaw 面板...
-wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true"
-if errorlevel 1 goto wsl_failed
-call :open_port "%OPENCLAW_PORT%"
-goto pause_main
-
-:restart_miloco
-echo.
-echo 正在重启 Miloco 面板...
-wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || true"
-if errorlevel 1 goto wsl_failed
-call :open_port "%MILOCO_PORT%"
-goto pause_main
-
-:restart_all
-echo.
-echo 正在重启 Miloco + OpenClaw...
-wsl.exe -d "%DISTRO%" -- bash -lc "export PATH=""$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true"
-if errorlevel 1 goto wsl_failed
-call :open_port "%MILOCO_PORT%"
-call :open_port "%OPENCLAW_PORT%"
-goto pause_main
-
-:open_port
-powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "$port=[int]'%~1'; $deadline=(Get-Date).AddSeconds(60); while((Get-Date) -lt $deadline){ $tcp=New-Object Net.Sockets.TcpClient; try { $iar=$tcp.BeginConnect('127.0.0.1',$port,$null,$null); if($iar.AsyncWaitHandle.WaitOne(1000)){ $tcp.EndConnect($iar); break } } catch {} finally { $tcp.Close() }; Start-Sleep -Seconds 1 }; Start-Process ('http://127.0.0.1:'+$port+'/')"
-exit /b 0
-
-:stop_services
-call :stop_miloco_stack
-goto pause_main
-
-:stop_wsl
-call :stop_miloco_stack
-echo 正在关闭 WSL: %DISTRO%
-wsl.exe --terminate "%DISTRO%"
-goto pause_main
-
-:stop_miloco_stack
-echo.
-echo 正在关闭 OpenClaw + Miloco...
-schtasks /End /TN MilocoWSLKeeper >nul 2>nul
-wsl.exe -d "%DISTRO%" -- bash -lc "set +e; export PATH=""$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH""; systemctl --user disable --now openclaw-gateway.service >/tmp/openclaw-desktop-stop.log 2>&1 || true; rm -f ""$HOME/.config/systemd/user/default.target.wants/openclaw-gateway.service"" 2>/dev/null || true; systemctl --user daemon-reload >/dev/null 2>&1 || true; miloco-cli service stop >/tmp/miloco-desktop-stop.log 2>&1 || true; supervisorctl -c ""$HOME/.openclaw/miloco/supervisord.conf"" shutdown >/tmp/miloco-desktop-supervisor-stop.log 2>&1 || true; pkill -TERM -f ""[w]indows-keeper.sh"" 2>/dev/null || true; pkill -TERM -f ""[w]sl-miloco-keeper.sh"" 2>/dev/null || true; pkill -TERM -f ""/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main"" 2>/dev/null || true; pkill -TERM -f ""[o]penclaw/dist/index.js gateway --port"" 2>/dev/null || true; sleep 2; pkill -KILL -f ""/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main"" 2>/dev/null || true; pkill -KILL -f ""[o]penclaw/dist/index.js gateway --port"" 2>/dev/null || true"
-echo 关闭命令已发送。
-exit /b 0
-
-:wsl_failed
-echo 调用 WSL 失败，请检查 WSL 发行版: %DISTRO%
-goto pause_main
-
-:pause_main
+if not exist "%SCRIPT%" goto missing_script
+"%POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%"
+set "EXIT_CODE=%errorlevel%"
 echo.
 pause
-goto main_menu
+exit /b %EXIT_CODE%
 
-:exit
-endlocal
-exit /b 0
+:missing_script
+echo [ERROR] miloco-console.ps1 is missing.
+echo Please run install.bat again to recreate the desktop console.
+echo.
+pause
+exit /b 1
 '@
-  $bat = $bat.Replace("__DISTRO__", $Distro).Replace("__MILOCO_PORT__", [string]$MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
+  $ps1 = @'
+$ErrorActionPreference = "Continue"
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
+$script:Distro = "__DISTRO__"
+$script:MilocoPort = __MILOCO_PORT__
+$script:OpenClawPort = __OPENCLAW_PORT__
+
+function Test-Distro {
+  & wsl.exe -d $script:Distro -- true > $null 2> $null
+  if ($LASTEXITCODE -eq 0) {
+    return $true
+  }
+
+  Write-Host ""
+  Write-Host ("找不到安装时使用的 WSL 发行版：{0}" -f $script:Distro) -ForegroundColor Yellow
+  Write-Host "当前可用发行版：" -ForegroundColor Yellow
+  & wsl.exe -l -v
+  return $false
+}
+
+function Invoke-WslBash {
+  param([string]$Command)
+
+  if (-not (Test-Distro)) {
+    return $false
+  }
+
+  & wsl.exe -d $script:Distro -- bash -lc $Command
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host ("调用 WSL 失败，退出码：{0}" -f $LASTEXITCODE) -ForegroundColor Red
+    return $false
+  }
+  return $true
+}
+
+function Open-WhenReady {
+  param([int]$Port)
+
+  $deadline = (Get-Date).AddSeconds(60)
+  while ((Get-Date) -lt $deadline) {
+    $tcp = New-Object Net.Sockets.TcpClient
+    try {
+      $iar = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
+      if ($iar.AsyncWaitHandle.WaitOne(1000)) {
+        $tcp.EndConnect($iar)
+        break
+      }
+    } catch {
+    } finally {
+      $tcp.Close()
+    }
+    Start-Sleep -Seconds 1
+  }
+  Start-Process ("http://127.0.0.1:{0}/" -f $Port)
+}
+
+function Restart-OpenClaw {
+  Write-Host ""
+  Write-Host "正在重启 OpenClaw 面板..."
+  $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
+  if (Invoke-WslBash $cmd) {
+    Open-WhenReady $script:OpenClawPort
+  }
+}
+
+function Restart-Miloco {
+  Write-Host ""
+  Write-Host "正在重启 Miloco 面板..."
+  $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || true'
+  if (Invoke-WslBash $cmd) {
+    Open-WhenReady $script:MilocoPort
+  }
+}
+
+function Restart-All {
+  Write-Host ""
+  Write-Host "正在重启 Miloco + OpenClaw..."
+  $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
+  if (Invoke-WslBash $cmd) {
+    Open-WhenReady $script:MilocoPort
+    Open-WhenReady $script:OpenClawPort
+  }
+}
+
+function Stop-Services {
+  Write-Host ""
+  Write-Host "正在关闭 OpenClaw + Miloco..."
+  & schtasks.exe /End /TN MilocoWSLKeeper > $null 2> $null
+  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user disable --now openclaw-gateway.service >/tmp/openclaw-desktop-stop.log 2>&1 || true; rm -f "$HOME/.config/systemd/user/default.target.wants/openclaw-gateway.service" 2>/dev/null || true; systemctl --user daemon-reload >/dev/null 2>&1 || true; miloco-cli service stop >/tmp/miloco-desktop-stop.log 2>&1 || true; supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-desktop-supervisor-stop.log 2>&1 || true; pkill -TERM -f "[w]indows-keeper.sh" 2>/dev/null || true; pkill -TERM -f "[w]sl-miloco-keeper.sh" 2>/dev/null || true; pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; pkill -TERM -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true; sleep 2; pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; pkill -KILL -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true'
+  [void](Invoke-WslBash $cmd)
+  Write-Host "关闭命令已发送。"
+}
+
+function Stop-Wsl {
+  Stop-Services
+  Write-Host ("正在关闭 WSL：{0}" -f $script:Distro)
+  & wsl.exe --terminate $script:Distro
+}
+
+function Show-Menu {
+  Clear-Host
+  Write-Host "========================================"
+  Write-Host "       Miloco / OpenClaw 控制台"
+  Write-Host "========================================"
+  Write-Host ""
+  Write-Host "  1. 重启 OpenClaw 面板"
+  Write-Host "  2. 重启 Miloco 面板"
+  Write-Host "  3. 重启 Miloco + OpenClaw"
+  Write-Host "  4. 关闭 OpenClaw + Miloco"
+  Write-Host "  5. 关闭 WSL"
+  Write-Host "  0. 退出"
+  Write-Host ""
+  Write-Host "说明："
+  Write-Host "  1. 打开或刷新 OpenClaw 对话入口。适合日常和 Agent 对话、验证 Miloco 插件是否生效。"
+  Write-Host "  2. 打开或刷新 Miloco 管理面板。适合日常查看设备、摄像头、账号、模型和家庭配置。"
+  Write-Host "  3. 一次性拉起整套服务，并打开两个面板。首次安装后、电脑重启后，优先选这个。"
+  Write-Host "  4. 停止两个服务，但保留 WSL。适合今天不用了、想释放后台资源，或准备重新启动服务。"
+  Write-Host "  5. 停止服务并关闭本次安装使用的 WSL。适合彻底退出、电脑卡顿、网络或端口异常时重置环境。"
+  Write-Host "  0. 只关闭当前脚本，不影响已经运行的 Miloco 和 OpenClaw 服务。"
+  Write-Host ""
+}
+
+while ($true) {
+  Show-Menu
+  if (-not (Test-Distro)) {
+    Write-Host ""
+    Read-Host "按回车返回菜单"
+    continue
+  }
+
+  $choice = (Read-Host "请选择 [1/2/3/4/5/0]").Trim()
+  switch ($choice) {
+    "1" { Restart-OpenClaw; Read-Host "按回车返回菜单" | Out-Null }
+    "2" { Restart-Miloco; Read-Host "按回车返回菜单" | Out-Null }
+    "3" { Restart-All; Read-Host "按回车返回菜单" | Out-Null }
+    "4" { Stop-Services; Read-Host "按回车返回菜单" | Out-Null }
+    "5" { Stop-Wsl; Read-Host "按回车返回菜单" | Out-Null }
+    "0" { exit 0 }
+    default {
+      Write-Host "请输入 1、2、3、4、5 或 0。" -ForegroundColor Yellow
+      Start-Sleep -Seconds 1
+    }
+  }
+}
+'@
+  $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
   [System.IO.File]::WriteAllText($launcher, $bat, [System.Text.UTF8Encoding]::new($false))
+  [System.IO.File]::WriteAllText($psLauncher, $ps1, [System.Text.UTF8Encoding]::new($true))
   Write-Host "Desktop launcher created: $launcher"
+  Write-Host "Desktop console script created: $psLauncher"
 }
 
 function Invoke-Workflow {
   param([string]$WorkflowAction)
 
   Require-File $Workflow
+  $resolvedDistro = Get-ResolvedDistro
+  if ($WorkflowAction -eq "Finish" -and [string]::IsNullOrWhiteSpace($MimoApiKey)) {
+    Fail "完成授权配置需要 MiMo API Key。请先准备好 MiMo API Key，再运行：.\install.ps1 -Action Finish -AuthPayload '<小米授权内容>' -MimoApiKey '<你的 Key>'"
+  }
   $args = @(
+    "-NoProfile",
     "-ExecutionPolicy", "Bypass",
     "-File", $Workflow,
     "-Action", $WorkflowAction,
-    "-Distro", $Distro,
+    "-Distro", $resolvedDistro,
     "-MilocoPort", [string]$MilocoPort,
     "-OpenClawPort", [string]$OpenClawPort
   )
+
+  if ($WorkflowAction -eq "Report") {
+    $reportPath = Join-Path $PackageRoot ("miloco-deploy-report-{0}.txt" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+    $args += @("-ReportPath", $reportPath)
+  }
 
   if ($WorkflowAction -eq "Finish") {
     $args += @(
@@ -335,10 +927,30 @@ function Invoke-Workflow {
 }
 
 function Invoke-Prepare {
-  Check-Prerequisites
+  Write-Banner
+
+  Write-Step "检查安装包文件是否完整"
   Require-File $ManifestPath
   Require-File $InstallSh
+  Require-File $Workflow
+  Write-Ok "安装包文件：已找到 install.ps1、manifest.json、payload 和诊断脚本。"
+
+  Write-Step "检查 README 中列出的 Windows 环境依赖"
+  Check-Prerequisites
+  Write-Host "[说明] Python / Node / uv：不需要你提前安装，后续安装器会自动准备。" -ForegroundColor Gray
+  Write-Host "[说明] OpenClaw：不需要你提前安装，后续安装器会自动安装或启动。" -ForegroundColor Gray
+  Write-Host "[说明] 小米账号、MiMo API Key、米家摄像头：脚本不能代替你登录或准备，会在基础安装完成后提示下一步。" -ForegroundColor Gray
+
+  Write-Step "检查和准备 WSL2 / Ubuntu"
   Ensure-Wsl
+  if ($InstallWsl) {
+    Write-Ok "WSL2 / Ubuntu 环境已准备好。"
+    Exit-Installer 0
+  }
+
+  Write-Step "检测是否已经安装过 Miloco"
+  $existingStatus = Get-ExistingInstallStatus
+  Confirm-OverwriteExistingInstall $existingStatus
 
   $manifest = Get-Content -Encoding utf8 -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
   $version = [string]$manifest.version
@@ -354,42 +966,181 @@ function Invoke-Prepare {
   $wslBundle = ConvertTo-WslPath $bundle.FullName
   $wslInstallSh = ConvertTo-WslPath $InstallSh
 
-  Write-Step "Prime local Miloco bundle in WSL"
-  $prime = @"
+  Write-Step "把 Miloco 离线安装包放入 WSL 缓存"
+  $prime = @'
 set -euo pipefail
-export MILOCO_HOME="\${MILOCO_HOME:-\$HOME/.openclaw/miloco}"
-cache="\$MILOCO_HOME/.install-cache/$version"
-mkdir -p "\$cache"
-if ! ls "\$cache"/miloco-*.whl >/dev/null 2>&1 || ! ls "\$cache"/miloco_cli-*.whl >/dev/null 2>&1 || ! ls "\$cache"/*.tgz >/dev/null 2>&1; then
-  rm -rf "\$cache"
-  mkdir -p "\$cache"
-  tar -xzf "$wslBundle" -C "\$cache"
+export MILOCO_HOME="${MILOCO_HOME:-$HOME/.openclaw/miloco}"
+cache="$MILOCO_HOME/.install-cache/__VERSION__"
+mkdir -p "$cache"
+if ! ls "$cache"/miloco-*.whl >/dev/null 2>&1 || ! ls "$cache"/miloco_cli-*.whl >/dev/null 2>&1 || ! ls "$cache"/*.tgz >/dev/null 2>&1; then
+  rm -rf "$cache"
+  mkdir -p "$cache"
+  tar -xzf "__WSL_BUNDLE__" -C "$cache"
 fi
-"@
+'@
+  $prime = $prime.Replace("__VERSION__", $version).Replace("__WSL_BUNDLE__", $wslBundle)
   Invoke-WslBash $prime
+  Write-Ok "Miloco 离线安装包：已准备。"
 
-  Write-Step "Install Miloco in WSL"
-  $install = @"
+  Write-Step "安装并启动 Miloco 基础服务"
+  $install = @'
 set -euo pipefail
-export PATH="\$HOME/.local/bin:\$PATH"
-export GITHUB_PROXY_PREFIX="$global:GITHUB_PROXY_PREFIX"
-bash "$wslInstallSh" --agent-prepare
-miloco-cli service start || true
-"@
+export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"
+export GITHUB_PROXY_PREFIX="__GITHUB_PROXY_PREFIX__"
+printf '[正在处理] 正在安装 Miloco 主程序和命令行工具，这一步可能需要几分钟...\n'
+if ! bash "__WSL_INSTALL_SH__" --agent-prepare >/tmp/miloco-agent-prepare.log 2>&1; then
+  printf '[失败] Miloco 主程序安装失败。\n' >&2
+  printf '详细日志在 WSL 内：/tmp/miloco-agent-prepare.log\n' >&2
+  exit 43
+fi
+hash -r
+if ! command -v miloco-cli >/dev/null 2>&1; then
+  printf '[失败] Miloco 安装命令执行完成，但 miloco-cli 仍然不可用。\n' >&2
+  printf '详细日志在 WSL 内：/tmp/miloco-agent-prepare.log\n' >&2
+  exit 42
+fi
+printf '[正在处理] 正在把 Miloco 服务地址设置为 http://127.0.0.1:__MILOCO_PORT__ ...\n'
+miloco-cli service stop >/tmp/miloco-windows-service-stop.log 2>&1 || true
+supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-windows-supervisor-stop.log 2>&1 || true
+pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
+sleep 2
+pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
+if ! miloco-cli config set server.url "http://127.0.0.1:__MILOCO_PORT__" --no-restart >/tmp/miloco-windows-config-port.log 2>&1; then
+  printf '[失败] Miloco 服务地址配置写入失败。\n' >&2
+  printf '详细日志在 WSL 内：/tmp/miloco-windows-config-port.log\n' >&2
+  exit 44
+fi
+actual_url="$(miloco-cli config get server.url --value-only 2>/dev/null | tr -d '\r\n[:space:]')"
+if [ "$actual_url" != "http://127.0.0.1:__MILOCO_PORT__" ]; then
+  printf '[失败] Miloco 服务地址配置没有生效。当前 url=%s\n' "$actual_url" >&2
+  exit 45
+fi
+if ! miloco-cli service start >/tmp/miloco-windows-service-start.log 2>&1; then
+  printf '[需要注意] Miloco 启动命令返回了错误，正在继续检查服务是否已经实际启动...\n'
+fi
+for i in $(seq 1 90); do
+  if curl -fsS --max-time 2 "http://127.0.0.1:__MILOCO_PORT__/health" >/dev/null 2>&1; then
+    printf '[OK] Miloco 后端已在端口 __MILOCO_PORT__ 启动。\n'
+    exit 0
+  fi
+  sleep 1
+done
+printf '[失败] Miloco 后端没有在端口 __MILOCO_PORT__ 正常响应。\n' >&2
+miloco-cli service status >&2 || true
+printf '详细日志在 WSL 内：/tmp/miloco-windows-service-start.log 和 ~/.openclaw/miloco/log/miloco-backend.log\n' >&2
+exit 47
+'@
+  $install = $install.Replace("__GITHUB_PROXY_PREFIX__", [string]$global:GITHUB_PROXY_PREFIX).Replace("__WSL_INSTALL_SH__", $wslInstallSh).Replace("__MILOCO_PORT__", [string]$MilocoPort)
   Invoke-WslBash $install
-  Install-DesktopLauncher
+  Write-Ok "Miloco 基础安装命令已执行完成。"
 
-  Write-Step "Generate deployment report"
+  Write-Step "检查和安装 OpenClaw 控制台依赖"
+  $openclaw = @'
+set -euo pipefail
+export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"
+cache="$HOME/.openclaw/miloco/.install-cache/__VERSION__"
+if ! command -v openclaw >/dev/null 2>&1; then
+  if ! command -v curl >/dev/null 2>&1; then
+    printf '[失败] 需要安装 OpenClaw，但 WSL 内没有 curl。\n' >&2
+    exit 51
+  fi
+  printf '[正在处理] 未检测到 openclaw，正在安装 OpenClaw CLI...\n'
+  if ! curl -fsSL https://openclaw.ai/install-cli.sh -o /tmp/openclaw-install-cli.sh; then
+    printf '[失败] 下载 OpenClaw 安装脚本失败。\n' >&2
+    printf '请检查网络是否能访问 https://openclaw.ai/install-cli.sh，或换网络/代理后重新双击 install.bat。\n' >&2
+    exit 53
+  fi
+  if ! bash /tmp/openclaw-install-cli.sh --prefix "$HOME/.openclaw" >/tmp/openclaw-install-cli.log 2>&1; then
+    printf '[失败] OpenClaw CLI 安装脚本执行失败。\n' >&2
+    printf '详细日志在 WSL 内：/tmp/openclaw-install-cli.log\n' >&2
+    printf '请处理网络或 Node/OpenClaw 安装问题后重新双击 install.bat。\n' >&2
+    exit 54
+  fi
+  printf '[OK] OpenClaw CLI 安装完成。\n'
+fi
+hash -r
+if ! command -v openclaw >/dev/null 2>&1; then
+  printf '[失败] OpenClaw CLI 安装后仍不可用。\n' >&2
+  printf '请检查网络是否能访问 https://openclaw.ai/install-cli.sh。\n' >&2
+  exit 52
+fi
+plugin_pkg=""
+if [ -d "$cache" ]; then
+  plugin_pkg="$(find "$cache" -maxdepth 1 -type f -name '*.tgz' | head -n 1)"
+fi
+if [ -z "$plugin_pkg" ]; then
+  printf '[失败] 安装包缓存里没有找到 Miloco OpenClaw 插件文件。\n' >&2
+  printf '请重新下载完整 zip 包后再运行 install.bat。\n' >&2
+  exit 55
+fi
+openclaw plugins install --force "$plugin_pkg" >/tmp/openclaw-miloco-plugin-install.log 2>&1 || {
+  printf '[失败] Miloco OpenClaw 插件安装失败。\n' >&2
+  printf '详细日志在 WSL 内：/tmp/openclaw-miloco-plugin-install.log\n' >&2
+  exit 56
+}
+openclaw gateway --dev --bind loopback --port "__OPENCLAW_PORT__" install --port "__OPENCLAW_PORT__" >/tmp/openclaw-windows-install.log 2>&1 || true
+openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gateway start >/tmp/openclaw-windows-start.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-windows-systemd-restart.log 2>&1 || true
+'@
+  $openclaw = $openclaw.Replace("__OPENCLAW_PORT__", [string]$OpenClawPort).Replace("__VERSION__", $version)
+  Invoke-WslBash $openclaw
+  Write-Ok "OpenClaw CLI 已可用，Gateway 启动命令已执行。"
+
+  Write-Step "创建桌面控制台"
+  Install-DesktopLauncher
+  Write-Ok "桌面控制台已准备好，后续可用于重启或关闭 Miloco/OpenClaw。"
+
+  Write-Step "生成安装诊断报告"
   $powershellExe = Get-PowerShellExe
-  & $powershellExe -ExecutionPolicy Bypass -File $Workflow -Action Report -Distro $Distro -MilocoPort $MilocoPort -OpenClawPort $OpenClawPort
+  $resolvedDistro = Get-ResolvedDistro
+  $reportPath = Join-Path $PackageRoot ("miloco-deploy-report-{0}.txt" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action Report -Distro $resolvedDistro -MilocoPort $MilocoPort -OpenClawPort $OpenClawPort -ReportPath $reportPath
   $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
 
+  if ($code -ne 0) {
+    $diagnosticLines = Get-ReportTroubleshootingLines $reportPath
+    Stop-ForUser "安装命令已经执行完，但诊断发现面板还不能正常打开。" $diagnosticLines $code
+  }
+
+  Write-Step "安装完成，提示验证和使用入口"
   Write-Host ""
-  Write-Host "Next steps:"
-  Write-Host "1. Run: .\install.ps1 -Action BindUrl"
-  Write-Host "2. Complete Xiaomi OAuth in the browser."
-  Write-Host "3. Run: .\install.ps1 -Action Finish -AuthPayload '<payload>' -MimoApiKey '<key>'"
-  exit $code
+  $desktopConsoleName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
+  $desktopConsole = Join-Path ([Environment]::GetFolderPath("Desktop")) $desktopConsoleName
+  Write-Host "[OK] easy-miloco 基础安装已经完成。" -ForegroundColor Green
+  Write-Host ""
+  Write-Host "从现在开始，你可以用下面这个桌面脚本验证和使用 Miloco：" -ForegroundColor Cyan
+  Write-Host ("  {0}" -f $desktopConsole) -ForegroundColor White
+  Write-Host ""
+  Write-Host "建议先双击它，然后选择："
+  Write-Host "  3. 重启 Miloco + OpenClaw    一次性拉起整套服务"
+  Write-Host "  2. 重启 Miloco 面板          打开 Miloco 面板"
+  Write-Host "  1. 重启 OpenClaw 面板        打开 OpenClaw 面板"
+  Write-Host ""
+  Write-Host ("Miloco 面板地址：   http://127.0.0.1:{0}/" -f $MilocoPort)
+  Write-Host ("OpenClaw 面板地址： http://127.0.0.1:{0}/" -f $OpenClawPort)
+  Write-Host ("本次诊断报告：      {0}" -f $reportPath)
+  Write-Host ""
+  Write-Host "接下来还有几项内容不能由脚本代替你完成：" -ForegroundColor Yellow
+  Write-Host "1. 小米账号授权：需要你在浏览器里登录小米账号并复制授权内容。"
+  Write-Host "2. MiMo API Key：需要你自己准备并粘贴。"
+  Write-Host "3. 米家摄像头：需要摄像头已绑定米家 App，且在米家 App 里能正常打开画面。"
+  Write-Host ""
+  Write-Info "正在尝试生成小米账号绑定链接。"
+  & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action BindUrl -Distro $resolvedDistro -MilocoPort $MilocoPort -OpenClawPort $OpenClawPort
+  $bindCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  if ($bindCode -ne 0) {
+    Write-Warn "绑定链接暂时没有生成成功。你可以稍后重新运行：.\install.ps1 -Action BindUrl"
+  }
+
+  Write-Host ""
+  Write-Host "下一步：" -ForegroundColor Cyan
+  Write-Host "1. 在浏览器完成小米账号授权。"
+  Write-Host "2. 复制授权页面返回的内容。"
+  Write-Host "3. 准备 MiMo API Key。"
+  Write-Host "4. 在当前文件夹运行："
+  Write-Host "   .\install.ps1 -Action Finish -AuthPayload '<小米授权内容>' -MimoApiKey '<MiMo API Key>'" -ForegroundColor White
+  Write-Host ""
+  Write-Host "[OK] 自动安装阶段完成。" -ForegroundColor Green
+  Exit-Installer 0
 }
 
 switch ($Action) {

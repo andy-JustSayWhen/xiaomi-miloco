@@ -35,8 +35,8 @@
 | 依赖                    | 是否需要 | 原因                                                                                                                         |
 | ----------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------- |
 | 操作系统                | 必须     | Windows 建议 Windows 11 22H2+；低于该版本不保证完整兼容。macOS、Linux 后续按对应一键包说明执行                               |
-| WSL2                    | 必须     | Miloco 当前不作为 Windows 原生后端运行，通过 WSL2 承载 Linux 后端                                                            |
-| Ubuntu 24.04 WSL        | 必须     | 当前 Windows 部署默认使用 Ubuntu-24.04，便于统一脚本、路径和排障                                                             |
+| 兼容 Ubuntu WSL2        | 必须     | Miloco 当前不作为 Windows 原生后端运行；安装器会复用已存在且通过能力检测的 Ubuntu WSL2，只有没有可用 Ubuntu 时才默认安装 Ubuntu-24.04 |
+| Linux 基础能力          | 必须     | 需要 WSL version 2、glibc >= 2.28、CPU 架构 x86_64/aarch64，并能运行 bash、curl、systemd user 相关命令；Ubuntu 22.04+ 推荐，20.04 允许但会提示风险 |
 | 管理员权限              | 必须     | 首次安装可能需要启用 WSL、VirtualMachinePlatform、Hyper-V 防火墙入站规则                                                     |
 | 网络访问 GitHub Release | 必须     | 官方版本基准和更新包以 GitHub Release 为准                                                                                   |
 | 夸克网盘                | 可选     | 中国大陆用户 GitHub 下载慢时使用副本；仍需 SHA256 校验                                                                       |
@@ -75,6 +75,7 @@ Release 包目录树示例：
 ```text
 easy-miloco-v0.2-<system>/
 ├── README.md
+├── install.bat
 ├── install.ps1
 ├── manifest.json
 ├── release-notes.md

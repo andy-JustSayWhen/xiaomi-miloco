@@ -1,4 +1,4 @@
-param(
+﻿param(
   [string]$Distro = "Ubuntu-24.04",
   [int]$MilocoPort = 1886,
   [int]$OpenClawPort = 18789,
@@ -55,6 +55,60 @@ function Run-Text {
   }
 }
 
+function Write-WrappedText {
+  param(
+    [string]$Text,
+    [string]$Indent = "    ",
+    [int]$Width = 96,
+    [int]$MaxLines = 24
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Text)) {
+    return
+  }
+
+  $logicalLines = @(
+    ($Text -replace "`r", "") -split "`n" |
+      ForEach-Object { ($_ -replace "\s+", " ").Trim() } |
+      Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  )
+  $shown = 0
+  foreach ($line in $logicalLines) {
+    if ($shown -ge $MaxLines) {
+      break
+    }
+    $remaining = $line
+    while ($remaining.Length -gt $Width) {
+      $cut = $remaining.LastIndexOf(" ", [Math]::Min($Width, $remaining.Length - 1))
+      if ($cut -lt 24) { $cut = [Math]::Min($Width, $remaining.Length) }
+      Write-Host ($Indent + $remaining.Substring(0, $cut).Trim())
+      $remaining = $remaining.Substring($cut).Trim()
+    }
+    if ($remaining.Length -gt 0) {
+      Write-Host ($Indent + $remaining)
+    }
+    $shown += 1
+  }
+  if ($logicalLines.Count -gt $MaxLines) {
+    Write-Host ($Indent + "... ($($logicalLines.Count - $MaxLines) line(s) omitted)")
+  }
+}
+
+function Write-CheckField {
+  param(
+    [string]$Label,
+    [string]$Text,
+    [int]$MaxLines = 24
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Text)) {
+    return
+  }
+
+  Write-Host ("  {0}:" -f $Label)
+  Write-WrappedText -Text $Text -Indent "    " -MaxLines $MaxLines
+}
+
 function Test-PortExcluded {
   param([int]$Port)
 
@@ -76,7 +130,7 @@ function Test-PortExcluded {
   }
 
   if ($matched.Count -gt 0) {
-    Add-Check "windows.port.$Port" "WARN" "Port $Port is in excluded range(s): $($matched -join ', ')." "Use another Miloco port and set server.port/server.url."
+    Add-Check "windows.port.$Port" "WARN" "Port $Port is in excluded range(s): $($matched -join ', ')." "Use another Miloco port and set server.url."
   } else {
     Add-Check "windows.port.$Port" "PASS" "Port $Port is not in Windows excluded TCP ranges."
   }
@@ -210,12 +264,8 @@ if ($Json) {
   Write-Host "== Windows Miloco preflight =="
   foreach ($check in $Checks) {
     Write-Host ("[{0}] {1}" -f $check.status, $check.name)
-    if (-not [string]::IsNullOrWhiteSpace($check.detail)) {
-      Write-Host ("  detail: {0}" -f (($check.detail -replace "`r?`n", " | ").Trim()))
-    }
-    if (-not [string]::IsNullOrWhiteSpace($check.hint)) {
-      Write-Host ("  hint: {0}" -f $check.hint)
-    }
+    Write-CheckField -Label "detail" -Text $check.detail
+    Write-CheckField -Label "hint" -Text $check.hint -MaxLines 8
   }
   Write-Host ("BASIC_READY_FROM_WINDOWS={0}" -f ($(if ($basicReady) { "yes" } else { "no" })))
   Write-Host ("FAIL_COUNT={0}" -f $summary.fail_count)

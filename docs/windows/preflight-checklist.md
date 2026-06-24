@@ -257,7 +257,7 @@ access token is empty
 | `device list` 只有表头 | 小米账号未绑定或 token 不可用 | `miloco-cli account bind --no-wait` 后 `authorize` |
 | `scope camera list` 空 | 账号未绑定、无摄像头、或摄像头不在可访问家庭 | 先验证账号和 `device list` |
 | 日志 `API Key 未配置` | MiMo/Omni key 为空 | `miloco-cli config set model.omni.api_key ...` |
-| `1810` bind 失败 | Windows 端口保留或占用 | 改 `server.port/server.url` |
+| `1810` bind 失败 | Windows 端口保留或占用 | 改 `server.url` |
 | `doctor` 查不到 Hyper-V 防火墙 | WSL 内无法调用 Windows PowerShell 或权限不足 | Windows 管理员 PowerShell 手动查 |
 
 ## 7. <windows-sample-host> 当前基线
