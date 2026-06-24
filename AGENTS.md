@@ -14,3 +14,7 @@
 - Push when a checkpoint is useful remotely, after tests, or when the user asks. Do not keep saying "later" when a commit/push is practical now.
 - Never commit local secrets, credentials, Azure VM passwords, diagnostic reports containing private data, node_modules, build caches, or temporary VM transfer files.
 - `.local-secrets/`, `.codegraph/`, `.codex/`, `dist/`, caches, and generated dependency folders must stay ignored.
+
+## Script Encoding Rules
+
+- Before writing or editing scripts, especially Windows `.bat` / `.ps1` files or any script that prints Chinese text, reference and follow `E:\obsidian repo\default\设备维护\AI 写脚本前的编码规范提示词.md`; do not copy that document into this repository.
