@@ -1647,6 +1647,9 @@ function Invoke-InteractivePostAuthSetup {
 
   Write-Host ""
   Write-Host "请在浏览器里完成小米账号登录和授权。" -ForegroundColor Yellow
+  Write-Host "如果页面显示 正在排队中，请先等待；这表示小米账号页面在限流，不是安装器卡住。" -ForegroundColor Yellow
+  Write-Host "排队页地址里通常没有 code=，不要把这个地址粘贴回安装窗口。" -ForegroundColor Yellow
+  Write-Host "如果长时间不动，可以点击退出这次排队，重新打开授权页再试。" -ForegroundColor Yellow
   Write-Host "如果浏览器跳到 https://127.0.0.1/ 后显示无法访问，这是正常现象。" -ForegroundColor Yellow
   Write-Host "请复制浏览器地址栏里包含 code= 和 state= 的完整地址，粘贴回这里。" -ForegroundColor Yellow
   $interactiveAuthPayload = (Read-InstallerInput "授权完成后，粘贴授权码或完整回调地址；暂时没有就直接回车跳过").Trim()
