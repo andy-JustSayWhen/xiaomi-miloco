@@ -87,6 +87,39 @@ run_cmd() {
   fi
 }
 
+run_checked_json() {
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf '[DRY_RUN] %s\n' "$*"
+    return 0
+  fi
+  output="$("$@" 2>&1)"
+  status=$?
+  printf '%s\n' "$output"
+  if [ "$status" -ne 0 ]; then
+    return "$status"
+  fi
+  if printf '%s' "$output" | grep -Eq '"error"[[:space:]]*:'; then
+    return 2
+  fi
+  return 0
+}
+
+wait_miloco_health() {
+  attempts="${1:-30}"
+  i=1
+  while [ "$i" -le "$attempts" ]; do
+    health="$(curl -fsS --max-time 3 "http://127.0.0.1:${MILOCO_PORT}/health" 2>&1 || true)"
+    if printf '%s' "$health" | grep -q '"status":"ok"'; then
+      log "Miloco health ok on port ${MILOCO_PORT}"
+      return 0
+    fi
+    sleep 2
+    i=$((i + 1))
+  done
+  printf 'Miloco health check failed on port %s: %s\n' "$MILOCO_PORT" "$health" >&2
+  return 2
+}
+
 need_cmd curl
 need_cmd miloco-cli
 
@@ -101,15 +134,12 @@ need_cmd openclaw
 log "Pre-checking Miloco service"
 miloco-cli service status || {
   log "Miloco service status failed; trying restart"
-  run_cmd miloco-cli service restart
+  run_checked_json miloco-cli service restart || true
 }
 
-health="$(curl -fsS --max-time 10 "http://127.0.0.1:${MILOCO_PORT}/health" 2>&1 || true)"
-if ! printf '%s' "$health" | grep -q '"status":"ok"'; then
-  printf 'Miloco health check failed on port %s: %s\n' "$MILOCO_PORT" "$health" >&2
+if ! wait_miloco_health 10; then
   exit 2
 fi
-log "Miloco health ok on port ${MILOCO_PORT}"
 
 if [ "$LIST_HOMES_JSON" -eq 1 ]; then
   miloco-cli scope home list
@@ -145,7 +175,7 @@ if [ -z "$MIMO_API_KEY" ]; then
 fi
 
 log "Writing Omni model config: model=${OMNI_MODEL}, base_url=${OMNI_BASE_URL}, api_key_length=${#MIMO_API_KEY}"
-run_cmd miloco-cli config set \
+run_checked_json miloco-cli config set \
   model.omni.model "$OMNI_MODEL" \
   model.omni.base_url "$OMNI_BASE_URL" \
   model.omni.api_key "$MIMO_API_KEY" \
@@ -185,11 +215,18 @@ log "Note: the above config is for Miloco visual perception and the Miloco OpenC
 
 if [ -n "$MILOCO_HOME_ID" ]; then
   log "Switching Miloco home: ${MILOCO_HOME_ID}"
-  run_cmd miloco-cli scope home switch --pretty "$MILOCO_HOME_ID"
+  run_checked_json miloco-cli scope home switch --pretty "$MILOCO_HOME_ID"
 fi
 
 log "Restarting Miloco backend"
-run_cmd miloco-cli service restart
+if ! run_checked_json miloco-cli service restart; then
+  log "Miloco restart reported an error; trying service start"
+  run_checked_json miloco-cli service start || true
+fi
+if ! wait_miloco_health 30; then
+  log "Miloco did not recover after restart/start"
+  exit 2
+fi
 
 log "Restarting OpenClaw gateway"
 run_cmd openclaw gateway restart

@@ -73,10 +73,20 @@ function Invoke-WslScript {
   $script = Join-Path $ScriptDir $ScriptName
   Require-File $script
   $id = [guid]::NewGuid().ToString("N").Substring(0, 8)
-  $tmpScript = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-workflow-$id.sh"
+  $tmpDir = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-workflow-$id"
+  New-Item -ItemType Directory -Force -Path $tmpDir | Out-Null
+  $tmpScript = Join-Path $tmpDir $ScriptName
   $scriptText = [System.IO.File]::ReadAllText($script, [System.Text.UTF8Encoding]::new($false, $true))
   $scriptText = ($scriptText -replace "`r`n", "`n") -replace "`r", "`n"
   [System.IO.File]::WriteAllText($tmpScript, $scriptText, [System.Text.UTF8Encoding]::new($false))
+  foreach ($helperName in @("wsl-miloco-validate.sh")) {
+    $helper = Join-Path $ScriptDir $helperName
+    if (Test-Path -LiteralPath $helper) {
+      $helperText = [System.IO.File]::ReadAllText($helper, [System.Text.UTF8Encoding]::new($false, $true))
+      $helperText = ($helperText -replace "`r`n", "`n") -replace "`r", "`n"
+      [System.IO.File]::WriteAllText((Join-Path $tmpDir $helperName), $helperText, [System.Text.UTF8Encoding]::new($false))
+    }
+  }
   $wslScript = ConvertTo-WslPath $tmpScript
 
   $wslArgs = @("-d", $Distro, "--")
@@ -98,7 +108,7 @@ function Invoke-WslScript {
     & wsl.exe @wslArgs
     $script:WorkflowExitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
   } finally {
-    Remove-Item -Force -LiteralPath $tmpScript -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force -LiteralPath $tmpDir -ErrorAction SilentlyContinue
   }
 }
 
