@@ -37,7 +37,7 @@
 | `wsl-miloco-validate.sh` | WSL 内 Miloco/OpenClaw/账号/模型/设备验收 |
 | `wsl-post-auth-finish.sh` | 收到 OAuth payload 和 MiMo Key 后一键收尾 |
 
-## 脚本校验
+## 脚本烟测
 
 校验时间：2026-06-22 10:22
 
@@ -50,15 +50,6 @@ PASS windows-preflight.ps1
 PASS win-miloco-workflow.ps1
 PASS wsl-miloco-validate.sh
 PASS wsl-post-auth-finish.sh
-```
-
-SHA256：
-
-```text
-57A7C8682A92DE25DB015C3A09449BA75B32342A96EA197ED31CE217374B75CD  windows-preflight.ps1
-491F198F0AAC57851A53FCF5CF63648593A6B91FF1913F11D13B11A48598A02F  win-miloco-workflow.ps1
-6D29E3E7ED1E7A394801EA82678A630132767EC5416033EC86BBEEC3D7354FB4  wsl-miloco-validate.sh
-E96640EBE9E9579FB13D6014FB3AB571B4B95F098A75DAD5036AF64984E0A83F  wsl-post-auth-finish.sh
 ```
 
 复核命令：
@@ -84,23 +75,13 @@ wsl.exe -- bash -n /mnt/c/path/to/wsl-post-auth-finish.sh
 
 ```text
 packages/easy-miloco-v0.1-windows.zip
-packages/easy-miloco-v0.1-windows.zip.sha256
 ```
-
-zip SHA256：
-
-```text
-见包外 easy-miloco-v0.1-windows.zip.sha256
-```
-
-说明：包外 OB 发布清单记录 zip 自身 SHA256。包内的本清单副本不写死 zip 自身 SHA256，以避免资料包自引用导致每次写入哈希都会改变 zip 哈希。
 
 包内结构：
 
 ```text
 easy-miloco-v0.1-windows/
 ├── README.md
-├── SHA256SUMS.txt
 ├── docs/
 │   ├── Windows部署教程-独立分发版.md
 │   ├── Windows部署总入口.md

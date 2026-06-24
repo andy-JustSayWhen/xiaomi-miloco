@@ -30,7 +30,6 @@
 
 处理：
 
-- 下载后必须校验 SHA256。
 - release notes 和 manifest 以 GitHub Release 为准。
 
 ## 摄像头 WebUI 有画面，但设备列表显示离线

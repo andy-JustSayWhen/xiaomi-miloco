@@ -3,7 +3,6 @@
 ## 2026-06-24 本机 release 包复测
 
 > 验收对象：`dist/windows/easy-miloco-v0.2-windows.zip`
-> zip SHA256：`0f35b56fd478f1064b79608cbc9e19ed68c6c5b576402070a2dc762dae4e6487`
 > 测试机：本机 Windows 11，WSL 注册名 `Ubuntu-24.04`
 
 ### 本轮发现并修复
@@ -12,6 +11,7 @@
 - 测试前需要可重复完整卸载。已新增 `install.ps1 -Action Uninstall`，清理 Windows 计划任务、桌面入口、WSL 内 Miloco 工具、Miloco home、OpenClaw Miloco 插件，并关闭该 WSL 会话。
 - 仅存在 OpenClaw CLI 时不再触发“已有 Miloco 安装痕迹”确认，避免干净 Miloco 环境被误判后卡在 C/Q 输入。
 - WSL 验证脚本的 `miloco.health` 增加最多 20 秒短重试，避免服务刚报告 running 但应用尚未 ready 时误报失败。
+- Release 包不再生成或发布 `.zip.sha256` / `SHA256SUMS.txt`，用户下载口径只保留 GitHub Release 为版本基准。
 
 ### 非视觉部署测试
 
@@ -76,29 +76,19 @@ MILOCO_PLUGIN=no
 HEALTH_18860=no
 ```
 
+### Release 资产瘦身复核
+
+用户下载路径不再发布或生成 checksum 附件。`windows/build-release.ps1 -Version v0.2 -Channel stable -SkipBuild` 已通过打包自测；新 zip 根目录和 `dist/windows/` 均不包含 `.zip.sha256` 或 `SHA256SUMS.txt`。GitHub Release `v0.2` 当前仅保留 `easy-miloco-v0.2-windows.zip` 一个资产。
+
 > 验收日期：2026-06-22 10:22
 > 验收对象：`packages/easy-miloco-v0.1-windows.zip`
 > 关联：[Windows部署资料包发布清单](release-package.md)、[Windows部署资料包版本说明](release-notes-template.md)、[Windows部署教程-独立分发版](standalone-package.md)
 
 ## 验收结论
 
-分发包可解压，包内 `SHA256SUMS.txt` 全部通过，脚本语法烟测通过。
+分发包可解压，脚本语法烟测通过。
 
 资料包完整性和脚本语法通过；<windows-sample-host> 实机也已经完成后授权收尾并通过满血验收。
-
-zip SHA256：
-
-```text
-见包外 easy-miloco-v0.1-windows.zip.sha256
-```
-
-包外校验文件：
-
-```text
-packages/easy-miloco-v0.1-windows.zip.sha256
-```
-
-hash 自引用规则见 [Windows部署资料包版本说明](release-notes-template.md)。
 
 ## 解压校验
 
@@ -108,13 +98,11 @@ hash 自引用规则见 [Windows部署资料包版本说明](release-notes-templ
 C:\Users\<user>\AppData\Local\Temp\miloco-win-package-verify-<guid>\easy-miloco-v0.1-windows
 ```
 
-说明：临时路径每次验收都会变化，不能作为资料包内容稳定性判断；以 `SHA_TOTAL`、`SHA_FAIL`、脚本语法烟测和 zip SHA256 为准。
+说明：临时路径每次验收都会变化，不能作为资料包内容稳定性证据；以解压结构和脚本语法烟测为准。
 
 结果：
 
 ```text
-SHA_TOTAL=22
-SHA_FAIL=0
 FILE_COUNT=23
 DOC_COUNT=16
 SCRIPT_COUNT=5
@@ -126,7 +114,6 @@ SCRIPT_COUNT=5
 docs/
 scripts/
 README.md
-SHA256SUMS.txt
 ```
 
 ## 脚本语法烟测
@@ -152,21 +139,6 @@ $zip = 'E:\BaiduSyncdisk\obsidian repo\default\App学习笔记\easy-miloco\02-de
 $dest = Join-Path $env:TEMP ('miloco-win-package-verify-' + [guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $dest | Out-Null
 Expand-Archive -LiteralPath $zip -DestinationPath $dest
-```
-
-校验 `SHA256SUMS.txt`：
-
-```powershell
-$root = Join-Path $dest 'easy-miloco-v0.1-windows'
-$sumFile = Join-Path $root 'SHA256SUMS.txt'
-Get-Content -Encoding UTF8 -LiteralPath $sumFile | ForEach-Object {
-  $parts = $_ -split '  ', 2
-  $expected = $parts[0].Trim()
-  $rel = $parts[1].Trim()
-  $path = Join-Path $root ($rel -replace '/', [IO.Path]::DirectorySeparatorChar)
-  $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $path).Hash
-  if ($actual -ne $expected) { "HASH_FAIL $rel" }
-}
 ```
 
 脚本语法：

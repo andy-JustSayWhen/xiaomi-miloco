@@ -7,7 +7,7 @@
 1. 先判断任务类型：部署、更新、回滚、诊断、摄像头排障、文档沉淀、制作 release 包。
 2. 不要盲目重装。优先生成诊断报告，按 Windows、WSL、Miloco backend、Miloco WebUI、OpenClaw、账号、模型、设备、摄像头分层定位。
 3. 更新或修复前，只保护 Miloco/OpenClaw 相关状态，不默认导出整个 WSL。
-4. GitHub Release 是唯一版本基准。夸克网盘只作为人工同步的下载副本，必须用 SHA256 校验。
+4. GitHub Release 是唯一版本基准。夸克网盘只作为人工同步的下载副本。
 5. 新增问题、修复路径或成功部署经验后，更新 [faq/known-issues.md](faq/known-issues.md) 或对应 runbook。
 6. 如果 README 指向的脚本或 runbook 不存在，先创建缺失文件或明确报告当前缺口，不要假装已经可用。
 
@@ -19,7 +19,7 @@
 | “摄像头离线/看不到画面” | [cameras.md](cameras.md)、[windows/camera-runbook.md](windows/camera-runbook.md) | 区分云端在线、局域网在线、流连接、OpenClaw 视觉理解四层状态 |
 | “检查更新” | [runbooks/make-release-package.md](runbooks/make-release-package.md) 的版本基准说明 | 读取 GitHub Release，展示更新说明，等待用户确认 |
 | “回滚” | Windows 回滚 runbook，若缺失则先补齐 | 列出项目级快照，按用户选择恢复 |
-| “制作更新包/打包更新/发版” | [runbooks/make-release-package.md](runbooks/make-release-package.md) | 维护者专用：构建 release 包、自测、生成 SHA256 和 release notes |
+| “制作更新包/打包更新/发版” | [runbooks/make-release-package.md](runbooks/make-release-package.md) | 维护者专用：构建 release 包、自测、生成 release notes |
 
 ## 文档沉淀要求
 

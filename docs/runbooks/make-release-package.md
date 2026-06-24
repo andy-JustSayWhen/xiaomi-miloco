@@ -8,7 +8,6 @@
 
 - 构建
 - 自测
-- SHA256
 - release notes
 - 发布清单
 - 夸克网盘副本同步提醒
@@ -52,7 +51,6 @@ dist/windows/
 
 ```text
 easy-miloco-v0.2-windows.zip
-easy-miloco-v0.2-windows.zip.sha256
 manifest.json
 release-notes.md
 ```
@@ -62,7 +60,6 @@ release-notes.md
 Agent 需要至少完成：
 
 - 解压 zip。
-- 校验 `SHA256SUMS.txt`。
 - PowerShell 脚本语法检查。
 - Bash 脚本语法检查。
 - 检查 `README.md`、`manifest.json`、`docs/AGENT.md` 是否存在。
@@ -72,5 +69,5 @@ Agent 需要至少完成：
 GitHub Release 是唯一版本基准。发布 GitHub Release 后，Agent 必须提醒维护者：
 
 ```text
-请把本次 GitHub Release 的同名 zip、sha256、release-notes 手动上传到夸克网盘副本，并确保用户下载副本后仍按 SHA256 校验。
+请把本次 GitHub Release 的同名 zip 和 release-notes 手动上传到夸克网盘副本。GitHub Release 仍是唯一版本基准。
 ```

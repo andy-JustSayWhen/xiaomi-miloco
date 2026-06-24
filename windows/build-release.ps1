@@ -26,7 +26,6 @@ if ([string]::IsNullOrWhiteSpace($ArtifactVersion)) {
 $PackageName = "easy-miloco-$Version-windows"
 $PackageRoot = Join-Path $StageRoot $PackageName
 $ZipPath = Join-Path $DistDir "$PackageName.zip"
-$ShaPath = "$ZipPath.sha256"
 
 function Write-Step {
   param([string]$Message)
@@ -206,9 +205,9 @@ function Copy-RequiredArtifacts {
     ".\install.ps1 -Action Uninstall",
     "``````",
     "",
-    "## 下载校验",
+    "## 版本来源",
     "",
-    "GitHub Release 是版本基准。夸克网盘只是下载副本；从网盘下载后，请用同名 ``.sha256`` 文件核对。"
+    "GitHub Release 是版本基准。夸克网盘只作为 GitHub 下载较慢时的人工同步副本。"
   ) -join [Environment]::NewLine
   $packageReadme | Set-Content -Encoding utf8 -LiteralPath (Join-Path $PackageRoot "README.md")
 
@@ -219,7 +218,7 @@ function Copy-RequiredArtifacts {
     "",
     "- Windows one-click deployment package refresh.",
     "- Desktop console menu now exposes restart OpenClaw, restart Miloco, restart both, stop services, and stop WSL.",
-    "- Includes root ``install.bat`` and ``install.ps1``, Miloco Linux x86_64 local bundle, Windows diagnostics scripts, docs, and SHA256.",
+    "- Includes root ``install.bat`` and ``install.ps1``, Miloco Linux x86_64 local bundle, Windows diagnostics scripts, and docs.",
     "- Target OS: Windows 11 22H2+.",
     "",
     "## Included",
@@ -230,35 +229,21 @@ function Copy-RequiredArtifacts {
     "",
     "## Maintainer Note",
     "",
-    "After publishing GitHub Release, manually upload the same zip, sha256, and release notes to the Quark drive mirror, then tell users to verify SHA256."
+    "After publishing GitHub Release, manually upload the same zip and release notes to the Quark drive mirror."
   ) -join [Environment]::NewLine
   $releaseNotes | Set-Content -Encoding utf8 -LiteralPath (Join-Path $PackageRoot "release-notes.md")
-}
-
-function Write-Checksums {
-  Write-Step "Write checksums"
-  $files = Get-ChildItem -LiteralPath $PackageRoot -Recurse -File
-  $lines = foreach ($file in $files) {
-    $rel = $file.FullName.Substring($PackageRoot.Length).TrimStart("\", "/")
-    $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash.ToLowerInvariant()
-    "{0}  {1}" -f $hash, ($rel -replace "\\", "/")
-  }
-  $lines | Set-Content -Encoding ascii -LiteralPath (Join-Path $PackageRoot "SHA256SUMS.txt")
 }
 
 function Compress-Package {
   Write-Step "Compress package"
   New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
-  Remove-Item -Force -LiteralPath $ZipPath, $ShaPath -ErrorAction SilentlyContinue
+  Remove-Item -Force -LiteralPath $ZipPath -ErrorAction SilentlyContinue
   Compress-Archive -Path (Join-Path $PackageRoot "*") -DestinationPath $ZipPath -Force
-  $zipHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ZipPath).Hash.ToLowerInvariant()
-  "$zipHash  $(Split-Path -Leaf $ZipPath)" | Set-Content -Encoding ascii -LiteralPath $ShaPath
 }
 
 function Test-Package {
   Write-Step "Self-test package"
   Require-File $ZipPath
-  Require-File $ShaPath
   $tmp = Join-Path ([System.IO.Path]::GetTempPath()) ("easy-miloco-release-check-" + [guid]::NewGuid().ToString("N"))
   New-Item -ItemType Directory -Force -Path $tmp | Out-Null
   try {
@@ -267,7 +252,6 @@ function Test-Package {
     Require-File (Join-Path $root "install.bat")
     Require-File (Join-Path $root "install.ps1")
     Require-File (Join-Path $root "manifest.json")
-    Require-File (Join-Path $root "SHA256SUMS.txt")
     Require-File (Join-Path $root "payload\install.sh")
     Require-File (Join-Path $root "docs\AGENT.md")
     $null = [scriptblock]::Create((Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "install.ps1") -Raw))
@@ -315,11 +299,9 @@ if ($DryRun) {
 
 Invoke-RepoBuild
 Copy-RequiredArtifacts
-Write-Checksums
 Compress-Package
 Test-Package
 
 Write-Host ""
 Write-Host "Release package ready:"
 Write-Host "  $ZipPath"
-Write-Host "  $ShaPath"

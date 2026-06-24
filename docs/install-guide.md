@@ -33,7 +33,7 @@ https://github.com/andy-JustSayWhen/easy-miloco
    easy-miloco-v0.2-windows.zip
    ```
 
-3. 如果 GitHub 下载慢，询问用户是否有维护者提供的夸克网盘副本。夸克网盘只是下载副本，GitHub Release 才是版本基准；下载后必须校验 SHA256。
+3. 如果 GitHub 下载慢，询问用户是否有维护者提供的夸克网盘副本。夸克网盘只是下载副本，GitHub Release 才是版本基准。
 
 4. 解压后，在 PowerShell 中运行：
 

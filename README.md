@@ -41,7 +41,7 @@
 | Linux 基础能力          | 必须     | 需要 WSL version 2、glibc >= 2.28、CPU 架构 x86_64/aarch64，并能运行 bash、curl、systemd user 相关命令；Ubuntu 22.04+ 推荐，20.04 允许但会提示风险 |
 | 管理员权限              | 必须     | 首次安装可能需要启用 WSL、VirtualMachinePlatform、Hyper-V 防火墙入站规则                                                     |
 | 网络访问 GitHub Release | 必须     | 官方版本基准和更新包以 GitHub Release 为准                                                                                   |
-| 夸克网盘                | 可选     | 中国大陆用户 GitHub 下载慢时使用副本；仍需 SHA256 校验                                                                       |
+| 夸克网盘                | 可选     | 中国大陆用户 GitHub 下载慢时使用副本                                                                                         |
 | 小米账号                | 必须     | 用于绑定米家设备、读取家庭和设备列表                                                                                         |
 | MiMo API Key            | 必须     | 用于 Miloco 视觉/多模态感知推理                                                                                              |
 | 米家摄像头              | 必须     | 用于让 Miloco 获取家中画面并做视觉理解；摄像头需已绑定米家 App，且在米家 App 里能正常打开画面。支持型号见`docs/cameras.md` |
@@ -81,7 +81,6 @@ easy-miloco-v0.2-<system>/
 ├── install.ps1
 ├── manifest.json
 ├── release-notes.md
-├── SHA256SUMS.txt
 ├── scripts/
 │   └── windows/
 ├── docs/
@@ -124,7 +123,7 @@ easy-miloco-v0.2-<system>/
 | 一键部署 zip 包                   | ❌       | ☑️     | 当前仓库新增`windows/package/install.ps1`、manifest、payload 和 release 包文档，面向普通用户双击安装。                                  |
 | 桌面控制台菜单                    | ❌       | ☑️     | 当前仓库生成`Miloco 控制台.bat`，提供重启 OpenClaw、重启 Miloco、整套重启、关闭服务、关闭 WSL。                                         |
 | Windows 诊断/验收脚本             | ❌       | ☑️     | 当前仓库新增`docs/scripts/*` 和 `windows-preflight`/`wsl-miloco-validate`/`win-miloco-workflow`，区分 BASIC_READY 与 FULL_READY。 |
-| 国内下载副本与校验                | ❌       | ☑️     | 当前仓库文档支持 GitHub Release 为基准、夸克网盘作副本、用户按 SHA256 校验。                                                              |
+| 国内下载副本                      | ❌       | ☑️     | 当前仓库文档支持 GitHub Release 为基准、夸克网盘作下载副本。                                                                              |
 | 教程、FAQ、runbook                | ❌       | ☑️     | 当前仓库新增`docs/`，覆盖一键部署、Windows、摄像头、SSH 命令传输、NAS 安装、性能报告等复用经验。                                        |
 | 性能报告 WebUI                    | ❌       | ☑️     | 当前仓库新增`performance_report.py`、`performance_report_router.py` 和 `PerformanceReportsPage.tsx`，展示每次后端运行报告。         |
 | Agent 可读备份恢复包              | ❌       | ☑️     | 当前仓库新增`backup_export.py`、`BackupPage.tsx` 和 `/admin/backup/export`，导出家庭档案、成员、任务、模型配置的逻辑恢复 zip。      |

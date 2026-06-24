@@ -1,7 +1,7 @@
 # Windows 部署资料包版本说明
 
 > 生成日期：2026-06-22
-> 用途：说明 `easy-miloco-v0.1-windows.zip` 的版本口径、生成规则、校验方式和 hash 自引用处理规则。
+> 用途：说明 `easy-miloco-v0.1-windows.zip` 的版本口径和生成规则。
 > 关联：[Windows部署资料包发布清单](release-package.md)、[Windows部署资料包验收记录](validation-record.md)
 
 ## 当前版本口径
@@ -12,13 +12,7 @@
 easy-miloco-v0.1-windows.zip
 ```
 
-包外校验文件：
-
-```text
-easy-miloco-v0.1-windows.zip.sha256
-```
-
-当前 zip SHA256 不写在本页正文里，以避免本页进入 zip 后形成自引用。校验时以包外 `.zip.sha256` 文件和 [Windows部署资料包发布清单](release-package.md)、[Windows部署资料包验收记录](validation-record.md) 的包外记录为准。
+GitHub Release 是唯一版本基准。夸克网盘只作为下载较慢时的人工同步副本。
 
 ## 包内文档规则
 
@@ -26,18 +20,9 @@ easy-miloco-v0.1-windows.zip.sha256
 
 - 教程、Runbook、故障矩阵和验收清单。
 - 包内文件数量。
-- 包内 `SHA256SUMS.txt` 的校验结果。
 - PowerShell / Bash 脚本语法烟测结果。
 
-包内文档不应写死：
-
-- `easy-miloco-v0.1-windows.zip` 自身 SHA256。
-- 本次解压的临时目录 GUID。
-
-原因：
-
-- 写入 zip 自身 SHA 会改变 zip 内容，导致 hash 自引用。
-- 临时解压目录每次不同，不是资料包稳定性证据。
+包内文档不应写死本次解压的临时目录 GUID；临时解压目录每次不同，不是资料包稳定性证据。
 
 ## 当前包内组成
 
@@ -46,7 +31,6 @@ easy-miloco-v0.1-windows.zip.sha256
 ```text
 easy-miloco-v0.1-windows/
 ├── README.md
-├── SHA256SUMS.txt
 ├── docs/
 └── scripts/
 ```
@@ -72,20 +56,12 @@ easy-miloco-v0.1-windows/
 - `wsl-post-auth-finish.sh`
 - `README.md`
 
-## 校验顺序
+## 烟测顺序
 
-1. 校验 zip 自身：
-
-```powershell
-Get-FileHash -Algorithm SHA256 .\easy-miloco-v0.1-windows.zip
-Get-Content .\easy-miloco-v0.1-windows.zip.sha256
-```
-
-2. 解压 zip。
-3. 校验包内 `SHA256SUMS.txt`。
-4. 对 PowerShell 脚本做解析检查。
-5. 对 Bash 脚本执行 `bash -n`。
-6. 在目标 Windows 上运行：
+1. 解压 zip。
+2. 对 PowerShell 脚本做解析检查。
+3. 对 Bash 脚本执行 `bash -n`。
+4. 在目标 Windows 上运行：
 
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File .\scripts\win-miloco-workflow.ps1 -Action Report
@@ -95,8 +71,6 @@ powershell.exe -ExecutionPolicy Bypass -File .\scripts\win-miloco-workflow.ps1 -
 
 只有同时满足以下条件，才把资料包视为可分发：
 
-- zip SHA256 与 `.zip.sha256` 一致。
-- 包内 `SHA256SUMS.txt` 全部通过。
 - `win-miloco-workflow.ps1` 和 `windows-preflight.ps1` PowerShell 解析通过。
 - `wsl-miloco-validate.sh` 和 `wsl-post-auth-finish.sh` `bash -n` 通过。
 - 发布清单、验收记录和全局目录树已更新。
