@@ -168,6 +168,7 @@ def test_build_agent_restore_pack_full(tmp_path):
 
     assert {
         "manifest.json",
+        "AGENTS.md",
         "RESTORE.md",
         "home-profile/index.json",
         "home-profile/profile.json",
@@ -261,6 +262,7 @@ def test_backup_export_endpoint_downloads_zip(tmp_path):
     with zipfile.ZipFile(BytesIO(resp.content)) as zf:
         names = set(zf.namelist())
     assert "manifest.json" in names
+    assert "AGENTS.md" in names
     assert "model/active-model.json" in names
 
 

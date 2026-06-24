@@ -99,9 +99,9 @@ def build_agent_restore_pack(assets: list[str] | None = None) -> BackupExportRes
     with tempfile.TemporaryDirectory(prefix="miloco-backup-") as tmp_name:
         root = Path(tmp_name)
         _write_json(root / "manifest.json", _manifest(created_at, selected))
-        (root / "RESTORE.md").write_text(
-            _restore_markdown(created_at, selected), encoding="utf-8"
-        )
+        restore_text = _restore_markdown(created_at, selected)
+        (root / "RESTORE.md").write_text(restore_text, encoding="utf-8")
+        (root / "AGENTS.md").write_text(restore_text, encoding="utf-8")
 
         try:
             if ASSET_HOME_PROFILE in selected:
@@ -175,7 +175,7 @@ def _restore_markdown(created_at: str, assets: list[str]) -> str:
 创建时间: {created_at}
 恢复契约: `{RESTORE_CONTRACT}`
 
-这是 Agent 恢复包, 不是直接覆盖包。不要把其中的数据库表快照、身份库文件或配置文件原样覆盖到当前安装。
+这是 Agent 恢复包, 不是直接覆盖包。`AGENTS.md` 是给 Agent 的恢复入口；`RESTORE.md` 是同内容副本, 方便人工阅读。不要把其中的数据库表快照、身份库文件或配置文件原样覆盖到当前安装。
 
 ## 恢复原则
 

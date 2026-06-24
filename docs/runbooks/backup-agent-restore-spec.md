@@ -78,6 +78,7 @@ miloco-agent-restore-pack-YYYYMMDD-HHMMSS-<8位随机后缀>.zip
 
 ```text
 manifest.json
+AGENTS.md
 RESTORE.md
 home-profile/
   index.json
@@ -114,7 +115,7 @@ model/
 }
 ```
 
-`RESTORE.md` 面向 Agent，写清楚：
+`AGENTS.md` 面向 Agent，`RESTORE.md` 是同内容的人类可读副本，写清楚：
 
 - 这是 Agent 恢复包，不是直接覆盖包。
 - 先创建导入前检查点。
@@ -282,10 +283,20 @@ $MILOCO_HOME/restore-checkpoints/
 
 - WebUI 侧边栏出现「备份」入口。
 - 用户可选择四类资产并下载 zip。
-- zip 内有 `manifest.json` 和 `RESTORE.md`。
+- zip 内有 `manifest.json`、`AGENTS.md` 和 `RESTORE.md`。
 - 导出的任务包能看到 task、rule、link 和提醒动作描述。
 - 不包含感知范围和 Miloco/MI local 运行配置。
 - Agent 可以依据恢复包生成差异计划。
+
+## Windows 更新路径
+
+Windows 安装器检测到已有 Miloco 安装时，不做原地覆盖修复。流程为：
+
+1. 停掉旧 Miloco / OpenClaw 服务。
+2. 把可恢复资产导出为 Agent 恢复 ZIP，并复制到当前 Windows 用户桌面。
+3. 完整卸载和删除旧版 Miloco 运行目录、插件、桌面入口和后台任务。
+4. 执行新版安装。
+5. 在安装完成页提示用户该 ZIP 很重要；如需恢复旧配置，把 ZIP 路径复制给本机 OpenClaw，并命令它按 ZIP 内 `AGENTS.md` 尝试恢复。
 
 ## 后续导入验收标准
 
@@ -296,4 +307,4 @@ Agent 导入能力落地后至少满足：
 
 ## 后续实现建议
 
-后端优先实现逻辑导出模块，放在 `backend/miloco/src/miloco/admin/backup_export.py`，由 admin router 暴露下载接口。前端新增 `BackupPage`，接入 `web/src/components/Sidebar.tsx` 和 `web/src/App.tsx`。恢复能力先沉淀为 Agent runbook 和恢复包内 `RESTORE.md`，等导出包稳定后再补 CLI 或专用 Agent Skill。
+后端优先实现逻辑导出模块，放在 `backend/miloco/src/miloco/admin/backup_export.py`，由 admin router 暴露下载接口。前端新增 `BackupPage`，接入 `web/src/components/Sidebar.tsx` 和 `web/src/App.tsx`。恢复能力先沉淀为 Agent runbook 和恢复包内 `AGENTS.md` / `RESTORE.md`，等导出包稳定后再补 CLI 或专用 Agent Skill。

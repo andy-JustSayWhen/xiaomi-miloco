@@ -38,6 +38,7 @@ $script:PhaseTotal = 10
 $script:ResolvedDistro = ""
 $script:ResolvedDistroInfo = $null
 $script:MilocoPort = $MilocoPort
+$script:ExistingRestorePackPath = ""
 
 function Exit-Installer {
   param([int]$Code = 0)
@@ -793,40 +794,272 @@ exit 0
   }
 }
 
-function Confirm-OverwriteExistingInstall {
+function Export-ExistingRestorePackToDesktop {
+  param([object]$Status)
+
+  Write-Step "停止旧服务并导出 Agent 恢复 ZIP"
+
+  $desktop = [Environment]::GetFolderPath("Desktop")
+  if ([string]::IsNullOrWhiteSpace($desktop) -or -not (Test-Path -LiteralPath $desktop)) {
+    Stop-ForUser "无法找到当前用户桌面，已停止旧版迁移。" @(
+      "安装器需要先把旧版用户配置导出为恢复 ZIP，再删除旧版。",
+      "请确认当前 Windows 用户有可用桌面目录后重新运行 install.bat。"
+    ) 70
+  }
+
+  $wslDesktop = ConvertTo-WslPath $desktop
+  $exportScript = @'
+set +e
+export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+export EXPORT_DESKTOP="__WSL_DESKTOP__"
+
+systemctl --user stop openclaw-gateway.service >/tmp/miloco-migration-openclaw-stop.log 2>&1 || true
+supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-migration-supervisor-stop.log 2>&1 || true
+pkill -TERM -f "[w]indows-keeper.sh" 2>/dev/null || true
+pkill -TERM -f "[w]sl-miloco-keeper.sh" 2>/dev/null || true
+pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
+pkill -TERM -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true
+sleep 1
+pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
+pkill -KILL -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true
+
+python3 - <<'PY'
+import json
+import os
+import shutil
+import sqlite3
+import tempfile
+import uuid
+import zipfile
+from datetime import datetime, timezone
+from pathlib import Path
+
+desktop = Path(os.environ["EXPORT_DESKTOP"])
+desktop.mkdir(parents=True, exist_ok=True)
+home = Path.home() / ".openclaw" / "miloco"
+stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+
+agent_text = """# Miloco Agent 恢复说明
+
+这是 Agent 恢复包，不是直接覆盖包。请先读取 manifest.json，确认 schema_version / assets / restore_contract，再创建导入前 checkpoint。
+
+恢复原则：
+
+1. 不要把数据库、身份库、配置文件原样覆盖到当前安装。
+2. 先生成差异计划，向用户确认高风险项。
+3. 模型配置、家庭成员、家庭档案、家庭任务要分阶段恢复。
+4. 家庭任务优先恢复为 disabled 或 draft，用户确认后再启用。
+5. 通知动作、设备、摄像头、账号登录态要按当前机器重新映射。
+6. 发生错误时按导入日志回滚。
+"""
+
+def ensure_agents(zip_path: Path) -> None:
+    tmp = zip_path.with_suffix(zip_path.suffix + ".agents.tmp")
+    with zipfile.ZipFile(zip_path, "r") as zin, zipfile.ZipFile(tmp, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zout:
+        for info in zin.infolist():
+            if info.filename == "AGENTS.md":
+                continue
+            zout.writestr(info, zin.read(info.filename))
+        zout.writestr("AGENTS.md", agent_text)
+    tmp.replace(zip_path)
+
+def add_file(zf: zipfile.ZipFile, src: Path, arc: str) -> bool:
+    if src.exists() and src.is_file():
+        zf.write(src, arc)
+        return True
+    return False
+
+def add_tree(zf: zipfile.ZipFile, src: Path, arc_root: str) -> int:
+    count = 0
+    if not src.exists() or not src.is_dir():
+        return count
+    for path in sorted(p for p in src.rglob("*") if p.is_file()):
+        if any(part in {"log", "logs", "snapshots", "images", "miot_cache", ".install-cache", "packs"} for part in path.relative_to(src).parts):
+            continue
+        zf.write(path, f"{arc_root}/{path.relative_to(src).as_posix()}")
+        count += 1
+    return count
+
+def fallback_pack() -> tuple[Path, str]:
+    filename = f"miloco-agent-restore-pack-{stamp}-{uuid.uuid4().hex[:8]}-compat.zip"
+    path = Path(tempfile.gettempdir()) / filename
+    assets = []
+    with zipfile.ZipFile(path, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=6) as zf:
+        zf.writestr("AGENTS.md", agent_text)
+        zf.writestr("RESTORE.md", agent_text)
+        if add_file(zf, home / "config.json", "raw/config.json"):
+            assets.append("model_config")
+        if add_tree(zf, home / "home-profile", "raw/home-profile"):
+            assets.append("home_profile")
+        if add_tree(zf, home / "identity-lib", "raw/identity-lib"):
+            assets.append("members")
+        db = home / "miloco.db"
+        if db.exists():
+            try:
+                snapshot = Path(tempfile.gettempdir()) / f"miloco-db-{uuid.uuid4().hex[:8]}.db"
+                src = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+                dst = sqlite3.connect(snapshot)
+                src.backup(dst)
+                src.close()
+                dst.close()
+                zf.write(snapshot, "raw/miloco.db")
+                snapshot.unlink(missing_ok=True)
+            except Exception:
+                zf.write(db, "raw/miloco.db")
+            assets.extend(["members", "tasks"])
+        manifest = {
+            "kind": "miloco-agent-restore-pack",
+            "schema_version": 1,
+            "created_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "source": {
+                "app": "easy-miloco",
+                "miloco_home_hint": str(home),
+                "export_mode": "compat_raw_snapshot"
+            },
+            "assets": sorted(set(assets)),
+            "restore_contract": "agent_restore_v1",
+            "notes": [
+                "This compatibility pack was created because the old installed Miloco did not expose the logical backup exporter.",
+                "Agent must inspect and migrate; do not copy raw files over the new installation."
+            ]
+        }
+        zf.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+    return path, "compat_raw_snapshot"
+
+try:
+    from miloco.admin.backup_export import build_agent_restore_pack
+    result = build_agent_restore_pack()
+    src = Path(result.path)
+    ensure_agents(src)
+    mode = "logical_export"
+except Exception as exc:
+    src, mode = fallback_pack()
+
+target = desktop / src.name
+shutil.copy2(src, target)
+print(f"BACKUP_MODE={mode}")
+print(f"BACKUP_FILENAME={target.name}")
+print(f"BACKUP_WSL_PATH={target}")
+PY
+exit $?
+'@
+  $exportScript = $exportScript.Replace("__WSL_DESKTOP__", $wslDesktop)
+  $result = Invoke-WslBashText $exportScript
+  if ($result.code -ne 0) {
+    Stop-ForUser "旧版用户配置备份失败，已停止安装。" @(
+      "为了避免误删用户配置，安装器没有继续卸载旧版。",
+      "请把下面输出发给维护者排查：",
+      $result.text
+    ) $result.code
+  }
+
+  $filename = ""
+  $mode = "unknown"
+  foreach ($line in ($result.text -split "`r?`n")) {
+    if ($line -match "^BACKUP_FILENAME=(.+)$") { $filename = $Matches[1].Trim() }
+    if ($line -match "^BACKUP_MODE=(.+)$") { $mode = $Matches[1].Trim() }
+  }
+  if ([string]::IsNullOrWhiteSpace($filename)) {
+    Stop-ForUser "旧版用户配置备份没有返回 ZIP 文件名，已停止安装。" @(
+      "为了避免误删用户配置，安装器没有继续卸载旧版。",
+      "WSL 输出：",
+      $result.text
+    ) 71
+  }
+
+  $backupPath = Join-Path $desktop $filename
+  if (-not (Test-Path -LiteralPath $backupPath)) {
+    Stop-ForUser "旧版用户配置备份没有出现在桌面，已停止安装。" @(
+      ("预期路径：{0}" -f $backupPath),
+      "为了避免误删用户配置，安装器没有继续卸载旧版。"
+    ) 72
+  }
+
+  $script:ExistingRestorePackPath = $backupPath
+  Write-Ok ("旧版用户配置备份：已导出到 {0}（模式：{1}）。" -f $backupPath, $mode)
+  return $backupPath
+}
+
+function Remove-ExistingMilocoInstall {
+  Write-Step "完整卸载和删除旧版 Miloco"
+
+  & cmd.exe /d /c "schtasks.exe /End /TN MilocoWSLKeeper >nul 2>nul" | Out-Null
+  & cmd.exe /d /c "schtasks.exe /Delete /TN MilocoWSLKeeper /F >nul 2>nul" | Out-Null
+
+  $desktop = [Environment]::GetFolderPath("Desktop")
+  $desktopConsoleName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
+  foreach ($path in @(
+    (Join-Path $desktop $desktopConsoleName),
+    (Join-Path $desktop "miloco-console.ps1"),
+    (Join-Path $desktop "miloco-xiaomi-oauth.url"),
+    (Join-Path $desktop "miloco-xiaomi-oauth.txt")
+  )) {
+    if ([string]::IsNullOrWhiteSpace($path)) { continue }
+    $full = [System.IO.Path]::GetFullPath($path)
+    $desktopRoot = ([System.IO.Path]::GetFullPath($desktop)).TrimEnd("\") + "\"
+    if ($full.StartsWith($desktopRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+      Remove-Item -LiteralPath $full -Force -ErrorAction SilentlyContinue
+    }
+  }
+
+  $cleanup = @'
+set +e
+export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+systemctl --user disable --now openclaw-gateway.service >/tmp/openclaw-uninstall-stop.log 2>&1 || true
+rm -f "$HOME/.config/systemd/user/default.target.wants/openclaw-gateway.service" 2>/dev/null || true
+systemctl --user daemon-reload >/dev/null 2>&1 || true
+supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-uninstall-supervisor-stop.log 2>&1 || true
+pkill -TERM -f "[w]indows-keeper.sh" 2>/dev/null || true
+pkill -TERM -f "[w]sl-miloco-keeper.sh" 2>/dev/null || true
+pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
+pkill -TERM -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true
+sleep 1
+pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
+pkill -KILL -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true
+if command -v openclaw >/dev/null 2>&1; then
+  printf 'y\n' | openclaw plugins uninstall miloco-openclaw-plugin >/tmp/openclaw-miloco-plugin-uninstall.log 2>&1 || true
+fi
+if command -v uv >/dev/null 2>&1; then
+  uv tool uninstall miloco-cli >/tmp/miloco-cli-uninstall.log 2>&1 || true
+  uv tool uninstall miloco >/tmp/miloco-uninstall.log 2>&1 || true
+  uv tool uninstall supervisor >/tmp/miloco-supervisor-uninstall.log 2>&1 || true
+fi
+rm -rf "$HOME/.openclaw/miloco"
+rm -f /tmp/miloco-* /tmp/openclaw-miloco-plugin-uninstall.log /tmp/openclaw-uninstall-stop.log 2>/dev/null || true
+exit 0
+'@
+  Invoke-WslBash $cleanup
+  $resolvedDistro = Get-ResolvedDistro
+  & wsl.exe --terminate $resolvedDistro *> $null
+  Write-Ok ("旧版 Miloco：已完整卸载并关闭 {0} WSL 会话。" -f $resolvedDistro)
+}
+
+function Prepare-ExistingInstallForCleanInstall {
   param([object]$Status)
 
   if (-not $Status.detected) {
     Write-Ok "没有发现已有 Miloco 安装痕迹。"
-    return
+    return $false
+  }
+
+  if ($script:PhaseTotal -lt 12) {
+    $script:PhaseTotal = 12
   }
 
   Write-Host ""
-  Write-Host "[需要确认] 检测到这台电脑上已经有 Miloco 安装痕迹。" -ForegroundColor Yellow
+  Write-Host "[需要迁移] 检测到这台电脑上已经有 Miloco 安装痕迹。" -ForegroundColor Yellow
   Write-Host "当前检测结果：" -ForegroundColor Yellow
   foreach ($name in @("MILOCO_CLI", "OPENCLAW_CLI", "MILOCO_HOME", "MILOCO_SERVICE", "MILOCO_HEALTH", "OPENCLAW_HTTP", "MILOCO_PLUGIN", "MILOCO_URL")) {
     $value = if ($Status.values.ContainsKey($name)) { $Status.values[$name] } else { "unknown" }
     Write-Host ("  {0}: {1}" -f $name, $value) -ForegroundColor Yellow
   }
   Write-Host ""
-  Write-Host "请选择下一步：" -ForegroundColor Yellow
-  Write-Host "  C = 覆盖安装/修复：保留已有配置，重新执行安装和启动步骤。" -ForegroundColor Yellow
-  Write-Host "  Q = 退出：不改动当前安装。" -ForegroundColor Yellow
+  Write-Host "安装器将先停止旧服务，把可恢复的用户配置导出为桌面 ZIP，然后完整卸载旧版，再执行新版安装。" -ForegroundColor Yellow
+  Write-Host "这个 ZIP 很重要，请不要删除。" -ForegroundColor Yellow
 
-  while ($true) {
-    $choice = (Read-Host "请输入 C 或 Q").Trim().ToUpperInvariant()
-    if ($choice -eq "C") {
-      Write-Info "已选择覆盖安装/修复，继续执行。"
-      return
-    }
-    if ($choice -eq "Q") {
-      Stop-ForUser "已按你的选择退出。" @(
-        "当前安装没有被改动。",
-        "如果之后想重新安装，请再次双击 install.bat，并选择 C。"
-      ) 0
-    }
-    Write-Host "请输入 C 或 Q。" -ForegroundColor Yellow
-  }
+  Export-ExistingRestorePackToDesktop $Status | Out-Null
+  Remove-ExistingMilocoInstall
+  return $true
 }
 
 function Get-PowerShellExe {
@@ -1142,8 +1375,12 @@ function Invoke-Prepare {
 
   Write-Step "检测是否已经安装过 Miloco"
   $existingStatus = Get-ExistingInstallStatus
-  Confirm-OverwriteExistingInstall $existingStatus
-  Resolve-MilocoPort $existingStatus | Out-Null
+  $migratedExisting = Prepare-ExistingInstallForCleanInstall $existingStatus
+  if ($migratedExisting) {
+    Resolve-MilocoPort $null | Out-Null
+  } else {
+    Resolve-MilocoPort $existingStatus | Out-Null
+  }
 
   $manifest = Get-Content -Encoding utf8 -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
   $version = [string]$manifest.version
@@ -1368,6 +1605,13 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   Write-Host ("Miloco 面板地址：   http://127.0.0.1:{0}/" -f $script:MilocoPort)
   Write-Host ("OpenClaw 面板地址： http://127.0.0.1:{0}/" -f $OpenClawPort)
   Write-Host ("本次诊断报告：      {0}" -f $reportPath)
+  if (-not [string]::IsNullOrWhiteSpace($script:ExistingRestorePackPath)) {
+    Write-Host ""
+    Write-Host "[重要] 检测到旧版安装，安装器已把旧版用户配置导出为恢复 ZIP：" -ForegroundColor Yellow
+    Write-Host ("  {0}" -f $script:ExistingRestorePackPath) -ForegroundColor White
+    Write-Host "这个 ZIP 内包含家庭档案、成员/身份库、家庭任务、模型配置等可恢复资产。" -ForegroundColor Yellow
+    Write-Host "如果需要恢复旧配置，请复制上面这个 ZIP 文件路径，发给本机 OpenClaw，命令它按照 ZIP 内 AGENTS.md 尝试恢复，以确保最大兼容性。" -ForegroundColor Yellow
+  }
   Write-Host ""
   Write-Host "接下来还有几项内容不能由脚本代替你完成：" -ForegroundColor Yellow
   Write-Host "1. 小米账号授权：需要你在浏览器里登录小米账号并复制授权内容。"
