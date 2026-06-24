@@ -1478,9 +1478,10 @@ class Installer:
 
 
 class Uninstaller:
-    def __init__(self, ui: UI, miloco_home: Path) -> None:
+    def __init__(self, ui: UI, miloco_home: Path, *, delete_home: bool | None = None) -> None:
         self.ui = ui
         self.miloco_home = miloco_home
+        self.delete_home = delete_home
 
     def run(self) -> None:
         self.ui.info(self.ui.i18n.t("uninstall.title"))
@@ -1511,10 +1512,13 @@ class Uninstaller:
                 pass
 
         if self.miloco_home.is_dir():
-            if self.ui.prompt_confirm(
-                self.ui.i18n.t("uninstall.delete_home_ask", str(self.miloco_home)),
-                default=False,
-            ):
+            should_delete = self.delete_home
+            if should_delete is None:
+                should_delete = self.ui.prompt_confirm(
+                    self.ui.i18n.t("uninstall.delete_home_ask", str(self.miloco_home)),
+                    default=False,
+                )
+            if should_delete:
                 shutil.rmtree(self.miloco_home)
                 self.ui.ok(self.ui.i18n.t("uninstall.home_deleted"))
 
@@ -1551,6 +1555,16 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--uninstall", action="store_true", help="Uninstall all miloco components"
+    )
+    parser.add_argument(
+        "--delete-home",
+        action="store_true",
+        help="When uninstalling, delete the Miloco config/data directory without prompting",
+    )
+    parser.add_argument(
+        "--keep-home",
+        action="store_true",
+        help="When uninstalling, keep the Miloco config/data directory without prompting",
     )
     parser.add_argument(
         "--account-auth",
@@ -1640,13 +1654,20 @@ def main() -> None:
             sys.exit(1)
         return
 
+    if args.uninstall:
+        delete_home = None
+        if args.delete_home and args.keep_home:
+            ui.fail("--delete-home and --keep-home cannot be used together")
+        if args.delete_home:
+            delete_home = True
+        elif args.keep_home or not plat.is_interactive:
+            delete_home = False
+        Uninstaller(ui, miloco_home, delete_home=delete_home).run()
+        return
+
     if not plat.is_interactive:
         if not _try_tty_fallback():
             ui.fail(ui.i18n.t("error.non_interactive"))
-
-    if args.uninstall:
-        Uninstaller(ui, miloco_home).run()
-        return
 
     downloader = Downloader()
     installer = Installer(

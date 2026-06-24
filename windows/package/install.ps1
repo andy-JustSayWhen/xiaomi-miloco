@@ -1,5 +1,5 @@
 ﻿param(
-  [ValidateSet("Prepare", "Report", "BindUrl", "Finish", "Validate")]
+  [ValidateSet("Prepare", "Report", "BindUrl", "Finish", "Validate", "Uninstall")]
   [string]$Action = "Prepare",
   [string]$Distro = "Ubuntu-24.04",
   [int]$MilocoPort = 18860,
@@ -777,7 +777,7 @@ exit 0
     }
   }
 
-  $signals = @("MILOCO_CLI", "OPENCLAW_CLI", "MILOCO_HOME", "MILOCO_SERVICE", "MILOCO_HEALTH", "OPENCLAW_HTTP", "MILOCO_PLUGIN")
+  $signals = @("MILOCO_CLI", "MILOCO_HOME", "MILOCO_SERVICE", "MILOCO_HEALTH", "MILOCO_PLUGIN")
   $detected = $false
   foreach ($signal in $signals) {
     if ($values[$signal] -eq "yes") {
@@ -797,12 +797,12 @@ function Confirm-OverwriteExistingInstall {
   param([object]$Status)
 
   if (-not $Status.detected) {
-    Write-Ok "没有发现已有 Miloco/OpenClaw 安装痕迹。"
+    Write-Ok "没有发现已有 Miloco 安装痕迹。"
     return
   }
 
   Write-Host ""
-  Write-Host "[需要确认] 检测到这台电脑上已经有 Miloco / OpenClaw 安装痕迹。" -ForegroundColor Yellow
+  Write-Host "[需要确认] 检测到这台电脑上已经有 Miloco 安装痕迹。" -ForegroundColor Yellow
   Write-Host "当前检测结果：" -ForegroundColor Yellow
   foreach ($name in @("MILOCO_CLI", "OPENCLAW_CLI", "MILOCO_HOME", "MILOCO_SERVICE", "MILOCO_HEALTH", "OPENCLAW_HTTP", "MILOCO_PLUGIN", "MILOCO_URL")) {
     $value = if ($Status.values.ContainsKey($name)) { $Status.values[$name] } else { "unknown" }
@@ -1360,10 +1360,93 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   Exit-Installer 0
 }
 
+function Invoke-Uninstall {
+  $script:PhaseIndex = 0
+  $script:PhaseTotal = 4
+  Write-Host ""
+  Write-Host "========================================" -ForegroundColor Cyan
+  Write-Host "        easy-miloco Windows 卸载向导" -ForegroundColor Cyan
+  Write-Host "========================================" -ForegroundColor Cyan
+
+  Write-Step "停止 Windows 侧后台任务"
+  & cmd.exe /d /c "schtasks.exe /End /TN MilocoWSLKeeper >nul 2>nul" | Out-Null
+  & cmd.exe /d /c "schtasks.exe /Delete /TN MilocoWSLKeeper /F >nul 2>nul" | Out-Null
+  Write-Ok "Windows 计划任务：已尝试停止并删除。"
+
+  Write-Step "删除桌面控制台入口"
+  $desktop = [Environment]::GetFolderPath("Desktop")
+  $desktopConsoleName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
+  foreach ($path in @(
+    (Join-Path $desktop $desktopConsoleName),
+    (Join-Path $desktop "miloco-console.ps1"),
+    (Join-Path $desktop "miloco-xiaomi-oauth.url"),
+    (Join-Path $desktop "miloco-xiaomi-oauth.txt")
+  )) {
+    if ([string]::IsNullOrWhiteSpace($path)) { continue }
+    $full = [System.IO.Path]::GetFullPath($path)
+    $desktopRoot = ([System.IO.Path]::GetFullPath($desktop)).TrimEnd("\") + "\"
+    if ($full.StartsWith($desktopRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+      Remove-Item -LiteralPath $full -Force -ErrorAction SilentlyContinue
+    }
+  }
+  Write-Ok "桌面入口：已删除 Miloco 相关文件。"
+
+  Write-Step "卸载 WSL 内 Miloco 组件"
+  if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+    Write-Warn "没有检测到 WSL 命令，跳过 WSL 内卸载。"
+  } else {
+    $list = (& wsl.exe -l -v 2>&1 | Out-String) -replace "`0", ""
+    $rows = @(Get-WslDistroRows $list)
+    $selected = $rows | Where-Object { $_.Name -eq $Distro } | Select-Object -First 1
+    if (-not $selected) {
+      $selected = $rows | Where-Object { $_.Name -match "(?i)ubuntu" } | Select-Object -First 1
+    }
+    if (-not $selected) {
+      Write-Warn "没有找到 Ubuntu WSL 发行版，跳过 WSL 内卸载。"
+    } else {
+      $script:ResolvedDistro = $selected.Name
+      $uninstall = @'
+set +e
+export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
+systemctl --user disable --now openclaw-gateway.service >/tmp/openclaw-uninstall-stop.log 2>&1 || true
+rm -f "$HOME/.config/systemd/user/default.target.wants/openclaw-gateway.service" 2>/dev/null || true
+systemctl --user daemon-reload >/dev/null 2>&1 || true
+supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-uninstall-supervisor-stop.log 2>&1 || true
+pkill -TERM -f "[w]indows-keeper.sh" 2>/dev/null || true
+pkill -TERM -f "[w]sl-miloco-keeper.sh" 2>/dev/null || true
+pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
+pkill -TERM -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true
+sleep 1
+pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
+pkill -KILL -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true
+if command -v openclaw >/dev/null 2>&1; then
+  printf 'y\n' | openclaw plugins uninstall miloco-openclaw-plugin >/tmp/openclaw-miloco-plugin-uninstall.log 2>&1 || true
+fi
+if command -v uv >/dev/null 2>&1; then
+  uv tool uninstall miloco-cli >/tmp/miloco-cli-uninstall.log 2>&1 || true
+  uv tool uninstall miloco >/tmp/miloco-uninstall.log 2>&1 || true
+  uv tool uninstall supervisor >/tmp/miloco-supervisor-uninstall.log 2>&1 || true
+fi
+rm -rf "$HOME/.openclaw/miloco"
+rm -f /tmp/miloco-* /tmp/openclaw-miloco-plugin-uninstall.log /tmp/openclaw-uninstall-stop.log 2>/dev/null || true
+exit 0
+'@
+      Invoke-WslBash $uninstall
+      & wsl.exe --terminate $script:ResolvedDistro *> $null
+      Write-Ok ("WSL 内 Miloco：已从 {0} 卸载并关闭该 WSL 会话。" -f $script:ResolvedDistro)
+    }
+  }
+
+  Write-Step "卸载完成"
+  Write-Ok "Miloco/OpenClaw 插件、Miloco 数据目录、后台任务和桌面入口已完成清理。"
+  Exit-Installer 0
+}
+
 switch ($Action) {
   "Prepare" { Invoke-Prepare }
   "Report" { Invoke-Workflow "Report" }
   "BindUrl" { Invoke-Workflow "BindUrl" }
   "Finish" { Invoke-Workflow "Finish" }
   "Validate" { Invoke-Workflow "Validate" }
+  "Uninstall" { Invoke-Uninstall }
 }

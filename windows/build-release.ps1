@@ -198,6 +198,14 @@ function Copy-RequiredArtifacts {
     ".\install.ps1",
     "``````",
     "",
+    "## 维护者卸载测试",
+    "",
+    "普通用户通常不需要执行。维护者需要在同一台电脑反复验证安装包时，可在解压目录运行：",
+    "",
+    "``````powershell",
+    ".\install.ps1 -Action Uninstall",
+    "``````",
+    "",
     "## 下载校验",
     "",
     "GitHub Release 是版本基准。夸克网盘只是下载副本；从网盘下载后，请用同名 ``.sha256`` 文件核对。"
@@ -242,7 +250,7 @@ function Compress-Package {
   Write-Step "Compress package"
   New-Item -ItemType Directory -Force -Path $DistDir | Out-Null
   Remove-Item -Force -LiteralPath $ZipPath, $ShaPath -ErrorAction SilentlyContinue
-  Compress-Archive -LiteralPath $PackageRoot -DestinationPath $ZipPath -Force
+  Compress-Archive -Path (Join-Path $PackageRoot "*") -DestinationPath $ZipPath -Force
   $zipHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $ZipPath).Hash.ToLowerInvariant()
   "$zipHash  $(Split-Path -Leaf $ZipPath)" | Set-Content -Encoding ascii -LiteralPath $ShaPath
 }
@@ -255,7 +263,7 @@ function Test-Package {
   New-Item -ItemType Directory -Force -Path $tmp | Out-Null
   try {
     Expand-Archive -LiteralPath $ZipPath -DestinationPath $tmp -Force
-    $root = Join-Path $tmp $PackageName
+    $root = $tmp
     Require-File (Join-Path $root "install.bat")
     Require-File (Join-Path $root "install.ps1")
     Require-File (Join-Path $root "manifest.json")

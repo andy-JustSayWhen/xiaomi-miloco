@@ -1,5 +1,81 @@
 # Windows 部署资料包验收记录
 
+## 2026-06-24 本机 release 包复测
+
+> 验收对象：`dist/windows/easy-miloco-v0.2-windows.zip`
+> zip SHA256：`0f35b56fd478f1064b79608cbc9e19ed68c6c5b576402070a2dc762dae4e6487`
+> 测试机：本机 Windows 11，WSL 注册名 `Ubuntu-24.04`
+
+### 本轮发现并修复
+
+- Windows 默认“全部解压缩”会把原先的 zip 解成 `easy-miloco-v0.2-windows\easy-miloco-v0.2-windows\install.bat` 双层目录，普通用户打开第一层看不到 `install.bat`。已改为压缩包根目录直接放安装包内容，解压后第一层即有 `install.bat`。
+- 测试前需要可重复完整卸载。已新增 `install.ps1 -Action Uninstall`，清理 Windows 计划任务、桌面入口、WSL 内 Miloco 工具、Miloco home、OpenClaw Miloco 插件，并关闭该 WSL 会话。
+- 仅存在 OpenClaw CLI 时不再触发“已有 Miloco 安装痕迹”确认，避免干净 Miloco 环境被误判后卡在 C/Q 输入。
+- WSL 验证脚本的 `miloco.health` 增加最多 20 秒短重试，避免服务刚报告 running 但应用尚未 ready 时误报失败。
+
+### 非视觉部署测试
+
+流程：
+
+```text
+Expand-Archive dist/windows/easy-miloco-v0.2-windows.zip
+install.ps1 -Action Uninstall
+管理员模式运行 install.ps1
+```
+
+结果：
+
+```text
+install.bat 位于解压根目录：PASS
+UninstallExit=0
+ValidateExitCode=0
+BASIC_READY=yes
+FULL_READY=no
+FAIL_COUNT=0
+报告：C:\Users\17239\AppData\Local\Temp\easy-miloco-nonvisual-flat-20260624-130120\miloco-deploy-report-20260624-130311.txt
+```
+
+`FULL_READY=no` 符合本阶段边界：小米账号授权、MiMo API Key、摄像头选择仍是后续手动步骤。
+
+### @电脑视觉部署测试
+
+流程：
+
+```text
+桌面测试目录放入 release zip
+文件资源管理器打开 zip
+点击“全部解压缩”
+确认解压后第一层包含 install.bat
+双击 install.bat
+通过 UAC 后安装自动完成基础阶段
+```
+
+结果：
+
+```text
+解压后第一层 install.bat 可见：PASS
+Miloco service running=true
+Miloco health={"status":"ok"}
+OpenClaw Miloco plugin Status=loaded Version=2026.6.24
+ValidateExitCode=0
+BASIC_READY=yes
+FULL_READY=no
+FAIL_COUNT=0
+报告：C:\Users\17239\Desktop\easy-miloco-visual-test\easy-miloco-v0.2-windows\miloco-deploy-report-20260624-130841.txt
+```
+
+### 测试后卸载确认
+
+每次安装测试后均执行 `install.ps1 -Action Uninstall`。最终状态：
+
+```text
+UNINSTALL_EXIT=0
+MILOCO_CLI=no
+MILOCO_HOME=no
+MILOCO_PLUGIN=no
+HEALTH_18860=no
+```
+
 > 验收日期：2026-06-22 10:22
 > 验收对象：`packages/easy-miloco-v0.1-windows.zip`
 > 关联：[Windows部署资料包发布清单](release-package.md)、[Windows部署资料包版本说明](release-notes-template.md)、[Windows部署教程-独立分发版](standalone-package.md)

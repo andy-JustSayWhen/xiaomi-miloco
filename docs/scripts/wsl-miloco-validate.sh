@@ -125,11 +125,21 @@ if command -v miloco-cli >/dev/null 2>&1; then
 fi
 
 if command -v curl >/dev/null 2>&1; then
-  health="$(run_capture 8 curl -fsS "http://127.0.0.1:${MILOCO_PORT}/health")"
-  if printf '%s' "$health" | grep -q '"status":"ok"'; then
-    pass "miloco.health" "$health"
+  health=""
+  health_ok=0
+  health_attempt=0
+  for health_attempt in $(seq 1 20); do
+    health="$(run_capture 3 curl -fsS "http://127.0.0.1:${MILOCO_PORT}/health")"
+    if printf '%s' "$health" | grep -q '"status":"ok"'; then
+      health_ok=1
+      break
+    fi
+    sleep 1
+  done
+  if [ "$health_ok" -eq 1 ]; then
+    pass "miloco.health" "attempt=${health_attempt} ${health}"
   else
-    fail "miloco.health" "$health" "Check server.url/server.port and service logs."
+    fail "miloco.health" "$health" "Miloco did not answer /health within 20 seconds. Check server.url/server.port and service logs."
   fi
 fi
 
