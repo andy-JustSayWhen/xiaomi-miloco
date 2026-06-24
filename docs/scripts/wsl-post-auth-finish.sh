@@ -236,6 +236,9 @@ fi
 log "Restarting OpenClaw gateway"
 run_cmd openclaw gateway restart
 
+log "Waiting for Miloco backend after gateway restart"
+wait_miloco_health 30 || true
+
 log "Account status"
 miloco-cli account status || true
 
