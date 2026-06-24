@@ -116,9 +116,19 @@ for cmd in curl miloco-cli openclaw; do
 done
 
 if command -v miloco-cli >/dev/null 2>&1; then
-  service_status="$(run_capture 10 miloco-cli service status)"
-  if printf '%s' "$service_status" | grep -Eiq '"running"[[:space:]]*:[[:space:]]*true|running=true|url=http'; then
-    pass "miloco.service_status" "$service_status"
+  service_status=""
+  service_status_ok=0
+  service_attempt=0
+  for service_attempt in $(seq 1 30); do
+    service_status="$(run_capture 10 miloco-cli service status)"
+    if printf '%s' "$service_status" | grep -Eiq '"running"[[:space:]]*:[[:space:]]*true|running=true|url=http'; then
+      service_status_ok=1
+      break
+    fi
+    sleep 1
+  done
+  if [ "$service_status_ok" -eq 1 ]; then
+    pass "miloco.service_status" "attempt=${service_attempt} ${service_status}"
   else
     fail "miloco.service_status" "$service_status" "Run: miloco-cli service start"
   fi
