@@ -1324,13 +1324,172 @@ while ($true) {
   Write-Host "桌面控制台脚本已创建：$psLauncher"
 }
 
+function Start-UserUrl {
+  param(
+    [string]$Url,
+    [string]$Label = "网页"
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Url)) {
+    return
+  }
+  try {
+    Start-Process -FilePath $Url
+    Write-Ok ("已自动打开{0}：{1}" -f $Label, $Url)
+  } catch {
+    Write-Warn ("没有自动打开{0}。请手动复制打开：{1}" -f $Label, $Url)
+  }
+}
+
+function Invoke-FinishWorkflowOnce {
+  param(
+    [string]$FinishAuthPayload,
+    [string]$FinishMimoApiKey,
+    [string]$FinishOmniModel,
+    [string]$FinishOmniBaseUrl,
+    [switch]$NoStrictFull
+  )
+
+  Require-File $Workflow
+  $resolvedDistro = Get-ResolvedDistro
+  $args = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $Workflow,
+    "-Action", "Finish",
+    "-Distro", $resolvedDistro,
+    "-MilocoPort", [string]$script:MilocoPort,
+    "-OpenClawPort", [string]$OpenClawPort,
+    "-AuthPayload", $FinishAuthPayload,
+    "-MimoApiKey", $FinishMimoApiKey,
+    "-OmniModel", $FinishOmniModel,
+    "-OmniBaseUrl", $FinishOmniBaseUrl,
+    "-HomeId", $HomeId,
+    "-CameraDids", $CameraDids
+  )
+  if ($NoStrictFull) {
+    $args += "-NoStrictFull"
+  }
+
+  $powershellExe = Get-PowerShellExe
+  & $powershellExe @args 2>&1 | ForEach-Object {
+    $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
+    Write-Host $line
+  }
+  $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  if ($code -eq 0) {
+    Install-DesktopLauncher
+  }
+  return $code
+}
+
+function Invoke-InteractivePostAuthSetup {
+  param([switch]$FromFinishAction)
+
+  Require-File $Workflow
+  $powershellExe = Get-PowerShellExe
+  $resolvedDistro = Get-ResolvedDistro
+
+  Write-Host ""
+  Write-Host "接下来可以继续完成账号授权和大模型 API 配置。" -ForegroundColor Cyan
+  Write-Host "如果你现在还没有 API Key，可以直接按回车跳过，稍后再运行 install.ps1 -Action Finish。" -ForegroundColor Yellow
+  Write-Host ""
+
+  Write-Info "正在生成小米账号授权链接。"
+  $bindOutput = & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action BindUrl -Distro $resolvedDistro -MilocoPort $script:MilocoPort -OpenClawPort $OpenClawPort 2>&1 | ForEach-Object {
+    $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
+    Write-Host $line
+    $line
+  }
+  $bindCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  $bindText = ($bindOutput -join "`n")
+  $oauthMatch = [regex]::Match($bindText, 'https://account\.xiaomi\.com/oauth2/authorize[^\s"<>]+')
+  if ($bindCode -eq 0 -and $oauthMatch.Success) {
+    Start-UserUrl -Url $oauthMatch.Value -Label "小米账号授权页"
+  } elseif ($bindCode -ne 0) {
+    Write-Warn "小米账号授权链接暂时没有生成成功。你可以稍后重新运行 install.ps1 -Action BindUrl。"
+  } else {
+    Write-Warn "授权链接已生成但没有被自动识别。请从上方输出中复制 https://account.xiaomi.com 开头的链接手动打开。"
+  }
+
+  Write-Host ""
+  Write-Host "请在浏览器里完成小米账号登录和授权。" -ForegroundColor Yellow
+  $interactiveAuthPayload = (Read-Host "授权完成后，把页面返回的授权码/完整内容粘贴到这里；暂时没有就直接回车跳过").Trim()
+  if ([string]::IsNullOrWhiteSpace($interactiveAuthPayload)) {
+    Write-Warn "已跳过小米账号授权收尾。基础服务仍可用，稍后可以重新运行 install.ps1 -Action Finish。"
+    if ($FromFinishAction) {
+      return 1
+    }
+    return 0
+  }
+
+  Write-Host ""
+  Write-Host "提示：如果您没有自己的大模型API，可以申请下述任意的免费试用API。" -ForegroundColor Yellow
+  $apiOptions = @(
+    @{ Id = "01"; ShortId = "1"; Name = "Xiaomi MIMO"; Url = "https://platform.xiaomimimo.com?ref=QHSHXL"; BaseUrl = "https://api.xiaomimimo.com/v1"; Model = "xiaomi/mimo-v2.5" },
+    @{ Id = "02"; ShortId = "2"; Name = "Agnes"; Url = "https://platform.agnes-ai.com/settings/apiKeys"; BaseUrl = ""; Model = "" },
+    @{ Id = "03"; ShortId = "3"; Name = "商汤科技"; Url = "https://platform.sensenova.cn/console/keys"; BaseUrl = ""; Model = "" }
+  )
+  foreach ($option in $apiOptions) {
+    Write-Host ("{0} [{1}] {2}" -f $option.Id, $option.Name, $option.Url)
+  }
+  $apiChoice = (Read-Host "如需打开申请页面，请输入 01/02/03；已有 Key 直接回车").Trim()
+  $selectedApi = $apiOptions | Where-Object { $_.Id -eq $apiChoice -or $_.ShortId -eq $apiChoice } | Select-Object -First 1
+  if ($selectedApi) {
+    Start-UserUrl -Url $selectedApi.Url -Label ($selectedApi.Name + " API 申请页")
+  }
+
+  Write-Host ""
+  $interactiveApiKey = (Read-Host "请粘贴 API Key；暂时没有就直接回车跳过").Trim()
+  if ([string]::IsNullOrWhiteSpace($interactiveApiKey)) {
+    Write-Warn "已跳过 API 配置。稍后拿到 Key 后可以重新运行 install.ps1 -Action Finish。"
+    if ($FromFinishAction) {
+      return 1
+    }
+    return 0
+  }
+
+  $defaultBaseUrl = if ($selectedApi) { $selectedApi.BaseUrl } else { $OmniBaseUrl }
+  $defaultModel = if ($selectedApi -and -not [string]::IsNullOrWhiteSpace($selectedApi.Model)) { $selectedApi.Model } else { $OmniModel }
+  if ([string]::IsNullOrWhiteSpace($defaultBaseUrl)) {
+    $interactiveBaseUrl = (Read-Host "请粘贴 Base URL，例如 https://.../v1；此项不能为空").Trim()
+  } else {
+    $interactiveBaseUrl = (Read-Host ("请粘贴 Base URL；直接回车使用 {0}" -f $defaultBaseUrl)).Trim()
+  }
+  if ([string]::IsNullOrWhiteSpace($interactiveBaseUrl) -and -not [string]::IsNullOrWhiteSpace($defaultBaseUrl)) {
+    $interactiveBaseUrl = $defaultBaseUrl
+  }
+  if ([string]::IsNullOrWhiteSpace($interactiveBaseUrl)) {
+    Write-Warn "Base URL 为空，已跳过 API 配置。"
+    if ($FromFinishAction) {
+      return 1
+    }
+    return 0
+  }
+  $interactiveModel = (Read-Host ("请粘贴模型名；直接回车使用 {0}" -f $defaultModel)).Trim()
+  if ([string]::IsNullOrWhiteSpace($interactiveModel)) {
+    $interactiveModel = $defaultModel
+  }
+
+  Write-Host ""
+  Write-Info "正在写入小米账号授权和大模型 API 配置。"
+  $finishCode = Invoke-FinishWorkflowOnce -FinishAuthPayload $interactiveAuthPayload -FinishMimoApiKey $interactiveApiKey -FinishOmniModel $interactiveModel -FinishOmniBaseUrl $interactiveBaseUrl -NoStrictFull
+  if ($finishCode -eq 0) {
+    Write-Ok "账号授权和 API 配置已执行完成。"
+  } else {
+    Write-Warn ("账号/API 收尾没有完全成功，退出码：{0}。请保留窗口输出或诊断报告继续排查。" -f $finishCode)
+  }
+  return $finishCode
+}
+
 function Invoke-Workflow {
   param([string]$WorkflowAction)
 
   Require-File $Workflow
   $resolvedDistro = Get-ResolvedDistro
   if ($WorkflowAction -eq "Finish" -and [string]::IsNullOrWhiteSpace($MimoApiKey)) {
-    Fail "完成授权配置需要 MiMo API Key。请先准备好 MiMo API Key，再运行：.\install.ps1 -Action Finish -AuthPayload '<小米授权内容>' -MimoApiKey '<你的 Key>'"
+    $interactiveCode = Invoke-InteractivePostAuthSetup -FromFinishAction
+    exit $interactiveCode
   }
   $args = @(
     "-NoProfile",
@@ -1380,7 +1539,8 @@ function Invoke-Prepare {
   Check-Prerequisites
   Write-Host "[说明] Python / Node / uv：不需要你提前安装，后续安装器会自动准备。" -ForegroundColor Gray
   Write-Host "[说明] OpenClaw：不需要你提前安装，后续安装器会自动安装或启动。" -ForegroundColor Gray
-  Write-Host "[说明] 小米账号、MiMo API Key、米家摄像头：脚本不能代替你登录或准备，会在基础安装完成后提示下一步。" -ForegroundColor Gray
+  Write-Host "[说明] 小米账号和大模型 API：基础服务完成后，脚本会打开授权页并等你粘贴授权码和 API 信息。" -ForegroundColor Gray
+  Write-Host "[说明] 米家摄像头：脚本不能代替你在米家 App 里绑定摄像头；基础配置完成后再选择要启用的摄像头。" -ForegroundColor Gray
 
   Write-Step "检查和准备 WSL2 / Ubuntu"
   Ensure-Wsl
@@ -1628,28 +1788,13 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
     Write-Host "这个 ZIP 内包含家庭档案、成员/身份库、家庭任务、模型配置等可恢复资产。" -ForegroundColor Yellow
     Write-Host "如果需要恢复旧配置，请复制上面这个 ZIP 文件路径，发给本机 OpenClaw，命令它按照 ZIP 内 AGENTS.md 尝试恢复，以确保最大兼容性。" -ForegroundColor Yellow
   }
+  $postAuthCode = Invoke-InteractivePostAuthSetup
   Write-Host ""
-  Write-Host "接下来还有几项内容不能由脚本代替你完成：" -ForegroundColor Yellow
-  Write-Host "1. 小米账号授权：需要你在浏览器里登录小米账号并复制授权内容。"
-  Write-Host "2. MiMo API Key：需要你自己准备并粘贴。"
-  Write-Host "3. 米家摄像头：需要摄像头已绑定米家 App，且在米家 App 里能正常打开画面。"
-  Write-Host ""
-  Write-Info "正在尝试生成小米账号绑定链接。"
-  & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action BindUrl -Distro $resolvedDistro -MilocoPort $script:MilocoPort -OpenClawPort $OpenClawPort
-  $bindCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
-  if ($bindCode -ne 0) {
-    Write-Warn "绑定链接暂时没有生成成功。你可以稍后重新运行：.\install.ps1 -Action BindUrl"
+  if ($postAuthCode -eq 0) {
+    Write-Host "[OK] 自动安装阶段完成。" -ForegroundColor Green
+  } else {
+    Write-Warn "基础安装已完成，但账号/API 收尾还需要继续处理。"
   }
-
-  Write-Host ""
-  Write-Host "下一步：" -ForegroundColor Cyan
-  Write-Host "1. 在浏览器完成小米账号授权。"
-  Write-Host "2. 复制授权页面返回的内容。"
-  Write-Host "3. 准备 MiMo API Key。"
-  Write-Host "4. 在当前文件夹运行："
-  Write-Host "   .\install.ps1 -Action Finish -AuthPayload '<小米授权内容>' -MimoApiKey '<MiMo API Key>'" -ForegroundColor White
-  Write-Host ""
-  Write-Host "[OK] 自动安装阶段完成。" -ForegroundColor Green
   Exit-Installer 0
 }
 
