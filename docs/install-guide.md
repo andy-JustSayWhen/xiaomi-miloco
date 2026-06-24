@@ -50,6 +50,8 @@ https://github.com/andy-JustSayWhen/easy-miloco
 
    该桌面脚本由 `install.ps1` 自动生成。菜单包含重启 OpenClaw 面板、重启 Miloco 面板、重启 Miloco + OpenClaw、关闭 OpenClaw + Miloco、关闭 WSL。
 
+   安装器会自动选择 Miloco 本地端口，默认从 `18860` 开始尝试；如果端口不可用，会自动换到后续可用端口，并把最终端口写入桌面控制台、诊断报告和 Miloco 的服务地址、监听端口配置。
+
 ## 如果还没有可用 Release
 
 如果 Release 页面没有 Windows 一键部署包，不要假装已经可以一键安装。请 clone 仓库并读取：

@@ -7,13 +7,13 @@
 如果已经拿到 `02-deploy/scripts/` 下的脚本，优先跑统一入口：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 ```
 
 如果要把当前状态发给 Agent 或人工排查，生成诊断报告：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action Report -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action Report -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 ```
 
 结果解释：
@@ -41,7 +41,7 @@ flowchart TD
   E -- "可访问" --> F["按官方 install.sh --agent-prepare 安装 Miloco"]
   E1 --> F
   F --> G{"Miloco health 是否通过"}
-  G -- "1810 bind 失败" --> G1["查 Windows excludedportrange，改 server.url"]
+  G -- "端口 bind 失败" --> G1["从 18860 起自动选择可用端口并改 server.url/server.port"]
   G -- "通过" --> H["安装/启动 OpenClaw Gateway，运行 --agent-finish"]
   G1 --> H
   H --> I{"OpenClaw 插件 loaded 吗"}
@@ -147,13 +147,13 @@ miloco-cli service status
 tail -n 120 ~/.openclaw/miloco/log/miloco-backend.log
 ```
 
-如果默认 `1810` bind 失败，Windows 查端口保留：
+如果 Miloco bind 失败，Windows 查端口保留：
 
 ```powershell
 netsh interface ipv4 show excludedportrange protocol=tcp
 ```
 
-如果 `1810` 落在保留范围内，改到空闲端口，例如 `1886`：
+一键安装器默认从 `18860` 起自动选择可用端口。手动排障时可改到空闲端口，例如 `18860`：
 
 ```bash
 python3 - <<'PY'
@@ -163,13 +163,13 @@ from pathlib import Path
 path = Path.home() / ".openclaw" / "miloco" / "config.json"
 data = json.loads(path.read_text(encoding="utf-8"))
 server = data.setdefault("server", {})
-server["port"] = 1886
-server["url"] = "http://127.0.0.1:1886"
+server["url"] = "http://127.0.0.1:18860"
+server["port"] = 18860
 path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
 
 miloco-cli service restart
-curl -fsS http://127.0.0.1:1886/health
+curl -fsS http://127.0.0.1:18860/health
 ```
 
 ### Windows 浏览器打不开 WSL 服务

@@ -44,7 +44,7 @@
 - 下载 https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh
 - 运行 bash /tmp/miloco-install.sh --agent-prepare
 - 如果 uv 长时间无输出，检查 ps/ss/du，不要重复启动安装
-- 如果 1810 绑定失败且在 Windows excluded range 内，改 Miloco 到未占用端口，如 1886，并同步 server.url
+- Miloco 端口默认从 18860 起自动选择可用端口，并同步 server.url/server.port
 - 安装 OpenClaw CLI/Gateway；若 WSL 无 node 且不能 sudo，就用户目录安装 Node tarball
 - 如果已拿到账号授权和 Key，运行 bash /tmp/miloco-install.sh --agent-finish --account-auth '<授权码>' --omni-api-key '<MiMo API Key>'
 - 如果还没有账号授权和 Key，可先运行 bash /tmp/miloco-install.sh --agent-finish 完成插件基础安装，但必须标记为等待用户授权，不能判定满血
@@ -94,13 +94,13 @@
 - SSH 信息：E:\BaiduSyncdisk\obsidian repo\default\常用SSH信息\<windows-sample-host>
 
 当前已知：
-- Miloco 当前端口是 1886，因为 Windows excluded port range 包含 1786-1885，默认 1810 不能绑定
+- Miloco 端口以安装器报告为准；Windows 一键安装默认从 18860 起自动选择可用端口
 - OpenClaw Gateway 当前端口是 18789
 - 不要关闭 Clash Verge TUN
 
 继续部署时先复核：
 - miloco-cli service status
-- curl -fsS http://127.0.0.1:1886/health
+- curl -fsS http://127.0.0.1:<miloco_port>/health
 - openclaw gateway status
 - openclaw plugins inspect miloco-openclaw-plugin
 - miloco-cli account status

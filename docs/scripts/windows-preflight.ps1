@@ -1,6 +1,6 @@
 ﻿param(
   [string]$Distro = "Ubuntu-24.04",
-  [int]$MilocoPort = 1886,
+  [int]$MilocoPort = 18860,
   [int]$OpenClawPort = 18789,
   [string]$ProxyUrl = "http://127.0.0.1:7897",
   [switch]$Strict,
@@ -120,7 +120,7 @@ function Test-PortExcluded {
 
   $matched = @()
   foreach ($line in ($result.text -split "`r?`n")) {
-    if ($line -match "^\s*(\d+)\s+(\d+)\s*$") {
+    if ($line -match "^\s*(\d+)\s+(\d+)\b") {
       $start = [int]$Matches[1]
       $end = [int]$Matches[2]
       if ($Port -ge $start -and $Port -le $end) {
@@ -130,7 +130,7 @@ function Test-PortExcluded {
   }
 
   if ($matched.Count -gt 0) {
-    Add-Check "windows.port.$Port" "WARN" "Port $Port is in excluded range(s): $($matched -join ', ')." "Use another Miloco port and set server.url."
+    Add-Check "windows.port.$Port" "WARN" "Port $Port is in excluded range(s): $($matched -join ', ')." "Use another Miloco port and set server.url/server.port."
   } else {
     Add-Check "windows.port.$Port" "PASS" "Port $Port is not in Windows excluded TCP ranges."
   }

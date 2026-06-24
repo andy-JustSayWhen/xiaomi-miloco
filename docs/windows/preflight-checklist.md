@@ -19,19 +19,19 @@
 推荐统一入口：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 ```
 
 Windows 侧预检：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\windows-preflight.ps1 -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -ExecutionPolicy Bypass -File .\windows-preflight.ps1 -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 ```
 
 WSL 侧验收：
 
 ```bash
-MILOCO_PORT=1886 OPENCLAW_PORT=18789 bash ./wsl-miloco-validate.sh
+MILOCO_PORT=18860 OPENCLAW_PORT=18789 bash ./wsl-miloco-validate.sh
 ```
 
 后授权一键收尾：
@@ -88,8 +88,8 @@ netsh interface ipv4 show excludedportrange protocol=tcp
 
 判断：
 
-- 如果 `1810` 不在任何范围内，Miloco 默认端口通常可用。
-- 如果 `1810` 落入 excluded range，提前规划备用端口，例如 `1886`。
+- 一键安装器默认从 `18860` 起自动选择可用端口。
+- 如果指定端口落入 excluded range，安装器会继续尝试后续端口。
 
 检查 Hyper-V 防火墙：
 
@@ -257,16 +257,16 @@ access token is empty
 | `device list` 只有表头 | 小米账号未绑定或 token 不可用 | `miloco-cli account bind --no-wait` 后 `authorize` |
 | `scope camera list` 空 | 账号未绑定、无摄像头、或摄像头不在可访问家庭 | 先验证账号和 `device list` |
 | 日志 `API Key 未配置` | MiMo/Omni key 为空 | `miloco-cli config set model.omni.api_key ...` |
-| `1810` bind 失败 | Windows 端口保留或占用 | 改 `server.url` |
+| Miloco 端口不可用 | Windows 端口保留或占用 | 让安装器自动选择后续端口；手动排障时同步改 `server.url` 和 `server.port` |
 | `doctor` 查不到 Hyper-V 防火墙 | WSL 内无法调用 Windows PowerShell 或权限不足 | Windows 管理员 PowerShell 手动查 |
 
 ## 7. <windows-sample-host> 当前基线
 
 本次实测基线：
 
-- Miloco：`http://127.0.0.1:1886/`
+- Miloco：`http://127.0.0.1:<miloco_port>/`，一键安装默认从 `18860` 起自动选择
 - OpenClaw：`http://127.0.0.1:18789/`
-- `1810` 不可用原因：Windows excluded port range 包含 `1786-1885`
+- 旧版 `1810` 不可用的常见原因：Windows excluded port range 包含 `1786-1885`
 - 当前状态：小米账号已绑定，MiMo API Key 已配置，设备和摄像头感知已通过
 - 脚本化验收：Windows 侧 `BASIC_READY_FROM_WINDOWS=yes`，WSL 侧 `BASIC_READY=yes`、`FULL_READY=yes`
 - 最终报告：`reports/windows-sample-host-20260622-102255-full-ready.txt`

@@ -40,13 +40,13 @@ flowchart TD
 如果已经拿到 release 包里的 `scripts/` 文件夹，在目标 Windows PowerShell 中先跑诊断：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action Report -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action Report -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 ```
 
 如果只是想快速看基础状态：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 ```
 
 结果判断：
@@ -61,7 +61,7 @@ powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action A
 交付前至少确认：
 
 - `miloco-cli service status` 显示 `running=true`。
-- `curl http://127.0.0.1:1886/health` 返回 `{"status":"ok"}`。
+- `curl http://127.0.0.1:<miloco_port>/health` 返回 `{"status":"ok"}`。一键安装器默认从 `18860` 起自动选择可用端口。
 - `openclaw gateway status` 连通。
 - `openclaw plugins inspect miloco-openclaw-plugin` 显示插件 loaded。
 - `miloco-cli account status` 显示小米账号已绑定。

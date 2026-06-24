@@ -49,7 +49,7 @@
    - install.sh --agent-prepare
    - 按顺序收集小米 OAuth payload 和 MiMo API Key
    - install.sh --agent-finish --account-auth ... --omni-api-key ...
-4. 如 1810 端口被 Windows excluded port range 占用，改用未占用端口，例如 1886，并同步 server.url。
+4. Miloco 端口由安装器自动选择，默认从 18860 起尝试；只需把最终端口同步到 server.url、server.port、诊断和桌面控制台。
 5. 安装 OpenClaw CLI 和 gateway，确认 miloco-openclaw-plugin loaded。
 6. 最后必须验证：
    - miloco-cli service status
@@ -68,9 +68,9 @@ flowchart TD
   B --> C["检查 WSL2 + mirrored networking"]
   C --> D["下载 Miloco 官方 install.sh"]
   D --> E["运行 --agent-prepare"]
-  E --> F{"1810 能绑定吗"}
-  F -- "能" --> G["Miloco 默认 1810 启动"]
-  F -- "不能" --> H["查 excludedportrange 并改 server.url"]
+  E --> F{"Miloco 端口可用吗"}
+  F -- "能" --> G["Miloco 使用解析出的端口启动"]
+  F -- "不能" --> H["从 18860 起自动尝试后续端口并写入 server.url/server.port"]
   H --> G
   G --> I["安装/启动 OpenClaw gateway"]
   I --> J{"账号和 MiMo Key 已提供吗"}
@@ -159,7 +159,7 @@ curl.exe -I http://127.0.0.1:18789/
 | `ERROR_ALREADY_EXISTS` | 不重复安装 WSL，直接进入已有 distro |
 | GitHub 直连超时 | 给 `curl`、`uv`、`npm` 注入 `http_proxy/https_proxy/all_proxy` |
 | `uv tool install` 长时间无输出 | 查 `ss -tpn` 和 `du -sh ~/.cache/uv`，缓存仍增长就继续等 |
-| `1810` bind `address already in use` | 查 Windows `netsh interface ipv4 show excludedportrange protocol=tcp`，改 Miloco 到未占用端口 |
+| Miloco bind `address already in use` | 查 Windows `netsh interface ipv4 show excludedportrange protocol=tcp`，从 `18860` 起自动选择未占用端口 |
 | WSL 内无 Linux `node` 且无法 sudo | 用户目录安装 Node tarball，并把 `node/npm/npx` 链到 `~/.local/bin` |
 | OpenClaw gateway 未启动 | `openclaw gateway --dev --bind loopback --port 18789 install --port 18789` 后 `openclaw gateway start` |
 
@@ -167,7 +167,7 @@ curl.exe -I http://127.0.0.1:18789/
 
 基础安装完成后至少应给出：
 
-- Miloco 后端 URL，例如 `http://127.0.0.1:1886/`。
+- Miloco 后端 URL，例如 `http://127.0.0.1:18860/`，以安装器最终报告为准。
 - OpenClaw Dashboard URL：`http://127.0.0.1:18789/`。
 - `miloco-openclaw-plugin` 状态：`loaded/enabled`。
 - 小米账号是否已绑定。

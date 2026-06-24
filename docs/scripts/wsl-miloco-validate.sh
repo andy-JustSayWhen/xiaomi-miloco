@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -u
 
-MILOCO_PORT="${MILOCO_PORT:-1886}"
+MILOCO_PORT="${MILOCO_PORT:-18860}"
 OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
 MILOCO_HOME="${MILOCO_HOME:-$HOME/.openclaw/miloco}"
 STRICT_FULL=0
@@ -12,7 +12,7 @@ for arg in "$@"; do
     --help|-h)
       cat <<'USAGE'
 Usage:
-  MILOCO_PORT=1886 OPENCLAW_PORT=18789 bash wsl-miloco-validate.sh [--strict-full]
+  MILOCO_PORT=18860 OPENCLAW_PORT=18789 bash wsl-miloco-validate.sh [--strict-full]
 
 Exit codes:
   0: basic service checks passed, even if full account/model readiness is missing
@@ -129,7 +129,7 @@ if command -v curl >/dev/null 2>&1; then
   if printf '%s' "$health" | grep -q '"status":"ok"'; then
     pass "miloco.health" "$health"
   else
-    fail "miloco.health" "$health" "Check server.url and service logs."
+    fail "miloco.health" "$health" "Check server.url/server.port and service logs."
   fi
 fi
 

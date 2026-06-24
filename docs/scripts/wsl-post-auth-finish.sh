@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -u
 
-MILOCO_PORT="${MILOCO_PORT:-1886}"
+MILOCO_PORT="${MILOCO_PORT:-18860}"
 OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
 MILOCO_HOME="${MILOCO_HOME:-$HOME/.openclaw/miloco}"
 MILOCO_AUTH_PAYLOAD="${MILOCO_AUTH_PAYLOAD:-}"
@@ -27,7 +27,7 @@ Environment variables:
   OMNI_BASE_URL         Default: https://api.xiaomimimo.com/v1
   MILOCO_HOME_ID        Optional home_id to switch after account binding
   MILOCO_CAMERA_DIDS    Optional whitespace-separated camera did list to enable
-  MILOCO_PORT           Default: 1886
+  MILOCO_PORT           Default: 18860
   OPENCLAW_PORT         Default: 18789
 
 Options:

@@ -26,7 +26,7 @@
 | 现象 | 定位命令 | 根因 | 修复 | 验收 |
 | --- | --- | --- | --- | --- |
 | Miloco 后端反复重启 | `tail -n 100 ~/.openclaw/miloco/log/miloco-backend.log` | 后端 bind 失败 | 看具体错误 | `miloco-cli service status` running |
-| `address already in use ('127.0.0.1', 1810)` | Windows: `netsh interface ipv4 show excludedportrange protocol=tcp` | 默认 `1810` 落入 Windows excluded port range 或被进程占用 | 改 `~/.openclaw/miloco/config.json` 的 `server.url`，例如 `http://127.0.0.1:1886` | `curl http://127.0.0.1:1886/health` 返回 ok |
+| Miloco 端口无法监听或 `address already in use` | Windows: `netsh interface ipv4 show excludedportrange protocol=tcp` | 端口落入 Windows excluded range 或被进程占用 | 一键安装器会从 `18860` 起自动选择可用端口；手动排障时同步改 `~/.openclaw/miloco/config.json` 的 `server.url` 和 `server.port` | `curl http://127.0.0.1:<miloco_port>/health` 返回 ok |
 | Windows 浏览器打不开 WSL 服务 | Windows: `curl.exe -fsS http://127.0.0.1:<port>/health` | mirrored/端口/服务状态问题 | 先确认 WSL 内 health，再确认 Windows 侧端口 | Windows 侧 `curl.exe` 成功 |
 | 摄像头实时流打不开 | `miloco-cli doctor` | WSL NAT 或 Hyper-V 防火墙入站阻断 | `.wslconfig` 设置 `networkingMode=mirrored`，Hyper-V 防火墙 DefaultInboundAction=Allow | `doctor` WSL 网络通过，Windows 管理员确认 Allow |
 
@@ -36,7 +36,7 @@
 | --- | --- | --- | --- | --- |
 | `miloco-cli` 找不到 | `which miloco-cli` | `~/.local/bin` 未进 PATH 或安装未完成 | `export PATH="$HOME/.local/bin:$PATH"`；必要时重跑 installer | `miloco-cli --help` 可用 |
 | `service status` running=false | `miloco-cli service logs` | 后端启动失败 | 先看日志，不盲目重装 | `service status` running=true |
-| health 不通 | `curl -v http://127.0.0.1:<port>/health` | 端口错、服务未启动、配置 url 不一致 | 查 `miloco-cli config show` 中 `server.url` | health 返回 `{"status":"ok"}` |
+| health 不通 | `curl -v http://127.0.0.1:<port>/health` | 端口错、服务未启动、配置 url/port 不一致 | 查 `miloco-cli config show` 和 `~/.openclaw/miloco/config.json` 中的 `server.url`、`server.port` | health 返回 `{"status":"ok"}` |
 | `doctor` 提示 iptables 权限不足 | `sudo -n true` | 普通用户无权限读取 iptables | 作为 warning 记录；不等同于失败 | 其它网络项通过 |
 
 ## 5. OpenClaw 和插件

@@ -16,6 +16,8 @@
 
 打开 [GitHub Release](https://github.com/andy-JustSayWhen/easy-miloco/releases)，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，双击文件夹根目录内的 `install.bat`。
 
+安装器会自动检查 WSL / Ubuntu、依赖、旧服务和本地端口。Miloco 默认从 `18860` 起选择可用端口，并同步写入服务地址和监听端口，用户不需要手动修改端口。
+
 #### 下载加速
 
 如遇 GitHub 下载缓慢，可尝试以下方式：

@@ -2,7 +2,7 @@
   [ValidateSet("Preflight", "Validate", "BindUrl", "Finish", "AllBasic", "Report")]
   [string]$Action = "AllBasic",
   [string]$Distro = "Ubuntu-24.04",
-  [int]$MilocoPort = 1886,
+  [int]$MilocoPort = 18860,
   [int]$OpenClawPort = 18789,
   [string]$ProxyUrl = "http://127.0.0.1:7897",
   [string]$AuthPayload = "",

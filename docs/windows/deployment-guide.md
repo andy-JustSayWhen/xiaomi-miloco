@@ -105,13 +105,13 @@ uv run miloco-backend
 http://127.0.0.1:1810/
 ```
 
-如果 Windows `netsh interface ipv4 show excludedportrange protocol=tcp` 显示 `1810` 落在 excluded port range 内，WSL mirrored 下后端可能无法绑定默认端口。此时可改 `~/.openclaw/miloco/config.json`：
+Windows 一键安装器会默认从 `18860` 起自动选择可用端口，并同步写入 `server.url` 和 `server.port`。手动排障时，如果端口落在 excluded port range 内，可改 `~/.openclaw/miloco/config.json`：
 
 ```json
 {
   "server": {
-    "port": 1886,
-    "url": "http://127.0.0.1:1886"
+    "url": "http://127.0.0.1:18860",
+    "port": 18860
   }
 }
 ```
@@ -120,7 +120,7 @@ http://127.0.0.1:1810/
 
 ```bash
 miloco-cli service restart
-curl -fsS http://127.0.0.1:1886/health
+curl -fsS http://127.0.0.1:18860/health
 ```
 
 ## 初始配置
@@ -194,7 +194,7 @@ Failed to refresh devices: access token is empty
 推荐统一入口：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action Report
 powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action BindUrl
 ```
@@ -202,13 +202,13 @@ powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action B
 目标 Windows 侧预检：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\windows-preflight.ps1 -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -ExecutionPolicy Bypass -File .\windows-preflight.ps1 -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 ```
 
 目标 WSL 侧验收：
 
 ```bash
-MILOCO_PORT=1886 OPENCLAW_PORT=18789 bash ./wsl-miloco-validate.sh
+MILOCO_PORT=18860 OPENCLAW_PORT=18789 bash ./wsl-miloco-validate.sh
 ```
 
 判断口径：
@@ -287,7 +287,7 @@ openclaw gateway restart
 
 - `miloco-cli service status` 显示服务正常。
 - `miloco-cli doctor` 没有关键失败项。
-- `http://127.0.0.1:<miloco_port>/health` 可访问；默认 `1810`，端口冲突机器可用 `1886`。
+- `http://127.0.0.1:<miloco_port>/health` 可访问；Windows 一键安装默认从 `18860` 起自动选择可用端口。
 - Web 面板能打开并完成模型、账号、摄像头三项配置。
 - OpenClaw 插件已安装，gateway 已重启。
 - 如果暴露 LAN，确认 LAN 是可信网络；如果跨网，确认反代层有 TLS 和认证。

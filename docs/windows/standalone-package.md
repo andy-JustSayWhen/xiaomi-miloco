@@ -34,7 +34,7 @@
    - install.sh --agent-prepare
    - 收集小米 OAuth payload 和 MiMo API Key
    - install.sh --agent-finish --account-auth ... --omni-api-key ...
-4. 如果默认 1810 端口被 Windows excluded port range 占用，改未占用端口，例如 1886，并同步 server.url。
+4. Miloco 端口由安装器自动选择，默认从 18860 起尝试，并同步 server.url、server.port、诊断报告和桌面控制台。
 5. 安装并启动 OpenClaw Gateway，确认 miloco-openclaw-plugin loaded。
 6. 最终必须验证 FULL_READY=yes；health ok 只代表基础服务正常。
 ```
@@ -165,7 +165,7 @@ du -sh ~/.cache/uv ~/.local/share/uv/tools/miloco
 
 缓存增长通常表示仍在下载或解析依赖。
 
-## 6. 处理 1810 端口冲突
+## 6. 处理端口冲突
 
 如果 Miloco 日志出现：
 
@@ -179,7 +179,7 @@ Windows PowerShell 查端口保留：
 netsh interface ipv4 show excludedportrange protocol=tcp
 ```
 
-如果 `1810` 落入保留范围，在 WSL 内改到未占用端口，例如 `1886`：
+一键安装器会默认从 `18860` 起自动选择可用端口。只有手动排障时才需要指定端口，例如 `18860`：
 
 ```bash
 python3 - <<'PY'
@@ -189,16 +189,16 @@ from pathlib import Path
 path = Path.home() / ".openclaw" / "miloco" / "config.json"
 data = json.loads(path.read_text(encoding="utf-8"))
 server = data.setdefault("server", {})
-server["port"] = 1886
-server["url"] = "http://127.0.0.1:1886"
+server["url"] = "http://127.0.0.1:18860"
+server["port"] = 18860
 path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
 PY
 
 miloco-cli service restart
-curl -fsS http://127.0.0.1:1886/health
+curl -fsS http://127.0.0.1:18860/health
 ```
 
-没有冲突时通常使用默认端口 `1810`。
+一键安装器会把最终端口写入诊断报告和桌面控制台。
 
 ## 7. 安装 OpenClaw Gateway
 
@@ -356,5 +356,5 @@ FULL_READY=yes
 收到这两项后执行：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Finish -AuthPayload '<小米 OAuth payload>' -MimoApiKey '<MiMo API Key>' -OmniModel 'mimo-v2.5' -OmniBaseUrl 'https://token-plan-sgp.xiaomimimo.com/v1' -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Finish -AuthPayload '<小米 OAuth payload>' -MimoApiKey '<MiMo API Key>' -OmniModel 'mimo-v2.5' -OmniBaseUrl 'https://token-plan-sgp.xiaomimimo.com/v1' -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 ```

@@ -205,5 +205,5 @@ FULL_READY=yes
 后续维护复核：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Validate -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Validate -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 ```

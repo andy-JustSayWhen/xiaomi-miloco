@@ -2,7 +2,7 @@
   [ValidateSet("Prepare", "Report", "BindUrl", "Finish", "Validate")]
   [string]$Action = "Prepare",
   [string]$Distro = "Ubuntu-24.04",
-  [int]$MilocoPort = 1886,
+  [int]$MilocoPort = 18860,
   [int]$OpenClawPort = 18789,
   [string]$AuthPayload = "",
   [string]$MimoApiKey = "",
@@ -27,6 +27,7 @@ $script:PhaseIndex = 0
 $script:PhaseTotal = 10
 $script:ResolvedDistro = ""
 $script:ResolvedDistroInfo = $null
+$script:MilocoPort = $MilocoPort
 
 function Exit-Installer {
   param([int]$Code = 0)
@@ -111,11 +112,11 @@ function Get-ReportTroubleshootingLines {
   }
 
   $text = Get-Content -Encoding utf8 -LiteralPath $ReportPath -Raw
-  if ($text -match 'server":\s*\{\s*"url":\s*"http://127\.0\.0\.1:(\d+)"' -and [int]$Matches[1] -ne $MilocoPort) {
-    $lines.Add(("Miloco 已启动，但正在运行的旧服务还在使用端口 {0}，本安装包需要使用端口 {1}。请重新运行 install.bat；新版安装器会先关闭旧进程，再写入端口 {1} 并等待服务启动成功。" -f $Matches[1], $MilocoPort)) | Out-Null
+  if ($text -match 'server":\s*\{\s*"url":\s*"http://127\.0\.0\.1:(\d+)"' -and [int]$Matches[1] -ne $script:MilocoPort) {
+    $lines.Add(("Miloco 已启动，但正在运行的旧服务还在使用端口 {0}，本安装包需要使用端口 {1}。请重新运行 install.bat；新版安装器会先关闭旧进程，再写入端口 {1} 并等待服务启动成功。" -f $Matches[1], $script:MilocoPort)) | Out-Null
   }
   if ($text -match '\[FAIL\]\s+miloco\.health') {
-    $lines.Add(("Miloco 后端没有在 http://127.0.0.1:{0}/health 正常响应。请不要反复覆盖安装，先把这个诊断报告发给维护者。" -f $MilocoPort)) | Out-Null
+    $lines.Add(("Miloco 后端没有在 http://127.0.0.1:{0}/health 正常响应。请不要反复覆盖安装，先把这个诊断报告发给维护者。" -f $script:MilocoPort)) | Out-Null
   }
   if ($text -match '\[FAIL\]\s+openclaw\.miloco_plugin|Plugin not found:\s*miloco-openclaw-plugin') {
     $lines.Add("OpenClaw 已安装并运行，但 Miloco 插件还没有装进 OpenClaw。我会在下次安装时自动安装本包自带的插件。") | Out-Null
@@ -514,6 +515,131 @@ function Check-Prerequisites {
   }
 }
 
+function Get-WindowsExcludedTcpRanges {
+  $ranges = New-Object System.Collections.Generic.List[object]
+  $result = & netsh.exe interface ipv4 show excludedportrange protocol=tcp 2>&1 | ForEach-Object {
+    if ($_ -is [System.Management.Automation.ErrorRecord]) {
+      $_.Exception.Message
+    } else {
+      $_.ToString()
+    }
+  }
+  foreach ($line in $result) {
+    if ($line -match "^\s*(\d+)\s+(\d+)\b") {
+      $ranges.Add([pscustomobject]@{
+        start = [int]$Matches[1]
+        end = [int]$Matches[2]
+      }) | Out-Null
+    }
+  }
+  return $ranges.ToArray()
+}
+
+function Test-PortInRanges {
+  param(
+    [int]$Port,
+    [object[]]$Ranges
+  )
+
+  foreach ($range in $Ranges) {
+    if ($Port -ge $range.start -and $Port -le $range.end) {
+      return $true
+    }
+  }
+  return $false
+}
+
+function Test-LocalTcpPortOpen {
+  param([int]$Port)
+
+  $tcp = New-Object Net.Sockets.TcpClient
+  try {
+    $iar = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
+    if (-not $iar.AsyncWaitHandle.WaitOne(250)) {
+      return $false
+    }
+    $tcp.EndConnect($iar)
+    return $true
+  } catch {
+    return $false
+  } finally {
+    $tcp.Close()
+  }
+}
+
+function Get-PortFromUrl {
+  param([string]$Url)
+
+  if ([string]::IsNullOrWhiteSpace($Url)) {
+    return $null
+  }
+  try {
+    $uri = [Uri]$Url
+    if ($uri.Port -gt 0) {
+      return [int]$uri.Port
+    }
+  } catch {}
+  return $null
+}
+
+function Test-WslPortListening {
+  param([int]$Port)
+
+  $script = @'
+set +e
+port="__PORT__"
+if command -v ss >/dev/null 2>&1; then
+  ss -H -ltn 2>/dev/null | awk '{print $4}' | grep -Eq "(^|:|\\.)${port}$" && echo yes || echo no
+else
+  echo unknown
+fi
+exit 0
+'@
+  $script = $script.Replace("__PORT__", [string]$Port)
+  $result = Invoke-WslBashText $script
+  return (($result.text -split "`r?`n" | Select-Object -Last 1).Trim())
+}
+
+function Resolve-MilocoPort {
+  param([object]$ExistingStatus)
+
+  Write-Info ("正在选择 Miloco 本地端口，优先从 {0} 开始。" -f $script:MilocoPort)
+  $excludedRanges = Get-WindowsExcludedTcpRanges
+  $existingPort = $null
+  if ($ExistingStatus -and $ExistingStatus.values.ContainsKey("MILOCO_URL")) {
+    $existingPort = Get-PortFromUrl $ExistingStatus.values["MILOCO_URL"]
+  }
+
+  $startPort = [Math]::Max(1024, [int]$script:MilocoPort)
+  $endPort = [Math]::Min(49151, $startPort + 199)
+  for ($port = $startPort; $port -le $endPort; $port++) {
+    if (Test-PortInRanges -Port $port -Ranges $excludedRanges) {
+      continue
+    }
+
+    $windowsOpen = Test-LocalTcpPortOpen -Port $port
+    $wslListening = Test-WslPortListening -Port $port
+    $ownedByExistingMiloco = ($null -ne $existingPort -and $existingPort -eq $port)
+    if (($windowsOpen -or $wslListening -eq "yes") -and -not $ownedByExistingMiloco) {
+      continue
+    }
+
+    $script:MilocoPort = $port
+    if ($port -eq $startPort) {
+      Write-Ok ("Miloco 本地端口：使用 {0}。" -f $port)
+    } else {
+      Write-Ok ("Miloco 本地端口：{0} 不可用，已自动改用 {1}。" -f $startPort, $port)
+    }
+    return $port
+  }
+
+  Stop-ForUser "没有找到可用的 Miloco 本地端口。" @(
+    ("安装器已从 {0} 到 {1} 自动尝试端口，但都不可用。" -f $startPort, $endPort),
+    "这通常说明本机端口被其他程序大量占用，或 Windows 端口保留范围异常。",
+    "请把这个窗口截图发给维护者，不要反复重装。"
+  )
+}
+
 function Ensure-Wsl {
   Resolve-WslDistro -InstallIfMissing $true | Out-Null
 }
@@ -609,8 +735,11 @@ kv OPENCLAW_CLI "$(has_cmd openclaw)"
 if command -v miloco-cli >/dev/null 2>&1; then
   status="$(miloco-cli service status 2>/dev/null)"
   printf '%s' "$status" | grep -Eiq 'running|true|url=http' && kv MILOCO_SERVICE yes || kv MILOCO_SERVICE no
+  current_url="$(miloco-cli config get server.url --value-only 2>/dev/null || true)"
+  [ -n "$current_url" ] && kv MILOCO_URL "$current_url" || kv MILOCO_URL ""
 else
   kv MILOCO_SERVICE no
+  kv MILOCO_URL ""
 fi
 
 if command -v curl >/dev/null 2>&1; then
@@ -628,7 +757,7 @@ else
 fi
 exit 0
 '@
-  $probe = $probe.Replace("__MILOCO_PORT__", [string]$MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
+  $probe = $probe.Replace("__MILOCO_PORT__", [string]$script:MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
   $result = Invoke-WslBashText $probe
   $values = @{}
   foreach ($line in ($result.text -split "`r?`n")) {
@@ -664,7 +793,7 @@ function Confirm-OverwriteExistingInstall {
   Write-Host ""
   Write-Host "[需要确认] 检测到这台电脑上已经有 Miloco / OpenClaw 安装痕迹。" -ForegroundColor Yellow
   Write-Host "当前检测结果：" -ForegroundColor Yellow
-  foreach ($name in @("MILOCO_CLI", "OPENCLAW_CLI", "MILOCO_HOME", "MILOCO_SERVICE", "MILOCO_HEALTH", "OPENCLAW_HTTP", "MILOCO_PLUGIN")) {
+  foreach ($name in @("MILOCO_CLI", "OPENCLAW_CLI", "MILOCO_HOME", "MILOCO_SERVICE", "MILOCO_HEALTH", "OPENCLAW_HTTP", "MILOCO_PLUGIN", "MILOCO_URL")) {
     $value = if ($Status.values.ContainsKey($name)) { $Status.values[$name] } else { "unknown" }
     Write-Host ("  {0}: {1}" -f $name, $value) -ForegroundColor Yellow
   }
@@ -758,7 +887,9 @@ function Invoke-WslBash {
     return $false
   }
 
-  & wsl.exe -d $script:Distro -- bash -lc $Command
+  $normalized = $Command -replace "`r`n", "`n"
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
+  & wsl.exe -d $script:Distro -- bash -lc "printf '%s' '$encoded' | base64 -d | bash"
   if ($LASTEXITCODE -ne 0) {
     Write-Host ("调用 WSL 失败，退出码：{0}" -f $LASTEXITCODE) -ForegroundColor Red
     return $false
@@ -787,6 +918,25 @@ function Open-WhenReady {
   Start-Process ("http://127.0.0.1:{0}/" -f $Port)
 }
 
+function Get-MilocoPortConfigCommand {
+  $py = @"
+import json
+from pathlib import Path
+
+port = $script:MilocoPort
+path = Path.home() / ".openclaw" / "miloco" / "config.json"
+data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+server = data.setdefault("server", {})
+server["url"] = f"http://127.0.0.1:{port}"
+server["port"] = port
+tmp = path.with_suffix(".json.tmp")
+tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+tmp.replace(path)
+"@
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($py))
+  return "python3 -c `"import base64; exec(base64.b64decode('$encoded').decode('utf-8'))`" >/tmp/miloco-desktop-config-json.log 2>&1"
+}
+
 function Restart-OpenClaw {
   Write-Host ""
   Write-Host "正在重启 OpenClaw 面板..."
@@ -799,7 +949,8 @@ function Restart-OpenClaw {
 function Restart-Miloco {
   Write-Host ""
   Write-Host "正在重启 Miloco 面板..."
-  $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || true'
+  $configCmd = Get-MilocoPortConfigCommand
+  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; ' + $configCmd + ' || exit 44; supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-desktop-supervisor-stop.log 2>&1 || true; pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; sleep 1; pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; nohup miloco-cli service start >/tmp/miloco-desktop-start.log 2>&1 &'
   if (Invoke-WslBash $cmd) {
     Open-WhenReady $script:MilocoPort
   }
@@ -808,7 +959,8 @@ function Restart-Miloco {
 function Restart-All {
   Write-Host ""
   Write-Host "正在重启 Miloco + OpenClaw..."
-  $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
+  $configCmd = Get-MilocoPortConfigCommand
+  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; ' + $configCmd + ' || exit 44; supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-desktop-supervisor-stop.log 2>&1 || true; pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; sleep 1; pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; nohup miloco-cli service start >/tmp/miloco-desktop-start.log 2>&1 & openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
   if (Invoke-WslBash $cmd) {
     Open-WhenReady $script:MilocoPort
     Open-WhenReady $script:OpenClawPort
@@ -819,7 +971,7 @@ function Stop-Services {
   Write-Host ""
   Write-Host "正在关闭 OpenClaw + Miloco..."
   & schtasks.exe /End /TN MilocoWSLKeeper > $null 2> $null
-  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user disable --now openclaw-gateway.service >/tmp/openclaw-desktop-stop.log 2>&1 || true; rm -f "$HOME/.config/systemd/user/default.target.wants/openclaw-gateway.service" 2>/dev/null || true; systemctl --user daemon-reload >/dev/null 2>&1 || true; miloco-cli service stop >/tmp/miloco-desktop-stop.log 2>&1 || true; supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-desktop-supervisor-stop.log 2>&1 || true; pkill -TERM -f "[w]indows-keeper.sh" 2>/dev/null || true; pkill -TERM -f "[w]sl-miloco-keeper.sh" 2>/dev/null || true; pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; pkill -TERM -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true; sleep 2; pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; pkill -KILL -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true'
+  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user disable --now openclaw-gateway.service >/tmp/openclaw-desktop-stop.log 2>&1 || true; rm -f "$HOME/.config/systemd/user/default.target.wants/openclaw-gateway.service" 2>/dev/null || true; systemctl --user daemon-reload >/dev/null 2>&1 || true; supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-desktop-supervisor-stop.log 2>&1 || true; pkill -TERM -f "[w]indows-keeper.sh" 2>/dev/null || true; pkill -TERM -f "[w]sl-miloco-keeper.sh" 2>/dev/null || true; pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; pkill -TERM -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true; sleep 2; pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; pkill -KILL -f "[o]penclaw/dist/index.js gateway --port" 2>/dev/null || true'
   [void](Invoke-WslBash $cmd)
   Write-Host "关闭命令已发送。"
 }
@@ -876,7 +1028,7 @@ while ($true) {
   }
 }
 '@
-  $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
+  $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$script:MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
   [System.IO.File]::WriteAllText($launcher, $bat, [System.Text.UTF8Encoding]::new($false))
   [System.IO.File]::WriteAllText($psLauncher, $ps1, [System.Text.UTF8Encoding]::new($true))
   Write-Host "Desktop launcher created: $launcher"
@@ -897,7 +1049,7 @@ function Invoke-Workflow {
     "-File", $Workflow,
     "-Action", $WorkflowAction,
     "-Distro", $resolvedDistro,
-    "-MilocoPort", [string]$MilocoPort,
+    "-MilocoPort", [string]$script:MilocoPort,
     "-OpenClawPort", [string]$OpenClawPort
   )
 
@@ -951,6 +1103,7 @@ function Invoke-Prepare {
   Write-Step "检测是否已经安装过 Miloco"
   $existingStatus = Get-ExistingInstallStatus
   Confirm-OverwriteExistingInstall $existingStatus
+  Resolve-MilocoPort $existingStatus | Out-Null
 
   $manifest = Get-Content -Encoding utf8 -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
   $version = [string]$manifest.version
@@ -1000,24 +1153,48 @@ if ! command -v miloco-cli >/dev/null 2>&1; then
   exit 42
 fi
 printf '[正在处理] 正在把 Miloco 服务地址设置为 http://127.0.0.1:__MILOCO_PORT__ ...\n'
-miloco-cli service stop >/tmp/miloco-windows-service-stop.log 2>&1 || true
 supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-windows-supervisor-stop.log 2>&1 || true
 pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
 sleep 2
 pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
-if ! miloco-cli config set server.url "http://127.0.0.1:__MILOCO_PORT__" --no-restart >/tmp/miloco-windows-config-port.log 2>&1; then
-  printf '[失败] Miloco 服务地址配置写入失败。\n' >&2
+if ! python3 - <<'PY' >/tmp/miloco-windows-config-port.log 2>&1
+import json
+from pathlib import Path
+
+port = __MILOCO_PORT__
+path = Path.home() / ".openclaw" / "miloco" / "config.json"
+data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+server = data.setdefault("server", {})
+server["url"] = f"http://127.0.0.1:{port}"
+server["port"] = port
+tmp = path.with_suffix(".json.tmp")
+tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+tmp.replace(path)
+print(f"server.url=http://127.0.0.1:{port}")
+print(f"server.port={port}")
+PY
+then
+  printf '[失败] Miloco 服务地址和监听端口配置写入失败。\n' >&2
   printf '详细日志在 WSL 内：/tmp/miloco-windows-config-port.log\n' >&2
   exit 44
 fi
-actual_url="$(miloco-cli config get server.url --value-only 2>/dev/null | tr -d '\r\n[:space:]')"
-if [ "$actual_url" != "http://127.0.0.1:__MILOCO_PORT__" ]; then
-  printf '[失败] Miloco 服务地址配置没有生效。当前 url=%s\n' "$actual_url" >&2
+read -r actual_url actual_port <<EOF
+$(python3 - <<'PY'
+import json
+from pathlib import Path
+
+path = Path.home() / ".openclaw" / "miloco" / "config.json"
+data = json.loads(path.read_text(encoding="utf-8"))
+server = data.get("server", {})
+print(server.get("url", ""), server.get("port", ""))
+PY
+)
+EOF
+if [ "$actual_url" != "http://127.0.0.1:__MILOCO_PORT__" ] || [ "$actual_port" != "__MILOCO_PORT__" ]; then
+  printf '[失败] Miloco 服务地址或监听端口配置没有生效。当前 url=%s port=%s\n' "$actual_url" "$actual_port" >&2
   exit 45
 fi
-if ! miloco-cli service start >/tmp/miloco-windows-service-start.log 2>&1; then
-  printf '[需要注意] Miloco 启动命令返回了错误，正在继续检查服务是否已经实际启动...\n'
-fi
+nohup miloco-cli service start >/tmp/miloco-windows-service-start.log 2>&1 &
 for i in $(seq 1 90); do
   if curl -fsS --max-time 2 "http://127.0.0.1:__MILOCO_PORT__/health" >/dev/null 2>&1; then
     printf '[OK] Miloco 后端已在端口 __MILOCO_PORT__ 启动。\n'
@@ -1030,7 +1207,7 @@ miloco-cli service status >&2 || true
 printf '详细日志在 WSL 内：/tmp/miloco-windows-service-start.log 和 ~/.openclaw/miloco/log/miloco-backend.log\n' >&2
 exit 47
 '@
-  $install = $install.Replace("__GITHUB_PROXY_PREFIX__", [string]$global:GITHUB_PROXY_PREFIX).Replace("__WSL_INSTALL_SH__", $wslInstallSh).Replace("__MILOCO_PORT__", [string]$MilocoPort)
+  $install = $install.Replace("__GITHUB_PROXY_PREFIX__", [string]$global:GITHUB_PROXY_PREFIX).Replace("__WSL_INSTALL_SH__", $wslInstallSh).Replace("__MILOCO_PORT__", [string]$script:MilocoPort)
   Invoke-WslBash $install
   Write-Ok "Miloco 基础安装命令已执行完成。"
 
@@ -1093,7 +1270,7 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   $powershellExe = Get-PowerShellExe
   $resolvedDistro = Get-ResolvedDistro
   $reportPath = Join-Path $PackageRoot ("miloco-deploy-report-{0}.txt" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
-  & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action Report -Distro $resolvedDistro -MilocoPort $MilocoPort -OpenClawPort $OpenClawPort -ReportPath $reportPath
+  & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action Report -Distro $resolvedDistro -MilocoPort $script:MilocoPort -OpenClawPort $OpenClawPort -ReportPath $reportPath
   $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
 
   if ($code -ne 0) {
@@ -1115,7 +1292,7 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   Write-Host "  2. 重启 Miloco 面板          打开 Miloco 面板"
   Write-Host "  1. 重启 OpenClaw 面板        打开 OpenClaw 面板"
   Write-Host ""
-  Write-Host ("Miloco 面板地址：   http://127.0.0.1:{0}/" -f $MilocoPort)
+  Write-Host ("Miloco 面板地址：   http://127.0.0.1:{0}/" -f $script:MilocoPort)
   Write-Host ("OpenClaw 面板地址： http://127.0.0.1:{0}/" -f $OpenClawPort)
   Write-Host ("本次诊断报告：      {0}" -f $reportPath)
   Write-Host ""
@@ -1125,7 +1302,7 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   Write-Host "3. 米家摄像头：需要摄像头已绑定米家 App，且在米家 App 里能正常打开画面。"
   Write-Host ""
   Write-Info "正在尝试生成小米账号绑定链接。"
-  & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action BindUrl -Distro $resolvedDistro -MilocoPort $MilocoPort -OpenClawPort $OpenClawPort
+  & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action BindUrl -Distro $resolvedDistro -MilocoPort $script:MilocoPort -OpenClawPort $OpenClawPort
   $bindCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
   if ($bindCode -ne 0) {
     Write-Warn "绑定链接暂时没有生成成功。你可以稍后重新运行：.\install.ps1 -Action BindUrl"

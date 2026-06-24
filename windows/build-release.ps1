@@ -185,6 +185,10 @@ function Copy-RequiredArtifacts {
     "",
     "Ubuntu 22.04 及以上推荐；Ubuntu 20.04 可以继续但会提示风险；没有任何可用 Ubuntu 时，安装器才会默认安装 Ubuntu-24.04。",
     "",
+    "## 本地端口说明",
+    "",
+    "安装器会自动选择 Miloco 本地端口，默认从 18860 开始尝试；如果端口不可用，会自动换到后续可用端口，并把最终端口写入桌面控制台、诊断报告和 Miloco 的服务地址、监听端口配置。",
+    "",
     "## 高级备用方式",
     "",
     "普通用户不需要运行下面的命令。只有在 bat 被安全软件拦截、或维护者要求你手动运行时，才打开管理员 PowerShell 执行：",
@@ -279,7 +283,7 @@ function Test-Package {
     if (-not $consolePs1Match.Success) {
       throw "Miloco desktop console ps1 template not found."
     }
-    $consolePs1 = $consolePs1Match.Groups["ps1"].Value.Replace("__DISTRO__", "Ubuntu-24.04").Replace("__MILOCO_PORT__", "1886").Replace("__OPENCLAW_PORT__", "18789")
+    $consolePs1 = $consolePs1Match.Groups["ps1"].Value.Replace("__DISTRO__", "Ubuntu-24.04").Replace("__MILOCO_PORT__", "18860").Replace("__OPENCLAW_PORT__", "18789")
     $null = [scriptblock]::Create($consolePs1)
 
     $shellScripts = Get-ChildItem -LiteralPath $root -Recurse -File -Filter "*.sh"

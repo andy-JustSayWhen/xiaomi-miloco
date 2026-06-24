@@ -16,7 +16,7 @@
 
 <windows-sample-host> 的差异属于 Windows/WSL 实机适配，不改变官方流程：
 
-- 默认 `1810` 落入 Windows TCP excluded port range，所以改用 `1886`。
+- Windows 一键安装默认从 `18860` 起自动选择可用端口，避免和 Windows TCP excluded port range 或其他进程硬冲突。
 - WSL 内没有 Linux `node` 且不能免密 sudo，所以用用户目录安装 Node 后再装 OpenClaw。
 - 国内网络使用显式 `http_proxy` / `https_proxy` / `all_proxy`，没有关闭 Clash Verge TUN。
 - OB 中的 `win-miloco-workflow.ps1`、预检脚本和验收脚本是外层编排与证据采集，不替代官方 installer。
@@ -52,7 +52,7 @@ flowchart TD
 
 ## 适配项说明
 
-### 1. 端口从 1810 改为 1886
+### 1. 端口从固定值改为自动选择
 
 官方默认面板地址是 `http://<host>:1810/`。<windows-sample-host> 上 Windows TCP excluded port range 包含 `1786-1885`，默认 `1810` 绑定失败，后端日志出现：
 
@@ -65,8 +65,7 @@ error while attempting to bind on address ('127.0.0.1', 1810): address already i
 ```json
 {
   "server": {
-    "port": 1886,
-    "url": "http://127.0.0.1:1886"
+    "url": "http://127.0.0.1:<miloco_port>"
   }
 }
 ```
@@ -104,7 +103,7 @@ error while attempting to bind on address ('127.0.0.1', 1810): address already i
 已完成：
 
 - `Ubuntu-24.04` WSL2 可用。
-- Miloco 后端：`http://127.0.0.1:1886/health` 返回 `{"status":"ok"}`。
+- Miloco 后端：`http://127.0.0.1:<miloco_port>/health` 返回 `{"status":"ok"}`。
 - OpenClaw Gateway：`http://127.0.0.1:18789/` running。
 - `miloco-openclaw-plugin` 已 loaded。
 - 诊断报告留档：`reports/windows-sample-host-20260622-102255-full-ready.txt`。
@@ -129,7 +128,7 @@ FAIL_COUNT=0
 维护命令：
 
 ```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Validate -Distro Ubuntu-24.04 -MilocoPort 1886 -OpenClawPort 18789
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action Validate -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789
 ```
 
 ## 后续维护规则
