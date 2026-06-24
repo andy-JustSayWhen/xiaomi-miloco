@@ -126,20 +126,34 @@ fi
 
 if command -v curl >/dev/null 2>&1; then
   health=""
+  health_code=""
+  health_err=""
   health_ok=0
+  health_degraded=0
   health_attempt=0
+  health_body_file="${TMPDIR:-/tmp}/miloco-health-validate-body.$$"
+  health_err_file="${TMPDIR:-/tmp}/miloco-health-validate-curl.$$"
   for health_attempt in $(seq 1 20); do
-    health="$(run_capture 3 curl -fsS "http://127.0.0.1:${MILOCO_PORT}/health")"
-    if printf '%s' "$health" | grep -q '"status":"ok"'; then
+    health_code="$(curl -sS --max-time 3 -o "$health_body_file" -w "%{http_code}" "http://127.0.0.1:${MILOCO_PORT}/health" 2>"$health_err_file" || true)"
+    health="$(cat "$health_body_file" 2>/dev/null || true)"
+    health_err="$(cat "$health_err_file" 2>/dev/null || true)"
+    if [ "$health_code" = "200" ] && printf '%s' "$health" | grep -q '"status":"ok"'; then
       health_ok=1
       break
     fi
+    if [ "$health_code" = "503" ] && printf '%s' "$health" | grep -Eq '"status":"(unhealthy|unknown)"'; then
+      health_degraded=1
+    fi
     sleep 1
   done
+  rm -f "$health_body_file" "$health_err_file" 2>/dev/null || true
   if [ "$health_ok" -eq 1 ]; then
     pass "miloco.health" "attempt=${health_attempt} ${health}"
+  elif [ "$health_degraded" -eq 1 ] && [ "$STRICT_FULL" -eq 0 ]; then
+    mark_full_missing
+    warn "miloco.health" "HTTP ${health_code} ${health}" "Miloco API is reachable, but /health is not ok yet. Continue basic setup and inspect node diagnostics after account/API key configuration."
   else
-    fail "miloco.health" "$health" "Miloco did not answer /health within 20 seconds. Check server.url/server.port and service logs."
+    fail "miloco.health" "HTTP ${health_code} ${health} ${health_err}" "Miloco did not answer /health with status ok within 20 seconds. Check server.url/server.port and service logs."
   fi
 fi
 

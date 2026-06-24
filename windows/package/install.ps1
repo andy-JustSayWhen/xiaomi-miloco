@@ -1234,16 +1234,49 @@ if [ "$actual_url" != "http://127.0.0.1:__MILOCO_PORT__" ] || [ "$actual_port" !
   printf '[失败] Miloco 服务地址或监听端口配置没有生效。当前 url=%s port=%s\n' "$actual_url" "$actual_port" >&2
   exit 45
 fi
-nohup miloco-cli service start >/tmp/miloco-windows-service-start.log 2>&1 &
+set +e
+miloco-cli service start >/tmp/miloco-windows-service-start.log 2>&1
+start_rc=$?
+set -e
+
+health_body=/tmp/miloco-windows-health-body.txt
+health_err=/tmp/miloco-windows-health-curl.err
 for i in $(seq 1 90); do
-  if curl -fsS --max-time 2 "http://127.0.0.1:__MILOCO_PORT__/health" >/dev/null 2>&1; then
+  http_code="$(curl -sS --max-time 2 -o "$health_body" -w "%{http_code}" "http://127.0.0.1:__MILOCO_PORT__/health" 2>"$health_err" || true)"
+  body="$(cat "$health_body" 2>/dev/null || true)"
+  if [ "$http_code" = "200" ] && printf '%s' "$body" | grep -q '"status":"ok"'; then
     printf '[OK] Miloco 后端已在端口 __MILOCO_PORT__ 启动。\n'
+    exit 0
+  fi
+  if [ "$http_code" = "503" ] && printf '%s' "$body" | grep -Eq '"status":"(unhealthy|unknown)"'; then
+    printf '[警告] Miloco 后端 API 已经启动，但 /health 还不是 ok：%s\n' "$body" >&2
+    printf '[说明] 这通常表示内部节点还没满足条件或启动期自检未通过；安装器会继续完成基础部署，后续诊断报告会继续检查。\n' >&2
     exit 0
   fi
   sleep 1
 done
+
 printf '[失败] Miloco 后端没有在端口 __MILOCO_PORT__ 正常响应。\n' >&2
+printf 'miloco-cli service start 退出码：%s\n' "$start_rc" >&2
+printf '最后一次 /health HTTP 状态：%s\n' "${http_code:-none}" >&2
+if [ -s "$health_body" ]; then
+  printf '最后一次 /health 响应：\n' >&2
+  tail -n 20 "$health_body" >&2 || true
+fi
+if [ -s "$health_err" ]; then
+  printf '最后一次 curl 错误：\n' >&2
+  tail -n 20 "$health_err" >&2 || true
+fi
+printf '\n[诊断] miloco-cli service status：\n' >&2
 miloco-cli service status >&2 || true
+printf '\n[诊断] supervisor 状态：\n' >&2
+supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" status >&2 || true
+printf '\n[诊断] WSL 端口监听：\n' >&2
+ss -tlnp "sport = :__MILOCO_PORT__" >&2 || true
+printf '\n[诊断] /tmp/miloco-windows-service-start.log 尾部：\n' >&2
+tail -n 80 /tmp/miloco-windows-service-start.log >&2 || true
+printf '\n[诊断] ~/.openclaw/miloco/log/miloco-backend.log 尾部：\n' >&2
+tail -n 120 "$HOME/.openclaw/miloco/log/miloco-backend.log" >&2 || true
 printf '详细日志在 WSL 内：/tmp/miloco-windows-service-start.log 和 ~/.openclaw/miloco/log/miloco-backend.log\n' >&2
 exit 47
 '@
