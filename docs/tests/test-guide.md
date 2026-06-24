@@ -8,7 +8,7 @@
 - CLI 命令：跑 CLI pytest，必要时补后端相关测试。
 - Web：先 typecheck，再 vitest，再 build。
 - OpenClaw 插件：先 TypeScript check，再 vitest，再 build。
-- 安装和发布路径：至少跑 `bash scripts/install.sh -h`，重大改动再跑 dev build 或安装烟测。
+- 安装和发布路径：Linux/macOS 入口至少跑 `bash scripts/install.sh -h`；Windows release 包改动至少跑 `windows/build-release.ps1 -SkipBuild`。
 
 ## 本地测试矩阵
 
@@ -113,6 +113,7 @@ CI 作业：
 | `web/src` | Web typecheck/test/build | 后端 API smoke |
 | `plugins/openclaw/src` | plugin check/test/build | OpenClaw gateway 手动验证 |
 | `scripts/install*`、`scripts/build.sh` | `bash scripts/install.sh -h` | `bash scripts/install.sh --dev` 或 release smoke |
+| `windows/**`、Windows release 包 | `powershell -File windows/build-release.ps1 -SkipBuild` | 本机或 VM 双击 `install.bat` 视觉 smoke |
 | `.github`、`.ci` | 本地等价命令 | workflow 手动触发 |
 
 ## 部署验收 smoke
@@ -129,7 +130,7 @@ miloco-cli account status
 
 浏览器：
 
-- 打开 `http://127.0.0.1:1810/`。
+- 打开 `miloco-cli config get server.url` 显示的页面；源码默认通常是 `http://127.0.0.1:1810/`，Windows 一键包以安装报告为准。
 - 验证模型页、账号绑定页、概览页能加载。
 - 有摄像头时，验证开启感知后的实时画面和事件流。
 

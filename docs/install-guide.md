@@ -3,8 +3,8 @@ name: install-miloco
 description: Miloco 一键部署引导，当用户说“安装 Miloco”“部署 Miloco”“一键部署 Miloco”时激活。
 metadata:
   author: andy-JustSayWhen
-  version: "0.1"
-  date: 2026-06-23
+  version: "0.2"
+  date: 2026-06-24
 ---
 
 # Miloco 一键部署指南
@@ -35,11 +35,10 @@ https://github.com/andy-JustSayWhen/easy-miloco
 
 3. 如果 GitHub 下载慢，询问用户是否有维护者提供的夸克网盘副本。夸克网盘只是下载副本，GitHub Release 才是版本基准。
 
-4. 解压后，在 PowerShell 中运行：
+4. 解压后，双击解压目录根部的：
 
-   ```powershell
-   Set-ExecutionPolicy -Scope Process Bypass -Force
-   .\install.ps1
+   ```text
+   install.bat
    ```
 
 5. 安装完成后验证桌面入口、后端服务和页面可用性：
@@ -50,7 +49,7 @@ https://github.com/andy-JustSayWhen/easy-miloco
 
    该桌面脚本由 `install.ps1` 自动生成。菜单包含重启 OpenClaw 面板、重启 Miloco 面板、重启 Miloco + OpenClaw、关闭 OpenClaw + Miloco、关闭 WSL。
 
-   安装器会自动选择 Miloco 本地端口，默认从 `18860` 开始尝试；如果端口不可用，会自动换到后续可用端口，并把最终端口写入桌面控制台、诊断报告和 Miloco 的服务地址、监听端口配置。
+维护者需要手动运行或做卸载复测时，再使用 `install.ps1`。
 
 ## 如果还没有可用 Release
 

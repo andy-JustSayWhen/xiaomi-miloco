@@ -35,7 +35,7 @@
 | 设备列表 | `miloco-cli device list` 返回 127 行设备 | 已完成 |
 | 摄像头 scope 和感知 | `scope camera list` 返回 `<camera-did-desk> / <camera-desk>`，`in_use=true`，`connected=true`；日志有 `realtime_perceive` 成功输出 | 已完成 |
 | 任意 Windows 用户教程 | 已形成 Agent 一键版、人工手动版、决策树、故障矩阵、后授权失败排障、满血证据清单，并用 <windows-sample-host> 后授权实测闭环修正验证脚本 | 已完成 |
-| 资料包可分发 | zip SHA256、包内 SHA、脚本语法烟测均通过 | 已完成 |
+| 资料包可分发 | release zip 可解压、根目录 `install.bat` 可见、脚本语法烟测通过 | 已完成 |
 
 ## 当前证据
 
@@ -65,11 +65,8 @@ camera.connected=true
 资料包验收：
 
 ```text
-zip SHA256=见 [Windows部署资料包发布清单](release-package.md) 和 [Windows部署资料包验收记录](validation-record.md)
-SHA_TOTAL=22
-SHA_FAIL=0
-DOC_COUNT=16
-SCRIPT_COUNT=5
+release zip=见 [Windows部署资料包发布清单](release-package.md) 和 [Windows部署资料包验收记录](validation-record.md)
+root install.bat=present
 PS_PARSE_PASS windows-preflight.ps1
 PS_PARSE_PASS win-miloco-workflow.ps1
 BASH_PARSE_PASS wsl-miloco-validate.sh

@@ -6,10 +6,11 @@
 
 ## 结论
 
-当前 OB Windows 部署教程和 <windows-sample-host> 实机部署路径与官方主线一致：
+当前 easy-miloco Windows 部署教程和 <windows-sample-host> 实机部署路径与官方主线一致：
 
 - Windows 原生不安装 Miloco，只在 WSL 内安装和运行。
-- 官方 release 安装入口仍是 `install.sh`，Agent 自动化入口是 `--agent-prepare` → 人工收集账号/模型信息 → `--agent-finish`。
+- 上游 release 安装入口仍是 `install.sh`；本 fork 的 Windows release 包用根目录 `install.bat` 做 Windows 预检、提权和 WSL 编排，WSL 内仍复用 `payload/install.sh`。
+- Agent 自动化入口是 `install.sh --agent-prepare` → 人工收集账号/模型信息 → `install.sh --agent-finish`。
 - 账号授权和 MiMo / Omni API Key 不是可跳过的满血能力条件；跳过后只能算基础服务与插件就绪。
 - WSL 摄像头本地流需要 mirrored networking 和 Hyper-V 防火墙入站放行。
 - OpenClaw 插件安装后需要重启 OpenClaw Gateway。
@@ -19,7 +20,7 @@
 - Windows 一键安装默认从 `18860` 起自动选择可用端口，避免和 Windows TCP excluded port range 或其他进程硬冲突。
 - WSL 内没有 Linux `node` 且不能免密 sudo，所以用用户目录安装 Node 后再装 OpenClaw。
 - 国内网络使用显式 `http_proxy` / `https_proxy` / `all_proxy`，没有关闭 Clash Verge TUN。
-- OB 中的 `win-miloco-workflow.ps1`、预检脚本和验收脚本是外层编排与证据采集，不替代官方 installer。
+- Windows release 包中的 `win-miloco-workflow.ps1`、预检脚本和验收脚本是外层编排与证据采集，不替代上游 installer。
 
 ## 官方流程图
 
@@ -48,7 +49,7 @@ flowchart TD
 | Agent Step 3 | `install.sh --agent-finish --account-auth ... --omni-api-key ...` 写入账号/模型、下载模型、安装插件 | 已先不带授权信息执行一次完成基础模型和 OpenClaw 插件；收到 payload 后用收尾脚本补齐账号、模型、重启和最终验收 | 已完成 |
 | OpenClaw 插件 | installer 安装 `miloco-openclaw-plugin`，并设置 tools / conversation access | 插件 `Status: loaded`，`allowConversationAccess=true`，`plugins doctor` 无问题 | 已对齐 |
 | 快速开始 | README 要求配置模型、绑定小米账号、开启摄像头感知 | 模型已配置；账号已绑定；设备 127 行；摄像头 `<camera-did-desk> / <camera-desk>` 在线、启用、已连接 | 已满血 |
-| 验收 | 官方常用命令包括 service status、logs、device list、config show；README 还要求 dashboard / doctor | OB 脚本额外区分 `BASIC_READY` 和 `FULL_READY` | 已增强，不偏离 |
+| 验收 | 官方常用命令包括 service status、logs、device list、config show；README 还要求 dashboard / doctor | Windows release 包脚本额外区分 `BASIC_READY` 和 `FULL_READY` | 已增强，不偏离 |
 
 ## 适配项说明
 
@@ -90,13 +91,13 @@ error while attempting to bind on address ('127.0.0.1', 1810): address already i
 
 ### 3. 预检和验收脚本的定位
 
-`02-deploy/scripts/` 下的脚本只做三类事情：
+源码仓库 `docs/scripts/` 下的脚本会在打包时复制到 release 包 `scripts/windows/`，它们只做三类事情：
 
 - Windows 宿主预检：WSL、端口排除、防火墙、代理、HTTP 可达。
 - WSL 验收：Miloco health、OpenClaw Gateway、插件、账号、Key、设备、摄像头。
 - 后授权收尾：收到 OAuth payload 和 MiMo API Key 后，执行账号授权、模型配置、重启和最终验收。
 
-它们不替代官方 `install.sh`。干净机器仍优先从官方 `--agent-prepare` / `--agent-finish` 开始。
+它们不替代上游 installer。普通用户干净机器优先解压 Windows release 包并双击根目录 `install.bat`；Agent/WSL 路径仍可直接使用 `install.sh --agent-prepare` / `install.sh --agent-finish`。
 
 ## 当前 <windows-sample-host> 状态
 

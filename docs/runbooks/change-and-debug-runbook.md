@@ -6,7 +6,7 @@
 
 | 症状 | 优先检查 |
 | --- | --- |
-| 页面打不开 | 后端服务、1810 端口、SPA static、token 注入 |
+| 页面打不开 | 后端服务、当前 `server.url` / 端口、SPA static、token 注入 |
 | API 401 | `server.token`、前端 `window.__MILOCO_TOKEN__`、Bearer header |
 | API 404 | 路由前缀、`/api/*` 是否被 SPA fallback 绕过 |
 | 设备列表为空 | 小米账号绑定、MIoT token、MIoT refresh、网络 |
@@ -34,8 +34,8 @@ uv run miloco-backend
 
 ### Web 层
 
-1. 打开 `http://127.0.0.1:1810/health`。
-2. 打开 `http://127.0.0.1:1810/`。
+1. 打开 `miloco-cli config get server.url` 显示的地址，再访问 `<server.url>/health`。
+2. 打开 `server.url` 对应页面。
 3. 浏览器 Network 看 `/api/*` 是否带 Authorization。
 4. 如果是静态资源 404，看 `web/dist` 和后端 static 打包路径。
 
@@ -88,6 +88,6 @@ openclaw gateway restart
 - 证据来自哪里：命令、日志、浏览器 Network、源码路径。
 - 改了哪些源码文件或配置。
 - 跑了哪些测试。
-- 是否需要更新 `02-deploy` 或 `03-test`。
+- 是否需要更新 `docs/`、`knowledge/` 或测试指南。
 
 结构性经验写回本文件；一次性日志不进入 Obsidian。

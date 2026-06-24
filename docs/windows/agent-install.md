@@ -102,7 +102,7 @@ wsl --set-default-version 2
 
 ## 推荐脚本入口
 
-如果已经把 `02-deploy/scripts/` 下的脚本传到目标 Windows，Agent 优先运行统一入口：
+如果已经把源码仓库 `docs/scripts/` 或 release 包 `scripts/windows/` 里的脚本传到目标 Windows，Agent 优先运行统一入口：
 
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File C:\Users\<user>\AppData\Local\Temp\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort <miloco_port> -OpenClawPort 18789

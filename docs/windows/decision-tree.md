@@ -4,7 +4,7 @@
 
 ## 0. 推荐入口
 
-如果已经拿到 `02-deploy/scripts/` 下的脚本，优先跑统一入口：
+如果已经拿到源码仓库 `docs/scripts/` 或 release 包 `scripts/windows/` 里的脚本，优先跑统一入口：
 
 ```powershell
 powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action AllBasic -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789

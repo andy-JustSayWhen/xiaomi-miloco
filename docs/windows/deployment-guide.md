@@ -47,7 +47,7 @@ Windows 用户先从 [Windows部署总入口](index.md) 开始。该入口会引
 - [Windows 部署决策树](decision-tree.md)：按当前状态选择下一条命令，覆盖 WSL、网络、端口、OpenClaw、账号、Key、设备和摄像头分支。
 - [Windows 部署故障排除矩阵](troubleshooting.md)：按报错或现象查定位命令、根因、修复和验收。
 - [Windows 部署教程覆盖审计](tutorial-coverage-audit.md)：确认 Agent/人工教程是否覆盖任意 Windows 部署主要分支。
-- [Windows 部署资料包发布清单](release-package.md)：列出可分发资料包、脚本 SHA256、复制命令和验收口径。
+- [Windows 部署资料包发布清单](release-package.md)：列出可分发 release 包、包内结构和验收口径。
 - [Windows 部署教程：独立分发版](standalone-package.md)：脱离 Obsidian 也能阅读的一页式完整教程。
 - [Agent 一键部署提示词](agent-prompt.md)：可复制给具备 SSH 能力的 Agent 的完整提示词。
 - [Windows 部署教程：Agent 一键版](agent-install.md)：把 SSH、WSL、Miloco、OpenClaw、插件安装和验证交给 Agent 的复用模板。
@@ -63,13 +63,13 @@ Windows 用户先从 [Windows部署总入口](index.md) 开始。该入口会引
 
 适用：希望 Agent 引导账号绑定、模型配置、插件安装。
 
-### 方式二：Release 一行安装
+### 方式二：Windows Release 包
 
-```bash
-curl -LsSf https://github.com/andy-JustSayWhen/easy-miloco/releases/latest/download/install.sh | bash
+```text
+打开 GitHub Release -> 下载 easy-miloco-v0.2-windows.zip -> 解压 -> 双击根目录 install.bat
 ```
 
-`install.sh` 只负责引导 uv 和 Python，然后执行 `scripts/install.py`。核心安装流程在 Python 脚本内，包括环境检查、包安装、临时服务初始化、小米账号绑定、模型配置、感知模型下载和 OpenClaw 插件安装。
+普通 Windows 用户优先走 release zip。包内 `install.ps1` 是 `install.bat` 调用的实现和维护者备用入口。
 
 ### 方式三：源码开发安装
 
@@ -180,12 +180,12 @@ Failed to refresh devices: access token is empty
 
 ## 脚本化预检和验收
 
-脚本入口：
+脚本入口（源码仓库位置；打包后位于 release 包 `scripts/windows/`）：
 
-- `02-deploy/scripts/win-miloco-workflow.ps1`
-- `02-deploy/scripts/windows-preflight.ps1`
-- `02-deploy/scripts/wsl-miloco-validate.sh`
-- `02-deploy/scripts/wsl-post-auth-finish.sh`
+- `docs/scripts/win-miloco-workflow.ps1`
+- `docs/scripts/windows-preflight.ps1`
+- `docs/scripts/wsl-miloco-validate.sh`
+- `docs/scripts/wsl-post-auth-finish.sh`
 - [脚本说明](../scripts/README.md)
 - [资料包发布清单](release-package.md)
 - [资料包验收记录](validation-record.md)

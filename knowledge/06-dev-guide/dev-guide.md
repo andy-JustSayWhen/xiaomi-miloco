@@ -16,7 +16,7 @@
 # 开发者：--dev 从源码构建后本地安装
 bash scripts/install.sh --dev
 
-# 终端用户：从 GitHub Release 下载对应平台归档后本地安装
+# Linux/macOS 终端用户：从 GitHub Release 下载对应平台归档后本地安装
 bash scripts/install.sh [--lang zh] [--omni-api-key <key>]
 
 # Agent 非交互模式（CI / 自动化）
@@ -24,6 +24,8 @@ bash scripts/install.sh --agent-prepare   # 输出 JSON，供 Agent 解析后分
 ```
 
 `install.sh` 先确保 uv + Python >= 3.10 就位，再依次完成：环境检查 → 包安装 → 服务预热 → 米家账号绑定引导 → Omni 模型配置 → 感知模型下载 → OpenClaw 插件安装。
+
+Windows v0.2 普通用户不直接运行 `install.sh`。按 README 下载 Windows release zip，解压后双击根目录 `install.bat`；包内安装器会在 WSL 中复用 `payload/install.sh`。
 
 ---
 

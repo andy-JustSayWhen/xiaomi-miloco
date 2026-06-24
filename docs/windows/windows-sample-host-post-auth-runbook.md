@@ -42,10 +42,10 @@ miloco-cli account bind --no-wait
 
 脚本位置：
 
-- 本地 OB：`02-deploy/scripts/wsl-post-auth-finish.sh`
+- 本地仓库：`docs/scripts/wsl-post-auth-finish.sh`
 - <windows-sample-host> 临时目录：`C:\Users\<user>\AppData\Local\Temp\wsl-post-auth-finish.sh`
 
-2026-06-22 04:46 已核对 <windows-sample-host> 临时目录脚本与 OB 当前版本一致：
+2026-06-22 04:46 已核对 <windows-sample-host> 临时目录脚本与本地仓库当前版本一致：
 
 ```text
 2CD059D8C9C984B9E28FD6E1CB974E413CCEA9B1B02903925E27D03D608C42AD  win-miloco-workflow.ps1
