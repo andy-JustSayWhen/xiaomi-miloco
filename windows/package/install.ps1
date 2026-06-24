@@ -100,7 +100,8 @@ function Stop-ForUser {
   param(
     [string]$Title,
     [string[]]$Lines,
-    [int]$ExitCode = 1
+    [int]$ExitCode = 1,
+    [switch]$OfferRestart
   )
 
   Write-Host ""
@@ -109,6 +110,21 @@ function Stop-ForUser {
     Write-Host $line -ForegroundColor Yellow
   }
   Write-Host ""
+  if ($OfferRestart) {
+    $answer = Read-Host "请重启电脑后再次运行安装。回复 y 立即重启，直接按回车则先关闭窗口"
+    if ($answer.Trim() -ieq "y") {
+      Write-Host ""
+      Write-Info "正在重启 Windows。重启后请重新双击 install.bat。"
+      & shutdown.exe /r /t 0
+      if ($LASTEXITCODE -ne 0) {
+        Write-Warn "自动重启命令没有成功执行。请手动重启 Windows。"
+      } else {
+        exit $ExitCode
+      }
+    } else {
+      exit $ExitCode
+    }
+  }
   Exit-Installer $ExitCode
 }
 
@@ -379,7 +395,7 @@ function Resolve-WslDistro {
     Stop-ForUser "WSL 组件已启用，需要重启电脑。" @(
       "请现在重启 Windows。",
       "重启后重新双击 install.bat，安装会自动继续。"
-    )
+    ) -OfferRestart
   }
 
   ## WSL 真实注册名列表：读取 wsl.exe -l -v，不再只相信默认名字 Ubuntu-24.04。
@@ -406,7 +422,7 @@ function Resolve-WslDistro {
     Stop-ForUser "WSL 已修复，可能需要重启电脑。" @(
       "请重启 Windows。",
       "重启后重新双击 install.bat，安装会自动继续。"
-    )
+    ) -OfferRestart
   }
 
   $rows = @(Get-WslDistroRows $list)
@@ -452,7 +468,7 @@ function Resolve-WslDistro {
       "如果 Windows 弹出 Ubuntu 窗口，请按提示创建 Ubuntu 用户名和密码。",
       "如果 Windows 提示需要重启，请先重启。",
       "完成后重新双击 install.bat，安装会自动继续。"
-    )
+    ) -OfferRestart
   }
 
   Fail "没有找到可用的 Ubuntu WSL 发行版。请先安装 Ubuntu 24.04，或重新双击 install.bat 让安装器自动安装。"
