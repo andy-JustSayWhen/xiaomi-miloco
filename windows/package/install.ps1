@@ -93,7 +93,7 @@ function Stop-ForUser {
   )
 
   Write-Host ""
-  Write-Host ("[需要你处理] {0}" -f $Title) -ForegroundColor Yellow
+  Write-Host ("[安装暂停] {0}" -f $Title) -ForegroundColor Yellow
   foreach ($line in $Lines) {
     Write-Host $line -ForegroundColor Yellow
   }
@@ -113,13 +113,13 @@ function Get-ReportTroubleshootingLines {
 
   $text = Get-Content -Encoding utf8 -LiteralPath $ReportPath -Raw
   if ($text -match 'server":\s*\{\s*"url":\s*"http://127\.0\.0\.1:(\d+)"' -and [int]$Matches[1] -ne $script:MilocoPort) {
-    $lines.Add(("Miloco 已启动，但正在运行的旧服务还在使用端口 {0}，本安装包需要使用端口 {1}。请重新运行 install.bat；新版安装器会先关闭旧进程，再写入端口 {1} 并等待服务启动成功。" -f $Matches[1], $script:MilocoPort)) | Out-Null
+    $lines.Add(("检测到 Miloco 仍在使用旧端口 {0}，但本安装包这次分配的是端口 {1}。安装器下次会继续先停止旧进程、重写配置、再等待新端口启动。" -f $Matches[1], $script:MilocoPort)) | Out-Null
   }
   if ($text -match '\[FAIL\]\s+miloco\.health') {
-    $lines.Add(("Miloco 后端没有在 http://127.0.0.1:{0}/health 正常响应。请不要反复覆盖安装，先把这个诊断报告发给维护者。" -f $script:MilocoPort)) | Out-Null
+    $lines.Add(("Miloco 面板后端还没有在 http://127.0.0.1:{0}/health 正常响应。" -f $script:MilocoPort)) | Out-Null
   }
   if ($text -match '\[FAIL\]\s+openclaw\.miloco_plugin|Plugin not found:\s*miloco-openclaw-plugin') {
-    $lines.Add("OpenClaw 已安装并运行，但 Miloco 插件还没有装进 OpenClaw。我会在下次安装时自动安装本包自带的插件。") | Out-Null
+    $lines.Add("OpenClaw 已安装并运行，但 Miloco 插件还没有正确加载。安装器下次会继续自动安装本包自带的插件。") | Out-Null
   }
   if ($text -match 'access token is empty|is_bound"\s*:\s*false') {
     $followUpLines.Add("小米账号还没有完成授权。基础服务正常后，需要继续按提示完成小米账号绑定。") | Out-Null
@@ -132,7 +132,7 @@ function Get-ReportTroubleshootingLines {
     if ($followUpLines.Count -gt 0) {
       $lines.Add("基础服务已经通过，下面是后续需要你手动完成的配置。") | Out-Null
     } else {
-      $lines.Add("诊断发现服务还没到可用状态，但没有识别到常见原因。请把诊断报告发给维护者。") | Out-Null
+      $lines.Add("自动诊断发现服务还没到可用状态，但没有识别到常见原因。") | Out-Null
     }
   } elseif ($followUpLines.Count -gt 0) {
     $lines.Add("下面这些是基础服务正常后再做的配置，不是当前安装失败的主要原因：") | Out-Null
@@ -140,6 +140,7 @@ function Get-ReportTroubleshootingLines {
   foreach ($followUpLine in $followUpLines) {
     $lines.Add($followUpLine) | Out-Null
   }
+  $lines.Add("请先不要反复覆盖安装，把下面这个诊断报告发给维护者排查。") | Out-Null
   $lines.Add(("诊断报告位置：{0}" -f $ReportPath)) | Out-Null
   return $lines.ToArray()
 }
@@ -832,7 +833,7 @@ function Install-DesktopLauncher {
   $resolvedDistro = Get-ResolvedDistro
   $desktop = [Environment]::GetFolderPath("Desktop")
   if ([string]::IsNullOrWhiteSpace($desktop) -or -not (Test-Path -LiteralPath $desktop)) {
-    Write-Host "[WARN] Desktop folder not found; skipped Miloco desktop launcher."
+    Write-Warn "没有找到桌面文件夹，已跳过创建桌面控制台。"
     return
   }
 
@@ -843,21 +844,39 @@ function Install-DesktopLauncher {
 @echo off
 setlocal
 set "POWERSHELL=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
+if exist "%POWERSHELL%" goto have_powershell
+where powershell.exe >nul 2>nul || goto powershell_missing
+set "POWERSHELL=powershell.exe"
+:have_powershell
 set "SCRIPT=%~dp0miloco-console.ps1"
 
 if not exist "%SCRIPT%" goto missing_script
 "%POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -File "%SCRIPT%"
-set "EXIT_CODE=%errorlevel%"
-echo.
-pause
-exit /b %EXIT_CODE%
+exit /b %errorlevel%
 
 :missing_script
-echo [ERROR] miloco-console.ps1 is missing.
-echo Please run install.bat again to recreate the desktop console.
+set "MILOCO_MSG_B64=5om+5LiN5YiwIG1pbG9jby1jb25zb2xlLnBzMeOAgg=="
+call :say
+set "MILOCO_MSG_B64=6K+36YeN5paw6L+Q6KGMIGluc3RhbGwuYmF077yM6K6p5a6J6KOF5Zmo6YeN5paw5Yib5bu65qGM6Z2i5o6n5Yi25Y+w44CC"
+call :say
+echo.
+set "MILOCO_MSG_B64=5oyJ5Zue6L2m57un57ut44CC"
+call :wait
+exit /b 1
+
+:powershell_missing
+echo PowerShell is not available. Cannot continue.
 echo.
 pause
 exit /b 1
+
+:say
+"%POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -Command "$OutputEncoding=[Text.UTF8Encoding]::new($false); [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); Write-Host ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:MILOCO_MSG_B64)))"
+exit /b 0
+
+:wait
+"%POWERSHELL%" -NoProfile -ExecutionPolicy Bypass -Command "$OutputEncoding=[Text.UTF8Encoding]::new($false); [Console]::OutputEncoding=[Text.UTF8Encoding]::new($false); $null = Read-Host ([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($env:MILOCO_MSG_B64)))"
+exit /b 0
 '@
   $ps1 = @'
 $ErrorActionPreference = "Continue"
@@ -1031,8 +1050,8 @@ while ($true) {
   $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$script:MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
   [System.IO.File]::WriteAllText($launcher, $bat, [System.Text.UTF8Encoding]::new($false))
   [System.IO.File]::WriteAllText($psLauncher, $ps1, [System.Text.UTF8Encoding]::new($true))
-  Write-Host "Desktop launcher created: $launcher"
-  Write-Host "Desktop console script created: $psLauncher"
+  Write-Host "桌面控制台入口已创建：$launcher"
+  Write-Host "桌面控制台脚本已创建：$psLauncher"
 }
 
 function Invoke-Workflow {
@@ -1108,12 +1127,12 @@ function Invoke-Prepare {
   $manifest = Get-Content -Encoding utf8 -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
   $version = [string]$manifest.version
   if ([string]::IsNullOrWhiteSpace($version)) {
-    Fail "manifest.json missing version."
+    Fail "manifest.json 里缺少版本号。请重新下载完整 zip 包。"
   }
 
   $bundle = Get-ChildItem -LiteralPath $PayloadDir -Filter "miloco-linux-x86_64-*.tar.gz" | Select-Object -First 1
   if (-not $bundle) {
-    Fail "payload/miloco-linux-x86_64-*.tar.gz not found. Rebuild the release package."
+    Fail "payload 文件夹里没有找到 Miloco 离线安装包。请重新下载完整 zip 包。"
   }
 
   $wslBundle = ConvertTo-WslPath $bundle.FullName
@@ -1275,7 +1294,7 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
 
   if ($code -ne 0) {
     $diagnosticLines = Get-ReportTroubleshootingLines $reportPath
-    Stop-ForUser "安装命令已经执行完，但诊断发现面板还不能正常打开。" $diagnosticLines $code
+    Stop-ForUser "安装命令已经执行完成，但 Miloco/OpenClaw 面板还没有通过自动检查。" $diagnosticLines $code
   }
 
   Write-Step "安装完成，提示验证和使用入口"

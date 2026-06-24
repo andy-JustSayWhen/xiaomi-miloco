@@ -82,13 +82,12 @@ easy-miloco-v0.2-<system>/
 ├── manifest.json
 ├── release-notes.md
 ├── SHA256SUMS.txt
-├── bin/
 ├── scripts/
-│   ├── windows/
-│   └── wsl/
-├── assets/
+│   └── windows/
 ├── docs/
 └── payload/
+    ├── install.sh
+    └── miloco-linux-x86_64-*.tar.gz
 ```
 
 ## 差异对比
