@@ -1,7 +1,7 @@
 # 官方部署流程对齐核查
 
 > 核查日期：2026-06-22，最新复核：04:57
-> 对齐对象：Xiaomi Miloco 源码仓库 `README.zh.md`、`scripts/install-guide.md`、`scripts/install.sh`、`scripts/install.py`、`scripts/install.ps1`
+> 对齐对象：Xiaomi Miloco 上游 README、`scripts/install-guide.md`、`scripts/install.sh`、`scripts/install.py`、`scripts/install.ps1`
 > 关联：[Windows部署总入口](index.md)、[部署指南](deployment-guide.md)、[<windows-sample-host>部署实录](windows-sample-host-log.md)
 
 ## 结论

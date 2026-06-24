@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # .ci/run-opengrep.sh
 #
-# 用 .ci/opengrep-rules.yml 跑 OpenGrep 扫描，CI 与本地共用同一组路径和排除项
-# （排除项见仓库根的 .semgrepignore）。
+# 用 .ci/opengrep-rules.yml 跑 OpenGrep 扫描，CI 与本地共用同一组路径。
 #
 # 用法：
 #   .ci/run-opengrep.sh                # 全量扫描，人读输出
@@ -64,5 +63,5 @@ else
   SCAN_PATHS=( backend cli plugins/openclaw/src web/src scripts )
 fi
 
-echo "→ opengrep 扫描：${SCAN_PATHS[*]}（排除项见 .semgrepignore）" >&2
+echo "→ opengrep 扫描：${SCAN_PATHS[*]}" >&2
 exec opengrep scan --no-strict --config "$CONFIG" --no-git-ignore "${EXTRA_ARGS[@]}" "${SCAN_PATHS[@]}"

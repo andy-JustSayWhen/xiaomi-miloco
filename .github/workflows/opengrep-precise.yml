@@ -12,7 +12,6 @@ on:
       - "scripts/**"
       - ".ci/opengrep-rules.yml"
       - ".ci/run-opengrep.sh"
-      - ".semgrepignore"
       - ".github/workflows/opengrep-precise*.yml"
 
 concurrency:
