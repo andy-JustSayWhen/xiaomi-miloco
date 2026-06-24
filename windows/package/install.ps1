@@ -41,6 +41,7 @@ $script:MilocoPort = $MilocoPort
 $script:ExistingRestorePackPath = ""
 $script:WslExe = ""
 $script:ConsoleLogPath = ""
+$script:InputLogPath = ""
 $script:TranscriptStarted = $false
 
 function Exit-Installer {
@@ -99,10 +100,23 @@ function Write-Warn {
 function Start-InstallerLog {
   $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
   $script:ConsoleLogPath = Join-Path $PackageRoot ("miloco-install-console-{0}.txt" -f $stamp)
+  $script:InputLogPath = Join-Path $PackageRoot ("miloco-install-inputs-{0}.txt" -f $stamp)
+  try {
+    Set-Content -Encoding utf8 -LiteralPath $script:InputLogPath -Value @(
+      "easy-miloco installer input log",
+      ("StartTime={0}" -f (Get-Date -Format "s")),
+      ""
+    )
+  } catch {
+    $script:InputLogPath = ""
+  }
   try {
     Start-Transcript -LiteralPath $script:ConsoleLogPath -Force | Out-Null
     $script:TranscriptStarted = $true
     Write-Host ("[说明] 本次安装窗口日志会保存到：{0}" -f $script:ConsoleLogPath) -ForegroundColor Gray
+    if (-not [string]::IsNullOrWhiteSpace($script:InputLogPath)) {
+      Write-Host ("[说明] 本次安装交互输入会保存到：{0}" -f $script:InputLogPath) -ForegroundColor Gray
+    }
   } catch {
     $script:TranscriptStarted = $false
     Write-Warn ("无法启动安装窗口日志记录：{0}" -f $_.Exception.Message)
@@ -113,9 +127,9 @@ function Read-InstallerInput {
   param([string]$Prompt)
 
   $value = Read-Host $Prompt
-  if ($script:TranscriptStarted) {
+  if (-not [string]::IsNullOrWhiteSpace($script:InputLogPath)) {
     try {
-      Add-Content -Encoding utf8 -LiteralPath $script:ConsoleLogPath -Value ("[INPUT] {0}: {1}" -f $Prompt, $value)
+      Add-Content -Encoding utf8 -LiteralPath $script:InputLogPath -Value ("[INPUT] {0}: {1}" -f $Prompt, $value)
     } catch {
     }
   }
@@ -1596,18 +1610,28 @@ function Invoke-FinishWorkflowOnce {
     "-AuthPayload", $FinishAuthPayload,
     "-MimoApiKey", $FinishMimoApiKey,
     "-OmniModel", $FinishOmniModel,
-    "-OmniBaseUrl", $FinishOmniBaseUrl,
-    "-HomeId", $HomeId,
-    "-CameraDids", $CameraDids
+    "-OmniBaseUrl", $FinishOmniBaseUrl
   )
+  if (-not [string]::IsNullOrWhiteSpace($HomeId)) {
+    $args += @("-HomeId", $HomeId)
+  }
+  if (-not [string]::IsNullOrWhiteSpace($CameraDids)) {
+    $args += @("-CameraDids", $CameraDids)
+  }
   if ($NoStrictFull) {
     $args += "-NoStrictFull"
   }
 
   $powershellExe = Get-PowerShellExe
-  & $powershellExe @args 2>&1 | ForEach-Object {
-    $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
-    Write-Host $line
+  $oldErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    & $powershellExe @args 2>&1 | ForEach-Object {
+      $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
+      Write-Host $line
+    }
+  } finally {
+    $ErrorActionPreference = $oldErrorActionPreference
   }
   $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
   if ($code -eq 0) {
@@ -1749,13 +1773,19 @@ function Invoke-Workflow {
 
   if ($WorkflowAction -eq "Finish") {
     $args += @(
-      "-AuthPayload", $AuthPayload,
       "-MimoApiKey", $MimoApiKey,
       "-OmniModel", $OmniModel,
-      "-OmniBaseUrl", $OmniBaseUrl,
-      "-HomeId", $HomeId,
-      "-CameraDids", $CameraDids
+      "-OmniBaseUrl", $OmniBaseUrl
     )
+    if (-not [string]::IsNullOrWhiteSpace($AuthPayload)) {
+      $args += @("-AuthPayload", $AuthPayload)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($HomeId)) {
+      $args += @("-HomeId", $HomeId)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($CameraDids)) {
+      $args += @("-CameraDids", $CameraDids)
+    }
   }
 
   $powershellExe = Get-PowerShellExe
