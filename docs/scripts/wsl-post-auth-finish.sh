@@ -132,10 +132,15 @@ fi
 need_cmd openclaw
 
 log "Pre-checking Miloco service"
-miloco-cli service status || {
-  log "Miloco service status failed; trying restart"
-  run_checked_json miloco-cli service restart || true
-}
+service_status="$(miloco-cli service status 2>&1 || true)"
+printf '%s\n' "$service_status"
+if ! printf '%s' "$service_status" | grep -Eq '"running"[[:space:]]*:[[:space:]]*true'; then
+  log "Miloco service is not running; trying restart/start"
+  if ! run_checked_json miloco-cli service restart; then
+    log "Miloco restart reported an error; trying service start"
+    run_checked_json miloco-cli service start || true
+  fi
+fi
 
 if ! wait_miloco_health 10; then
   exit 2
@@ -159,7 +164,7 @@ else
   if [ "$DRY_RUN" -eq 1 ]; then
     printf '[DRY_RUN] miloco-cli account authorize <payload>\n'
   else
-    miloco-cli account authorize "$MILOCO_AUTH_PAYLOAD" </dev/null
+    run_checked_json miloco-cli account authorize "$MILOCO_AUTH_PAYLOAD" </dev/null
   fi
 fi
 
