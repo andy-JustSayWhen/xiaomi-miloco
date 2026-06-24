@@ -39,6 +39,7 @@ $script:ResolvedDistro = ""
 $script:ResolvedDistroInfo = $null
 $script:MilocoPort = $MilocoPort
 $script:ExistingRestorePackPath = ""
+$script:WslExe = ""
 
 function Exit-Installer {
   param([int]$Code = 0)
@@ -233,6 +234,41 @@ function Get-WslDistroRows {
   return @($rows.ToArray())
 }
 
+function Get-WslExePath {
+  if (-not [string]::IsNullOrWhiteSpace($script:WslExe) -and (Test-Path -LiteralPath $script:WslExe)) {
+    return $script:WslExe
+  }
+
+  $candidates = New-Object System.Collections.Generic.List[string]
+  $cmd = Get-Command wsl.exe -ErrorAction SilentlyContinue
+  if ($cmd -and -not [string]::IsNullOrWhiteSpace($cmd.Source)) {
+    $candidates.Add($cmd.Source) | Out-Null
+  }
+  if (-not [string]::IsNullOrWhiteSpace($env:WINDIR)) {
+    $candidates.Add((Join-Path $env:WINDIR "System32\wsl.exe")) | Out-Null
+    $candidates.Add((Join-Path $env:WINDIR "Sysnative\wsl.exe")) | Out-Null
+  }
+
+  foreach ($candidate in $candidates) {
+    if (-not [string]::IsNullOrWhiteSpace($candidate) -and (Test-Path -LiteralPath $candidate)) {
+      $script:WslExe = $candidate
+      return $candidate
+    }
+  }
+  return ""
+}
+
+function Test-WindowsOptionalFeatureEnabled {
+  param([string]$FeatureName)
+
+  try {
+    $feature = Get-WindowsOptionalFeature -Online -FeatureName $FeatureName -ErrorAction Stop
+    return ($feature.State -eq "Enabled")
+  } catch {
+    return $false
+  }
+}
+
 function Invoke-DistroProbe {
   param([string]$Name)
 
@@ -273,8 +309,12 @@ fi
   $wslTmp = "/tmp/miloco-distro-probe-$id.sh"
   [System.IO.File]::WriteAllText($winTmp, ($probe -replace "`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
   $wslMnt = ConvertTo-WslPath $winTmp
+  $wslExe = Get-WslExePath
+  if ([string]::IsNullOrWhiteSpace($wslExe)) {
+    throw "没有找到 wsl.exe。"
+  }
   try {
-    $output = & wsl.exe -d $Name -- bash -lc "cp '${wslMnt}' '${wslTmp}' && bash '${wslTmp}'; rc=`$?; rm -f '${wslTmp}'; exit `$rc" 2>&1 | ForEach-Object {
+    $output = & $wslExe -d $Name -- bash -lc "cp '${wslMnt}' '${wslTmp}' && bash '${wslTmp}'; rc=`$?; rm -f '${wslTmp}'; exit `$rc" 2>&1 | ForEach-Object {
       if ($_ -is [System.Management.Automation.ErrorRecord]) {
         $_.Exception.Message
       } else {
@@ -378,8 +418,20 @@ function Resolve-WslDistro {
     return $script:ResolvedDistro
   }
 
-  ## WSL 检测：检查 wsl.exe 是否存在。这里检测的是 WSL 命令，不是 Ubuntu 发行版。
-  if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+  ## WSL 检测：优先找真实 wsl.exe 路径，避免 PATH 异常导致误判。
+  $wslExe = Get-WslExePath
+  if ([string]::IsNullOrWhiteSpace($wslExe)) {
+    $wslFeatureEnabled = Test-WindowsOptionalFeatureEnabled "Microsoft-Windows-Subsystem-Linux"
+    $vmFeatureEnabled = Test-WindowsOptionalFeatureEnabled "VirtualMachinePlatform"
+    if ($wslFeatureEnabled -and $vmFeatureEnabled) {
+      Stop-ForUser "Windows WSL 组件看起来已启用，但没有找到 wsl.exe。" @(
+        "这不是 Miloco 卸载造成的，也不是需要重复重启的正常更新步骤。",
+        "请确认 Windows 系统目录里存在 C:\Windows\System32\wsl.exe。",
+        "如果刚升级或刚安装过 WSL，请重启 Windows 后再双击 install.bat。",
+        "如果重启后仍出现此提示，请把安装窗口截图发给维护者。"
+      )
+    }
+
     Write-Info "没有检测到 WSL 命令，正在尝试启用 Windows 的 WSL 组件。"
     & dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
     $wslFeatureCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
@@ -392,6 +444,11 @@ function Resolve-WslDistro {
         "处理好后重新双击 install.bat。"
       )
     }
+    $script:WslExe = ""
+    $wslExe = Get-WslExePath
+    if (-not [string]::IsNullOrWhiteSpace($wslExe)) {
+      Write-Ok ("WSL 命令：已找到 {0}。" -f $wslExe)
+    }
     Stop-ForUser "WSL 组件已启用，需要重启电脑。" @(
       "请现在重启 Windows。",
       "重启后重新双击 install.bat，安装会自动继续。"
@@ -401,16 +458,16 @@ function Resolve-WslDistro {
   ## WSL 真实注册名列表：读取 wsl.exe -l -v，不再只相信默认名字 Ubuntu-24.04。
   $list = $null
   try {
-    $list = (& wsl.exe -l -v 2>&1 | Out-String) -replace "`0", ""
+    $list = (& $wslExe -l -v 2>&1 | Out-String) -replace "`0", ""
   } catch {
     $list = $null
   }
 
   if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($list)) {
     Write-Info "WSL 命令存在，但当前状态异常，正在尝试自动更新和修复。"
-    & wsl.exe --update
+    & $wslExe --update
     if ($InstallIfMissing) {
-      & wsl.exe --install -d $Distro
+      & $wslExe --install -d $Distro
     }
     if ($LASTEXITCODE -ne 0) {
       Stop-ForUser "WSL 自动修复失败。" @(
@@ -456,7 +513,7 @@ function Resolve-WslDistro {
   ## Ubuntu 自动安装：只有没有可用 Ubuntu 时，才默认安装 Ubuntu-24.04。
   if ($InstallIfMissing) {
     Write-Info "没有可用的 Ubuntu 发行版，正在默认安装 Ubuntu-24.04。"
-    & wsl.exe --install -d $Distro
+    & $wslExe --install -d $Distro
     if ($LASTEXITCODE -ne 0) {
       Stop-ForUser "Ubuntu 自动安装失败。" @(
         "请检查网络是否可访问 Microsoft Store / WSL 下载源。",
@@ -684,21 +741,25 @@ function Invoke-WslBash {
   [System.IO.File]::WriteAllText($winTmp, $Script, [System.Text.UTF8Encoding]::new($false))
   $wslMnt = ConvertTo-WslPath $winTmp
   $resolvedDistro = Get-ResolvedDistro
+  $wslExe = Get-WslExePath
+  if ([string]::IsNullOrWhiteSpace($wslExe)) {
+    Fail "没有找到 wsl.exe，无法进入 Ubuntu 执行安装步骤。请重启 Windows 后重新双击 install.bat。"
+  }
 
   try {
-    & wsl.exe -d $resolvedDistro -- cp $wslMnt $wslTmp
+    & $wslExe -d $resolvedDistro -- cp $wslMnt $wslTmp
     $copyCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
     if ($copyCode -ne 0) {
       Fail "无法把临时脚本复制到 WSL，退出码 $copyCode。请把窗口内容发给维护者。"
     }
 
-    & wsl.exe -d $resolvedDistro -- bash $wslTmp
+    & $wslExe -d $resolvedDistro -- bash $wslTmp
     $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
     if ($code -ne 0) {
       Fail "WSL 内命令执行失败，退出码 $code。上方通常有具体错误，请把窗口内容或诊断报告发给维护者。"
     }
   } finally {
-    & wsl.exe -d $resolvedDistro -- rm -f $wslTmp *> $null
+    & $wslExe -d $resolvedDistro -- rm -f $wslTmp *> $null
     Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
   }
 }
@@ -713,8 +774,15 @@ function Invoke-WslBashText {
   [System.IO.File]::WriteAllText($winTmp, $Script, [System.Text.UTF8Encoding]::new($false))
   $wslMnt = ConvertTo-WslPath $winTmp
   $resolvedDistro = Get-ResolvedDistro
+  $wslExe = Get-WslExePath
+  if ([string]::IsNullOrWhiteSpace($wslExe)) {
+    return [pscustomobject]@{
+      code = 127
+      text = "没有找到 wsl.exe，无法进入 Ubuntu 执行安装步骤。"
+    }
+  }
 
-  $copyOutput = & wsl.exe -d $resolvedDistro -- cp $wslMnt $wslTmp 2>&1 | ForEach-Object {
+  $copyOutput = & $wslExe -d $resolvedDistro -- cp $wslMnt $wslTmp 2>&1 | ForEach-Object {
     if ($_ -is [System.Management.Automation.ErrorRecord]) {
       $_.Exception.Message
     } else {
@@ -731,7 +799,7 @@ function Invoke-WslBashText {
   }
 
   try {
-    $output = & wsl.exe -d $resolvedDistro -- bash $wslTmp 2>&1 | ForEach-Object {
+    $output = & $wslExe -d $resolvedDistro -- bash $wslTmp 2>&1 | ForEach-Object {
       if ($_ -is [System.Management.Automation.ErrorRecord]) {
         $_.Exception.Message
       } else {
@@ -740,7 +808,7 @@ function Invoke-WslBashText {
     }
     $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
   } finally {
-    & wsl.exe -d $resolvedDistro -- rm -f $wslTmp *> $null
+    & $wslExe -d $resolvedDistro -- rm -f $wslTmp *> $null
     Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
   }
   return [pscustomobject]@{
@@ -1046,7 +1114,10 @@ exit 0
 '@
   Invoke-WslBash $cleanup
   $resolvedDistro = Get-ResolvedDistro
-  & wsl.exe --terminate $resolvedDistro *> $null
+  $wslExe = Get-WslExePath
+  if (-not [string]::IsNullOrWhiteSpace($wslExe)) {
+    & $wslExe --terminate $resolvedDistro *> $null
+  }
   Write-Ok ("旧版 Miloco：已完整卸载并关闭 {0} WSL 会话。" -f $resolvedDistro)
 }
 
@@ -1144,9 +1215,13 @@ $ErrorActionPreference = "Continue"
 $script:Distro = "__DISTRO__"
 $script:MilocoPort = __MILOCO_PORT__
 $script:OpenClawPort = __OPENCLAW_PORT__
+$script:WslExe = Join-Path $env:WINDIR "System32\wsl.exe"
+if (-not (Test-Path -LiteralPath $script:WslExe)) {
+  $script:WslExe = "wsl.exe"
+}
 
 function Test-Distro {
-  & wsl.exe -d $script:Distro -- true > $null 2> $null
+  & $script:WslExe -d $script:Distro -- true > $null 2> $null
   if ($LASTEXITCODE -eq 0) {
     return $true
   }
@@ -1154,7 +1229,7 @@ function Test-Distro {
   Write-Host ""
   Write-Host ("找不到安装时使用的 WSL 发行版：{0}" -f $script:Distro) -ForegroundColor Yellow
   Write-Host "当前可用发行版：" -ForegroundColor Yellow
-  & wsl.exe -l -v
+  & $script:WslExe -l -v
   return $false
 }
 
@@ -1167,7 +1242,7 @@ function Invoke-WslBash {
 
   $normalized = $Command -replace "`r`n", "`n"
   $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
-  & wsl.exe -d $script:Distro -- bash -lc "printf '%s' '$encoded' | base64 -d | bash"
+  & $script:WslExe -d $script:Distro -- bash -lc "printf '%s' '$encoded' | base64 -d | bash"
   if ($LASTEXITCODE -ne 0) {
     Write-Host ("调用 WSL 失败，退出码：{0}" -f $LASTEXITCODE) -ForegroundColor Red
     return $false
@@ -1268,7 +1343,7 @@ function Stop-Services {
 function Stop-Wsl {
   Stop-Services
   Write-Host ("正在关闭 WSL：{0}" -f $script:Distro)
-  & wsl.exe --terminate $script:Distro
+  & $script:WslExe --terminate $script:Distro
 }
 
 function Show-Menu {
@@ -1830,10 +1905,11 @@ function Invoke-Uninstall {
   Write-Ok "桌面入口：已删除 Miloco 相关文件。"
 
   Write-Step "卸载 WSL 内 Miloco 组件"
-  if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
+  $wslExe = Get-WslExePath
+  if ([string]::IsNullOrWhiteSpace($wslExe)) {
     Write-Warn "没有检测到 WSL 命令，跳过 WSL 内卸载。"
   } else {
-    $list = (& wsl.exe -l -v 2>&1 | Out-String) -replace "`0", ""
+    $list = (& $wslExe -l -v 2>&1 | Out-String) -replace "`0", ""
     $rows = @(Get-WslDistroRows $list)
     $selected = $rows | Where-Object { $_.Name -eq $Distro } | Select-Object -First 1
     if (-not $selected) {
@@ -1870,7 +1946,7 @@ rm -f /tmp/miloco-* /tmp/openclaw-miloco-plugin-uninstall.log /tmp/openclaw-unin
 exit 0
 '@
       Invoke-WslBash $uninstall
-      & wsl.exe --terminate $script:ResolvedDistro *> $null
+      & $wslExe --terminate $script:ResolvedDistro *> $null
       Write-Ok ("WSL 内 Miloco：已从 {0} 卸载并关闭该 WSL 会话。" -f $script:ResolvedDistro)
     }
   }
