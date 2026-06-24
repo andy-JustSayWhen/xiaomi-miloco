@@ -1588,12 +1588,118 @@ function Select-OmniModel {
   }
 }
 
+function Get-HomeListFromWorkflowOutput {
+  param([string[]]$OutputLines)
+
+  $homes = New-Object System.Collections.Generic.List[object]
+  foreach ($line in $OutputLines) {
+    $trimmed = $line.Trim()
+    if (-not $trimmed.StartsWith("{")) {
+      continue
+    }
+    try {
+      $obj = $trimmed | ConvertFrom-Json
+      if ($obj -and $obj.data) {
+        foreach ($item in @($obj.data)) {
+          if ($item -and -not [string]::IsNullOrWhiteSpace([string]$item.home_id)) {
+            $homes.Add($item) | Out-Null
+          }
+        }
+      }
+    } catch {
+    }
+  }
+  return @($homes.ToArray())
+}
+
+function Invoke-WorkflowCapture {
+  param(
+    [string]$WorkflowAction,
+    [string]$CaptureAuthPayload = ""
+  )
+
+  Require-File $Workflow
+  $resolvedDistro = Get-ResolvedDistro
+  $args = @(
+    "-NoProfile",
+    "-ExecutionPolicy", "Bypass",
+    "-File", $Workflow,
+    "-Action", $WorkflowAction,
+    "-Distro", $resolvedDistro,
+    "-MilocoPort", [string]$script:MilocoPort,
+    "-OpenClawPort", [string]$OpenClawPort
+  )
+  if (-not [string]::IsNullOrWhiteSpace($CaptureAuthPayload)) {
+    $args += @("-AuthPayload", $CaptureAuthPayload)
+  }
+
+  $lines = New-Object System.Collections.Generic.List[string]
+  $powershellExe = Get-PowerShellExe
+  $oldErrorActionPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = "Continue"
+    & $powershellExe @args 2>&1 | ForEach-Object {
+      $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
+      Write-Host $line
+      $lines.Add($line) | Out-Null
+    }
+  } finally {
+    $ErrorActionPreference = $oldErrorActionPreference
+  }
+  $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  return [pscustomobject]@{
+    Code = $code
+    Lines = @($lines.ToArray())
+  }
+}
+
+function Select-MilocoHome {
+  param([object[]]$Homes)
+
+  $homeList = @($Homes | Where-Object { $_ -and -not [string]::IsNullOrWhiteSpace([string]$_.home_id) })
+  if ($homeList.Count -eq 0) {
+    Write-Warn "暂未获取到家庭列表。稍后可在 Miloco 面板或重新运行 install.ps1 -Action Finish 后选择。"
+    return ""
+  }
+  if ($homeList.Count -eq 1) {
+    $homeId = [string]$homeList[0].home_id
+    $homeName = if ([string]::IsNullOrWhiteSpace([string]$homeList[0].home_name)) { $homeId } else { [string]$homeList[0].home_name }
+    Write-Ok ("已自动选择唯一家庭：{0}  {1}" -f $homeId, $homeName)
+    return $homeId
+  }
+
+  Write-Host ""
+  Write-Host "检测到多个米家家庭，请选择 Miloco 要接入的家庭。" -ForegroundColor Cyan
+  Write-Host "这里只会选择一个家庭；以后也可以在 Miloco 面板或控制台里切换。" -ForegroundColor Yellow
+  for ($i = 0; $i -lt $homeList.Count; $i++) {
+    $homeId = [string]$homeList[$i].home_id
+    $homeName = if ([string]::IsNullOrWhiteSpace([string]$homeList[$i].home_name)) { "(未命名家庭)" } else { [string]$homeList[$i].home_name }
+    Write-Host ("  {0}. {1}  {2}" -f ($i + 1), $homeId, $homeName)
+  }
+  while ($true) {
+    $choice = (Read-InstallerInput "请输入家庭编号；直接回车使用第 1 个家庭").Trim()
+    if ([string]::IsNullOrWhiteSpace($choice)) {
+      return [string]$homeList[0].home_id
+    }
+    $idx = 0
+    if ([int]::TryParse($choice, [ref]$idx) -and $idx -ge 1 -and $idx -le $homeList.Count) {
+      return [string]$homeList[$idx - 1].home_id
+    }
+    $byId = $homeList | Where-Object { [string]$_.home_id -eq $choice } | Select-Object -First 1
+    if ($byId) {
+      return [string]$byId.home_id
+    }
+    Write-Warn "输入无效，请输入列表编号，或直接回车使用第 1 个家庭。"
+  }
+}
+
 function Invoke-FinishWorkflowOnce {
   param(
     [string]$FinishAuthPayload,
     [string]$FinishMimoApiKey,
     [string]$FinishOmniModel,
     [string]$FinishOmniBaseUrl,
+    [string]$FinishHomeId = "",
     [switch]$NoStrictFull
   )
 
@@ -1612,8 +1718,9 @@ function Invoke-FinishWorkflowOnce {
     "-OmniModel", $FinishOmniModel,
     "-OmniBaseUrl", $FinishOmniBaseUrl
   )
-  if (-not [string]::IsNullOrWhiteSpace($HomeId)) {
-    $args += @("-HomeId", $HomeId)
+  $homeToUse = if (-not [string]::IsNullOrWhiteSpace($FinishHomeId)) { $FinishHomeId } else { $HomeId }
+  if (-not [string]::IsNullOrWhiteSpace($homeToUse)) {
+    $args += @("-HomeId", $homeToUse)
   }
   if (-not [string]::IsNullOrWhiteSpace($CameraDids)) {
     $args += @("-CameraDids", $CameraDids)
@@ -1688,6 +1795,26 @@ function Invoke-InteractivePostAuthSetup {
   $interactiveAuthPayload = ConvertTo-MilocoAuthPayload $interactiveAuthPayload
 
   Write-Host ""
+  Write-Info "正在提交小米账号授权，并获取可选择的家庭列表。"
+  $authorizeResult = Invoke-WorkflowCapture -WorkflowAction "AuthorizeOnly" -CaptureAuthPayload $interactiveAuthPayload
+  if ($authorizeResult.Code -ne 0) {
+    Write-Warn ("小米账号授权没有完成，退出码：{0}。请保留窗口输出继续排查。" -f $authorizeResult.Code)
+    if ($FromFinishAction) {
+      return $authorizeResult.Code
+    }
+    return 0
+  }
+  $homes = @(Get-HomeListFromWorkflowOutput -OutputLines $authorizeResult.Lines)
+  if ($homes.Count -eq 0) {
+    Write-Info "授权已提交，正在重新读取家庭列表。"
+    $homeResult = Invoke-WorkflowCapture -WorkflowAction "ListHomes"
+    if ($homeResult.Code -eq 0) {
+      $homes = @(Get-HomeListFromWorkflowOutput -OutputLines $homeResult.Lines)
+    }
+  }
+  $selectedHomeId = Select-MilocoHome -Homes $homes
+
+  Write-Host ""
   Write-Host "提示：如果您没有自己的大模型API，可以申请下述任意的免费试用API。" -ForegroundColor Yellow
   $apiOptions = @(
     @{ Id = "01"; ShortId = "1"; Name = "Xiaomi MIMO"; Url = "https://platform.xiaomimimo.com?ref=QHSHXL"; BaseUrl = "https://api.xiaomimimo.com/v1"; Model = "xiaomi/mimo-v2.5" },
@@ -1734,7 +1861,7 @@ function Invoke-InteractivePostAuthSetup {
 
   Write-Host ""
   Write-Info "正在写入小米账号授权和大模型 API 配置。"
-  $finishCode = Invoke-FinishWorkflowOnce -FinishAuthPayload $interactiveAuthPayload -FinishMimoApiKey $interactiveApiKey -FinishOmniModel $interactiveModel -FinishOmniBaseUrl $interactiveBaseUrl -NoStrictFull
+  $finishCode = Invoke-FinishWorkflowOnce -FinishAuthPayload $interactiveAuthPayload -FinishMimoApiKey $interactiveApiKey -FinishOmniModel $interactiveModel -FinishOmniBaseUrl $interactiveBaseUrl -FinishHomeId $selectedHomeId -NoStrictFull
   if ($finishCode -eq 0) {
     Write-Ok "账号授权和 API 配置已执行完成。"
     Write-Host ""

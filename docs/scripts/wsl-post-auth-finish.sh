@@ -11,6 +11,8 @@ OMNI_BASE_URL="${OMNI_BASE_URL:-https://api.xiaomimimo.com/v1}"
 MILOCO_HOME_ID="${MILOCO_HOME_ID:-}"
 MILOCO_CAMERA_DIDS="${MILOCO_CAMERA_DIDS:-}"
 PRINT_BIND_URL=0
+AUTHORIZE_ONLY=0
+LIST_HOMES_JSON=0
 DRY_RUN=0
 STRICT_FULL=1
 
@@ -18,6 +20,8 @@ usage() {
   cat <<'USAGE'
 Usage:
   bash wsl-post-auth-finish.sh --print-bind-url
+  MILOCO_AUTH_PAYLOAD='<payload>' bash wsl-post-auth-finish.sh --authorize-only
+  bash wsl-post-auth-finish.sh --list-homes-json
   MILOCO_AUTH_PAYLOAD='<payload>' MIMO_API_KEY='<key>' bash wsl-post-auth-finish.sh
 
 Environment variables:
@@ -32,6 +36,8 @@ Environment variables:
 
 Options:
   --print-bind-url      Print a fresh Xiaomi account bind URL and exit
+  --authorize-only      Submit Xiaomi OAuth payload, then print homes and exit
+  --list-homes-json     Print the current home list as compact JSON and exit
   --dry-run             Show what would run without changing account/config/services
   --no-strict-full      Do not fail the final validation when full readiness is still missing
   --help, -h            Show this help
@@ -46,6 +52,8 @@ USAGE
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --print-bind-url) PRINT_BIND_URL=1 ;;
+    --authorize-only) AUTHORIZE_ONLY=1 ;;
+    --list-homes-json) LIST_HOMES_JSON=1 ;;
     --dry-run) DRY_RUN=1 ;;
     --no-strict-full) STRICT_FULL=0 ;;
     --help|-h) usage; exit 0 ;;
@@ -103,6 +111,11 @@ if ! printf '%s' "$health" | grep -q '"status":"ok"'; then
 fi
 log "Miloco health ok on port ${MILOCO_PORT}"
 
+if [ "$LIST_HOMES_JSON" -eq 1 ]; then
+  miloco-cli scope home list
+  exit $?
+fi
+
 account_before="$(miloco-cli account status 2>&1 || true)"
 if printf '%s' "$account_before" | grep -Eq '"is_bound"[[:space:]]*:[[:space:]]*true'; then
   log "Xiaomi account is already bound; authorization step will be skipped"
@@ -113,7 +126,17 @@ else
     exit 2
   fi
   log "Authorizing Xiaomi account"
-  run_cmd miloco-cli account authorize --pretty "$MILOCO_AUTH_PAYLOAD"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf '[DRY_RUN] miloco-cli account authorize <payload>\n'
+  else
+    miloco-cli account authorize "$MILOCO_AUTH_PAYLOAD" </dev/null
+  fi
+fi
+
+if [ "$AUTHORIZE_ONLY" -eq 1 ]; then
+  log "Current homes after authorization"
+  miloco-cli scope home list
+  exit $?
 fi
 
 if [ -z "$MIMO_API_KEY" ]; then

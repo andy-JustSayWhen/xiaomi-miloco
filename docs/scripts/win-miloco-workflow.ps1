@@ -1,5 +1,5 @@
 ﻿param(
-  [ValidateSet("Preflight", "Validate", "BindUrl", "Finish", "AllBasic", "Report")]
+  [ValidateSet("Preflight", "Validate", "BindUrl", "AuthorizeOnly", "ListHomes", "Finish", "AllBasic", "Report")]
   [string]$Action = "AllBasic",
   [string]$Distro = "Ubuntu-24.04",
   [int]$MilocoPort = 18860,
@@ -115,6 +115,27 @@ function Invoke-BindUrl {
   Write-Step "Generate Xiaomi OAuth bind URL"
   $extra = @("--print-bind-url")
   Invoke-WslScript -ScriptName "wsl-post-auth-finish.sh" -ExtraArgs $extra -EnvVars @{}
+}
+
+function Invoke-AuthorizeOnly {
+  if ([string]::IsNullOrWhiteSpace($AuthPayload)) {
+    throw "AuthorizeOnly requires -AuthPayload."
+  }
+
+  Write-Step "Authorize Xiaomi account"
+  Invoke-WslScript -ScriptName "wsl-post-auth-finish.sh" -ExtraArgs @("--authorize-only") -EnvVars @{
+    MILOCO_PORT = [string]$MilocoPort
+    OPENCLAW_PORT = [string]$OpenClawPort
+    MILOCO_AUTH_PAYLOAD = $AuthPayload
+  }
+}
+
+function Invoke-ListHomes {
+  Write-Step "List Xiaomi homes"
+  Invoke-WslScript -ScriptName "wsl-post-auth-finish.sh" -ExtraArgs @("--list-homes-json") -EnvVars @{
+    MILOCO_PORT = [string]$MilocoPort
+    OPENCLAW_PORT = [string]$OpenClawPort
+  }
 }
 
 function Invoke-Finish {
@@ -253,6 +274,14 @@ try {
     }
     "BindUrl" {
       Invoke-BindUrl
+      exit $script:WorkflowExitCode
+    }
+    "AuthorizeOnly" {
+      Invoke-AuthorizeOnly
+      exit $script:WorkflowExitCode
+    }
+    "ListHomes" {
+      Invoke-ListHomes
       exit $script:WorkflowExitCode
     }
     "Finish" {
