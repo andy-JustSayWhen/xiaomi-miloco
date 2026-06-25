@@ -127,6 +127,9 @@ function Read-InstallerInput {
   param([string]$Prompt)
 
   $value = Read-Host $Prompt
+  if ($null -eq $value) {
+    $value = ""
+  }
   if (-not [string]::IsNullOrWhiteSpace($script:InputLogPath)) {
     try {
       Add-Content -Encoding utf8 -LiteralPath $script:InputLogPath -Value ("[INPUT] {0}: {1}" -f $Prompt, $value)

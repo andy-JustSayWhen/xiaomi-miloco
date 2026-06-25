@@ -81,19 +81,21 @@ try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new(`$false) } catch {}
 `$jobName = '$safeJobName'
 `$root = Join-Path 'C:\easy-miloco-runcommand' `$jobName
 `$runner = Join-Path `$root 'runner.ps1'
+`$launcher = Join-Path `$root 'launch.cmd'
 `$payloadPath = Join-Path `$root 'payload.ps1'
 `$statusPath = Join-Path `$root 'status.json'
 `$stdoutPath = Join-Path `$root 'stdout.txt'
+`$launcherLog = Join-Path `$root 'launcher.log'
 `$task = 'EasyMilocoJob-' + `$jobName
 New-Item -ItemType Directory -Force -Path `$root | Out-Null
 `$payload = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('$payloadB64'))
 [IO.File]::WriteAllText(`$payloadPath, `$payload, [Text.UTF8Encoding]::new(`$true))
 `$runnerText = @'
 param(
-  [string]$JobName,
-  [string]$PayloadPath,
-  [string]$StatusPath,
-  [string]$StdoutPath
+  [string]`$JobName,
+  [string]`$PayloadPath,
+  [string]`$StatusPath,
+  [string]`$StdoutPath
 )
 `$ErrorActionPreference = "Continue"
 try { [Console]::OutputEncoding = [Text.UTF8Encoding]::new(`$false) } catch {}
@@ -126,6 +128,11 @@ try {
 }
 '@
 [IO.File]::WriteAllText(`$runner, `$runnerText, [Text.UTF8Encoding]::new(`$true))
+`$launcherText = '@echo off
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + `$runner + '" -JobName "' + `$jobName + '" -PayloadPath "' + `$payloadPath + '" -StatusPath "' + `$statusPath + '" -StdoutPath "' + `$stdoutPath + '" > "' + `$launcherLog + '" 2>&1
+exit /b %ERRORLEVEL%
+'
+[IO.File]::WriteAllText(`$launcher, `$launcherText, [Text.ASCIIEncoding]::new())
 [pscustomobject]@{
   job = `$jobName
   state = 'queued'
@@ -137,7 +144,7 @@ try {
 schtasks.exe /End /TN `$task 2>`$null | Out-Null
 schtasks.exe /Delete /TN `$task /F 2>`$null | Out-Null
 `$start = (Get-Date).AddMinutes(1).ToString("HH:mm")
-`$tr = 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "' + `$runner + '" -JobName "' + `$jobName + '" -PayloadPath "' + `$payloadPath + '" -StatusPath "' + `$statusPath + '" -StdoutPath "' + `$stdoutPath + '"'
+`$tr = 'cmd.exe /c "' + `$launcher + '"'
 `$create = & schtasks.exe /Create /TN `$task /TR `$tr /SC ONCE /ST `$start /RU `$user /RP `$pass /RL HIGHEST /F 2>&1
 if (`$LASTEXITCODE -ne 0) {
   "schtasks create failed:"
