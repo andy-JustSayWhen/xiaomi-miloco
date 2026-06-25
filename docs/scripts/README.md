@@ -11,6 +11,7 @@
 - `azure-vm-run-command.ps1`：通过 Azure CLI Run Command 在 Windows VM 内运行控制面 PowerShell。
 - `azure-vm-user-powershell.ps1`：通过 Run Command 创建用户上下文计划任务，用真实 Windows 用户运行 PowerShell。
 - `azure-vm-wsl-script.ps1`：通过用户上下文计划任务执行 WSL bash 脚本，自动处理 CRLF。
+- `publish-github-release-asset.ps1`：维护者发版固定入口，替换 GitHub Release 资产并验证 size/digest。
 
 Azure VM 非视觉部署和验证流程见 [../runbooks/azure-vm-nonvisual-test.md](../runbooks/azure-vm-nonvisual-test.md)。
 
