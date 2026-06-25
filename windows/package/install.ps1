@@ -232,14 +232,19 @@ function Test-ReportAllowsPostAuthSetup {
   }
 
   $text = Get-Content -Encoding utf8 -LiteralPath $ReportPath -Raw
-  $hasBlockingFailure =
-    ($text -match 'BASIC_READY\s*=\s*no') -or
-    ($text -match 'BASIC_READY_FROM_WINDOWS\s*=\s*no') -or
+  $milocoBlockingFailure =
     ($text -match '\[FAIL\]\s+miloco\.health') -or
-    ($text -match '\[FAIL\]\s+openclaw\.miloco_plugin') -or
-    ($text -match '\[FAIL\]\s+openclaw\.gateway_http') -or
-    ($text -match '\[FAIL\]\s+windows\.miloco_http') -or
-    ($text -match '\[FAIL\]\s+windows\.openclaw_gateway')
+    ($text -match '\[FAIL\]\s+windows\.miloco_http')
+  if ($milocoBlockingFailure) {
+    return $false
+  }
+
+  $milocoUsable =
+    ($text -match '\[PASS\]\s+miloco\.health') -or
+    ($text -match '\[PASS\]\s+windows\.miloco_http') -or
+    ($text -match 'MILOCO_HEALTH\s*=\s*yes')
+  $hasBlockingFailure =
+    -not $milocoUsable
   if ($hasBlockingFailure) {
     return $false
   }

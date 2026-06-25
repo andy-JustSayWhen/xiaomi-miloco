@@ -351,3 +351,26 @@ FULL_READY=yes
 - `docs/scripts/wsl-miloco-validate.sh` 新增 `openclaw.main_chat_model` 检查，确认 primary、provider baseUrl、apiKey 和 model row 均已配置。
 - `windows/package/install.ps1` 的完成提示改为说明 API 会同步写入 Miloco 视觉模型、Miloco OpenClaw 插件和 OpenClaw 主聊天模型，不再提示用户自行另配主聊天 LLM。
 - 新增 `.gitattributes` 固定 `*.sh text eol=lf`，避免 Windows 工作区把 WSL shell 脚本转成 CRLF。
+
+### 2026-06-26 远程 release 第六轮复测补充
+
+第六轮使用 GitHub Release 当前 `v0.2` 资产重新下载为 `easy-miloco-v0.2-windows (11).zip`，解压到 `Documents\easy-miloco-v0.2-windows (11)` 后运行 `install.bat`。
+
+本轮通过项：
+
+- 安装器完成已有安装检测、Agent 恢复包导出到桌面、旧版完整卸载和新版安装。
+- `[8/12]` Miloco 后端在端口 `18860` 启动成功。
+- `[9/12]` OpenClaw CLI / Gateway / `miloco-openclaw-plugin` 自检通过。
+- `[10/12]` 桌面入口创建成功。
+- `[11/12]` 部署报告生成到 `Documents\easy-miloco-v0.2-windows (11)\miloco-deploy-report-20260626-005838.txt`。
+
+本轮问题：
+
+- 安装器在部署报告后提示“安装命令已经执行完成，但 Miloco/OpenClaw 面板还没有通过自动检查”，随后要求按回车关闭。
+- 这会阻断后续小米账号授权和大模型 API 配置，即使 Miloco 后端已经可用。该阻断条件过严：OpenClaw Gateway 或 Windows 侧面板检查暂时不绿时，不应阻止用户完成 Miloco 账号/API 配置。
+
+本轮迭代：
+
+- `windows/package/install.ps1` 的 `Test-ReportAllowsPostAuthSetup` 改为只把 Miloco 后端不可用视为账号/API 配置前的硬阻断。
+- 只要 `miloco.health`、`windows.miloco_http` 或 `MILOCO_HEALTH=yes` 表明 Miloco 可用，即允许继续进入小米账号授权和 API 配置。
+- OpenClaw Gateway、OpenClaw 插件和 Windows OpenClaw 面板检查仍留在部署报告中作为诊断项，但不再阻断 post-auth 配置流程。
