@@ -1,4 +1,6 @@
+[CmdletBinding()]
 param(
+  [string]$Owner = "",
   [string]$Repo = "andy-JustSayWhen/easy-miloco",
   [string]$Tag = "v0.2",
   [string]$AssetPath = "dist/windows/easy-miloco-v0.2-windows.zip",
@@ -11,6 +13,10 @@ param(
 
 $ErrorActionPreference = "Stop"
 [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
+if (-not [string]::IsNullOrWhiteSpace($Owner) -and $Repo -notmatch "/") {
+  $Repo = ("{0}/{1}" -f $Owner.Trim(), $Repo.Trim())
+}
 
 function Get-RepoRoot {
   return (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
