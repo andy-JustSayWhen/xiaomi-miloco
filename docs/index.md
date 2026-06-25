@@ -26,6 +26,7 @@ Agent 必须先读：
 - 手动排障：从 [windows/troubleshooting.md](windows/troubleshooting.md) 和 [faq/known-issues.md](faq/known-issues.md) 开始。
 - 摄像头排障：读 [windows/camera-runbook.md](windows/camera-runbook.md) 和 [cameras.md](cameras.md)。
 - 远程 Windows/WSL 排障命令传输：读 [windows/ssh-command-transfer.md](windows/ssh-command-transfer.md)。
+- UU 远程用户视角测试：读 [windows/uu-remote-computer-use.md](windows/uu-remote-computer-use.md)，优先鼠标、右键粘贴和安全中转。
 - 性能报告与面板入口：读 [runbooks/performance-report-webui-spec.md](runbooks/performance-report-webui-spec.md)。
 - 制作更新包：维护者专用，读 [runbooks/make-release-package.md](runbooks/make-release-package.md)。
 - Azure VM 非视觉部署和验证：读 [runbooks/azure-vm-nonvisual-test.md](runbooks/azure-vm-nonvisual-test.md)。

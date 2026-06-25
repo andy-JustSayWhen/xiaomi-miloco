@@ -31,6 +31,7 @@ flowchart TD
 | 已经看到报错 | [troubleshooting.md](troubleshooting.md) |
 | 摄像头离线/黑屏/Agent 看不到画面 | [camera-runbook.md](camera-runbook.md) |
 | 远程 Windows/WSL 命令总被引号、管道或 PATH 坑住 | [ssh-command-transfer.md](ssh-command-transfer.md) |
+| UU 远程 + Computer Use 做用户视角测试 | [uu-remote-computer-use.md](uu-remote-computer-use.md) |
 | 发布给其他用户的一页式教程 | [standalone-package.md](standalone-package.md) |
 | 预检与验收清单 | [preflight-checklist.md](preflight-checklist.md) |
 | 满血验收证据 | [full-validation-evidence.md](full-validation-evidence.md) |
