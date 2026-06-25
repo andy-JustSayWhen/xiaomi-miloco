@@ -249,13 +249,7 @@ function Test-ReportAllowsPostAuthSetup {
     return $false
   }
 
-  $hasPostAuthGap =
-    ($text -match 'FULL_READY\s*=\s*no') -or
-    ($text -match 'access token is empty|is_bound"\s*:\s*false') -or
-    ($text -match 'API Key 未配置|miloco\.omni_api_key|api_key.*empty') -or
-    ($text -match 'MiMo API Key') -or
-    ($text -match 'MiMo CA')
-  return $hasPostAuthGap
+  return $true
 }
 
 function Require-File {

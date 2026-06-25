@@ -374,3 +374,27 @@ FULL_READY=yes
 - `windows/package/install.ps1` 的 `Test-ReportAllowsPostAuthSetup` 改为只把 Miloco 后端不可用视为账号/API 配置前的硬阻断。
 - 只要 `miloco.health`、`windows.miloco_http` 或 `MILOCO_HEALTH=yes` 表明 Miloco 可用，即允许继续进入小米账号授权和 API 配置。
 - OpenClaw Gateway、OpenClaw 插件和 Windows OpenClaw 面板检查仍留在部署报告中作为诊断项，但不再阻断 post-auth 配置流程。
+
+### 2026-06-26 远程 release 第七轮复测补充
+
+第七轮使用 GitHub Release 当前 `v0.2` 资产重新下载，鼠标主导通过 UU 远程完成下载、保留、解压和运行 `install.bat`。
+
+本轮通过项：
+
+- 验证了远端 Windows 屏幕键盘可作为键盘链路兜底：屏幕键盘可以输入普通字母，且 `Ctrl` + `L` 可选中远端 Edge 地址栏。
+- 验证了主控端剪贴板同步和远端右键粘贴可用：Edge 地址栏右键菜单出现“粘贴并转到 GitHub release zip”。
+- 安装器完成已有安装检测、Agent 恢复包导出、旧版卸载和新版安装。
+- `[8/12]` Miloco 后端在端口 `18860` 启动成功。
+- `[9/12]` OpenClaw CLI / Gateway / `miloco-openclaw-plugin` 自检通过。
+- `[10/12]` 桌面入口创建成功。
+- `[11/12]` 部署报告生成完成。
+
+本轮问题：
+
+- 安装器仍在部署报告后提示“安装指令已经执行完成，但 Miloco/OpenClaw 面板还没有通过自动检查”，没有进入小米账号授权和 API 配置。
+- 说明第六轮修复仍不够：`Test-ReportAllowsPostAuthSetup` 虽然不再把 OpenClaw 检查失败当硬阻断，但仍要求报告里出现可匹配的 post-auth 缺口关键词。远端报告中可见小米账号和 API 仍未配置，但关键词没有被函数识别，导致返回 false。
+
+本轮迭代：
+
+- `windows/package/install.ps1` 的 `Test-ReportAllowsPostAuthSetup` 改为：只要 Miloco 后端可用，且没有 `miloco.health` / `windows.miloco_http` 硬失败，就允许进入 post-auth 配置流程。
+- 即使账号/API 已配置，交互流程也允许用户直接回车跳过；这比误阻断小米账号授权和 API 配置更安全。
