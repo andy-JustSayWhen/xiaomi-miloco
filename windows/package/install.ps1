@@ -1276,6 +1276,9 @@ function Install-DesktopLauncher {
   $launcherName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
   $launcher = Join-Path $desktop $launcherName
   $psLauncher = Join-Path $desktop "miloco-console.ps1"
+  $openClawShortcutName = "OpenClaw " + [string][char]0x5BF9 + [string][char]0x8BDD + [string][char]0x5165 + [string][char]0x53E3 + ".lnk"
+  $openClawShortcut = Join-Path $desktop $openClawShortcutName
+  $openClawPsLauncher = Join-Path $desktop "miloco-openclaw.ps1"
   $bat = @'
 @echo off
 setlocal
@@ -1522,11 +1525,95 @@ while ($true) {
   }
 }
 '@
+  $openClawPs1 = @'
+$ErrorActionPreference = "Continue"
+[Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+
+$script:Distro = "__DISTRO__"
+$script:OpenClawPort = __OPENCLAW_PORT__
+$script:WslExe = Join-Path $env:WINDIR "System32\wsl.exe"
+if (-not (Test-Path -LiteralPath $script:WslExe)) {
+  $script:WslExe = "wsl.exe"
+}
+
+function Invoke-WslBash {
+  param([string]$Command)
+
+  $normalized = $Command -replace "`r`n", "`n"
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
+  & $script:WslExe -d $script:Distro -- bash -lc "printf '%s' '$encoded' | base64 -d | bash" > $null 2> $null
+  return ($LASTEXITCODE -eq 0)
+}
+
+function Get-OpenClawDashboardUrl {
+  param([int]$Port)
+
+  $url = "http://127.0.0.1:{0}/" -f $Port
+  $token = ""
+  try {
+    $py = 'import json; from pathlib import Path; p=Path.home()/".openclaw"/"miloco"/"config.json"; d=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}; print(((d.get("agent") or {}).get("auth_bearer") or "").strip())'
+    $token = (& $script:WslExe -d $script:Distro -- python3 -c $py 2>$null | Select-Object -First 1)
+  } catch {
+    $token = ""
+  }
+  if ($token) {
+    return ("{0}#token={1}" -f $url, [Uri]::EscapeDataString($token.Trim()))
+  }
+  return $url
+}
+
+function Wait-Port {
+  param(
+    [int]$Port,
+    [int]$Seconds = 60
+  )
+
+  $deadline = (Get-Date).AddSeconds($Seconds)
+  while ((Get-Date) -lt $deadline) {
+    $tcp = New-Object Net.Sockets.TcpClient
+    try {
+      $iar = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
+      if ($iar.AsyncWaitHandle.WaitOne(1000)) {
+        $tcp.EndConnect($iar)
+        return $true
+      }
+    } catch {
+    } finally {
+      $tcp.Close()
+    }
+    Start-Sleep -Seconds 1
+  }
+  return $false
+}
+
+$cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
+[void](Invoke-WslBash $cmd)
+if (Wait-Port $script:OpenClawPort 60) {
+  Start-Process (Get-OpenClawDashboardUrl $script:OpenClawPort)
+} else {
+  $shell = New-Object -ComObject WScript.Shell
+  [void]$shell.Popup("OpenClaw 端口暂未响应。请稍后再双击这个入口，或打开 Miloco 控制台选择 3 重启整套服务。", 12, "Miloco / OpenClaw", 48)
+}
+'@
   $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$script:MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
+  $openClawPs1 = $openClawPs1.Replace("__DISTRO__", $resolvedDistro).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
   [System.IO.File]::WriteAllText($launcher, $bat, [System.Text.UTF8Encoding]::new($false))
   [System.IO.File]::WriteAllText($psLauncher, $ps1, [System.Text.UTF8Encoding]::new($true))
+  [System.IO.File]::WriteAllText($openClawPsLauncher, $openClawPs1, [System.Text.UTF8Encoding]::new($true))
+  try {
+    $shell = New-Object -ComObject WScript.Shell
+    $shortcut = $shell.CreateShortcut($openClawShortcut)
+    $shortcut.TargetPath = Get-PowerShellExe
+    $shortcut.Arguments = ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $openClawPsLauncher)
+    $shortcut.WorkingDirectory = $desktop
+    $shortcut.IconLocation = "shell32.dll,220"
+    $shortcut.Save()
+  } catch {
+    Write-Warn ("创建 OpenClaw 对话入口快捷方式失败：{0}" -f $_.Exception.Message)
+  }
   Write-Host "桌面控制台入口已创建：$launcher"
   Write-Host "桌面控制台脚本已创建：$psLauncher"
+  Write-Host "OpenClaw 对话入口已创建：$openClawShortcut"
 }
 
 function Start-UserUrl {
@@ -2238,18 +2325,21 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   Write-Host ""
   $desktopConsoleName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
   $desktopConsole = Join-Path ([Environment]::GetFolderPath("Desktop")) $desktopConsoleName
+  $openClawShortcutName = "OpenClaw " + [string][char]0x5BF9 + [string][char]0x8BDD + [string][char]0x5165 + [string][char]0x53E3 + ".lnk"
+  $openClawShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) $openClawShortcutName
   Write-Host "[OK] easy-miloco 基础安装已经完成。" -ForegroundColor Green
   Write-Host ""
-  Write-Host "从现在开始，你可以用下面这个桌面脚本验证和使用 Miloco：" -ForegroundColor Cyan
+  Write-Host "从现在开始，你可以用下面这些桌面入口验证和使用 Miloco：" -ForegroundColor Cyan
   Write-Host ("  {0}" -f $desktopConsole) -ForegroundColor White
+  Write-Host ("  {0}" -f $openClawShortcut) -ForegroundColor White
   Write-Host ""
-  Write-Host "建议先双击它，然后选择："
+  Write-Host "建议先双击 Miloco 控制台，然后选择："
   Write-Host "  3. 重启 Miloco + OpenClaw    一次性拉起整套服务"
   Write-Host "  2. 重启 Miloco 面板          打开 Miloco 面板"
   Write-Host "  1. 重启 OpenClaw 面板        打开 OpenClaw 面板"
   Write-Host ""
   Write-Host ("Miloco 面板地址：   http://127.0.0.1:{0}/" -f $script:MilocoPort)
-  Write-Host ("OpenClaw 面板地址： http://127.0.0.1:{0}/" -f $OpenClawPort)
+  Write-Host "OpenClaw 入口：     请用桌面的 OpenClaw 对话入口；不要直接打开裸端口地址。"
   Write-Host ("本次诊断报告：      {0}" -f $reportPath)
   if (-not [string]::IsNullOrWhiteSpace($script:ExistingRestorePackPath)) {
     Write-Host ""
@@ -2284,9 +2374,12 @@ function Invoke-Uninstall {
   Write-Step "删除桌面控制台入口"
   $desktop = [Environment]::GetFolderPath("Desktop")
   $desktopConsoleName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
+  $openClawShortcutName = "OpenClaw " + [string][char]0x5BF9 + [string][char]0x8BDD + [string][char]0x5165 + [string][char]0x53E3 + ".lnk"
   foreach ($path in @(
     (Join-Path $desktop $desktopConsoleName),
     (Join-Path $desktop "miloco-console.ps1"),
+    (Join-Path $desktop $openClawShortcutName),
+    (Join-Path $desktop "miloco-openclaw.ps1"),
     (Join-Path $desktop "miloco-xiaomi-oauth.url"),
     (Join-Path $desktop "miloco-xiaomi-oauth.txt")
   )) {
