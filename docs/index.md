@@ -28,6 +28,7 @@ Agent 必须先读：
 - 远程 Windows/WSL 排障命令传输：读 [windows/ssh-command-transfer.md](windows/ssh-command-transfer.md)。
 - 性能报告与面板入口：读 [runbooks/performance-report-webui-spec.md](runbooks/performance-report-webui-spec.md)。
 - 制作更新包：维护者专用，读 [runbooks/make-release-package.md](runbooks/make-release-package.md)。
+- Azure VM 非视觉部署和验证：读 [runbooks/azure-vm-nonvisual-test.md](runbooks/azure-vm-nonvisual-test.md)。
 - NAS 类 Linux 主机安装复盘：读 [runbooks/nas01-openclaw-miloco-install.md](runbooks/nas01-openclaw-miloco-install.md)。
 
 ## 文档地图

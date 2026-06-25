@@ -8,6 +8,11 @@
 - `wsl-miloco-validate.sh`：在目标 WSL Ubuntu 内运行，检查 Miloco 服务、health、OpenClaw Gateway、OpenClaw 插件、小米账号绑定、MiMo/Omni API Key、设备列表和摄像头 scope。
 - `wsl-post-auth-finish.sh`：拿到小米 OAuth payload 和 MiMo API Key 后，一次性完成账号授权、模型配置、服务重启、设备/摄像头检查和最终验收。
 - `win-miloco-workflow.ps1`：Windows 统一入口，按 `-Action` 编排宿主预检、WSL 验收、生成授权链接和后授权收尾。
+- `azure-vm-run-command.ps1`：通过 Azure CLI Run Command 在 Windows VM 内运行控制面 PowerShell。
+- `azure-vm-user-powershell.ps1`：通过 Run Command 创建用户上下文计划任务，用真实 Windows 用户运行 PowerShell。
+- `azure-vm-wsl-script.ps1`：通过用户上下文计划任务执行 WSL bash 脚本，自动处理 CRLF。
+
+Azure VM 非视觉部署和验证流程见 [../runbooks/azure-vm-nonvisual-test.md](../runbooks/azure-vm-nonvisual-test.md)。
 
 ## 推荐统一入口
 
