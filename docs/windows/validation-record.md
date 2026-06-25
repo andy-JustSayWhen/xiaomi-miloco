@@ -644,3 +644,11 @@ FULL_READY=yes
 
 - 最终配置写入后的 Miloco 恢复检查改为允许降级完成：仍尝试 `restart` 与 `stop/start`，但如果最终 `/health` 仍不 OK，只输出警告并继续后续 OpenClaw 重启与验证。
 - 授权、列家庭等必须依赖健康 backend 的步骤保持严格失败；只有模型/API/OpenClaw 配置已经成功写入之后，才允许把最终 health 异常降级为环境/服务健康警告。
+
+本轮补丁后复测结果：
+
+- 覆盖新版 `scripts/windows/wsl-post-auth-finish.sh` 后，Finish 流程从 API Key、Base URL、默认模型选择一路推进到收尾完成。
+- `miloco-cli config set` 三项继续成功，OpenClaw 插件配置和 OpenClaw 主聊天模型配置继续成功。
+- 最终 Miloco backend `restart` 与 `stop/start` 后 `/health` 仍返回 502，但脚本按预期输出降级警告并继续执行 OpenClaw gateway restart 和验证报告。
+- 验证报告显示 `BASIC_READY=yes`、`FULL_READY=no`、`PASS_COUNT=13`、`FAIL_COUNT=0`、`WARN_COUNT=4`，随后安装器输出“账号/API 配置已完成”。
+- 结论：对 home02 这类不在 `andy的家` 设备同一局域网的测试机，API/OpenClaw 配置完成但摄像头/设备/health 降级属于可接受的部署完成态；完整视觉设备验证应回到与设备同 LAN 的机器执行。
