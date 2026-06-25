@@ -9,6 +9,7 @@ param(
   [string]$ScriptPath,
   [int]$PollSeconds = 45,
   [int]$TailLines = 180,
+  [int]$StatusMaxFailures = 5,
   [switch]$NoStart,
   [switch]$NoDeallocate
 )
@@ -87,6 +88,7 @@ $resolvedScript = Resolve-MaybeRelativePath $ScriptPath
 $startedAt = Get-Date
 $lastOutput = ""
 $exitCode = 1
+$statusFailures = 0
 
 try {
   if (-not $NoStart) {
@@ -115,13 +117,29 @@ try {
     $elapsed = [int]((Get-Date) - $startedAt).TotalSeconds
     Write-Log ("Polling job {0}, elapsed={1}s" -f $JobName, $elapsed)
 
-    $lastOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $jobStatus `
-      -ResourceGroup $ResourceGroup `
-      -VmName $VmName `
-      -CredentialFile $CredentialFile `
-      -JobName $JobName `
-      -TailLines $TailLines) 2>&1 | Out-String
+    $oldErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+      $lastOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $jobStatus `
+        -ResourceGroup $ResourceGroup `
+        -VmName $VmName `
+        -CredentialFile $CredentialFile `
+        -JobName $JobName `
+        -TailLines $TailLines) 2>&1 | Out-String
+      $statusCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    } finally {
+      $ErrorActionPreference = $oldErrorActionPreference
+    }
     Write-Host $lastOutput
+    if ($statusCode -ne 0) {
+      $statusFailures += 1
+      Write-Log ("Status query failed with exit code {0}; consecutive_failures={1}/{2}" -f $statusCode, $statusFailures, $StatusMaxFailures)
+      if ($statusFailures -ge $StatusMaxFailures) {
+        throw "azure-vm-job-status failed $statusFailures times in a row."
+      }
+      continue
+    }
+    $statusFailures = 0
 
     $state = ""
     $match = [regex]::Match($lastOutput, '"state"\s*:\s*"([^"]+)"')
