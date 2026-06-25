@@ -4,6 +4,7 @@
   [ValidateSet("stable", "preview")]
   [string]$Channel = "stable",
   [string]$BuildDistro = "Ubuntu-24.04",
+  [string]$ReusePayloadZip = "",
   [switch]$SkipBuild,
   [switch]$DryRun
 )
@@ -26,6 +27,8 @@ if ([string]::IsNullOrWhiteSpace($ArtifactVersion)) {
 $PackageName = "easy-miloco-$Version-windows"
 $PackageRoot = Join-Path $StageRoot $PackageName
 $ZipPath = Join-Path $DistDir "$PackageName.zip"
+$script:ReusePayloadTemp = ""
+$script:ReusePayloadRoot = ""
 
 function Write-Step {
   param([string]$Message)
@@ -37,6 +40,50 @@ function Require-File {
   param([string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) {
     throw "Required file not found: $Path"
+  }
+}
+
+function Resolve-PathStrict {
+  param([string]$Path)
+  if ([IO.Path]::IsPathRooted($Path)) {
+    return (Resolve-Path -LiteralPath $Path).Path
+  }
+  return (Resolve-Path -LiteralPath (Join-Path $RepoRoot $Path)).Path
+}
+
+function Initialize-ReusedPayload {
+  if ([string]::IsNullOrWhiteSpace($ReusePayloadZip)) {
+    return
+  }
+
+  Write-Step "Reuse existing package payload"
+  $sourceZip = Resolve-PathStrict $ReusePayloadZip
+  Require-File $sourceZip
+
+  $script:ReusePayloadTemp = Join-Path ([System.IO.Path]::GetTempPath()) ("easy-miloco-payload-reuse-" + [guid]::NewGuid().ToString("N"))
+  New-Item -ItemType Directory -Force -Path $script:ReusePayloadTemp | Out-Null
+  Expand-Archive -LiteralPath $sourceZip -DestinationPath $script:ReusePayloadTemp -Force
+
+  $candidateRoots = @($script:ReusePayloadTemp)
+  $candidateRoots += @(Get-ChildItem -LiteralPath $script:ReusePayloadTemp -Directory -Force | ForEach-Object { $_.FullName })
+  $root = $candidateRoots | Where-Object {
+    (Test-Path -LiteralPath (Join-Path $_ "manifest.json")) -and
+    (Test-Path -LiteralPath (Join-Path $_ "payload\install.sh")) -and
+    (Get-ChildItem -LiteralPath (Join-Path $_ "payload") -Filter "miloco-linux-x86_64-*.tar.gz" -ErrorAction SilentlyContinue | Select-Object -First 1)
+  } | Select-Object -First 1
+
+  if (-not $root) {
+    throw "Reusable payload not found in: $sourceZip"
+  }
+
+  $script:ReusePayloadRoot = $root
+  Write-Host ("  source_zip: {0}" -f $sourceZip)
+  Write-Host ("  payload_root: {0}" -f $script:ReusePayloadRoot)
+}
+
+function Clear-ReusedPayload {
+  if (-not [string]::IsNullOrWhiteSpace($script:ReusePayloadTemp)) {
+    Remove-Item -Recurse -Force -LiteralPath $script:ReusePayloadTemp -ErrorAction SilentlyContinue
   }
 }
 
@@ -83,6 +130,12 @@ function ConvertTo-WslPath {
 }
 
 function Invoke-RepoBuild {
+  if (-not [string]::IsNullOrWhiteSpace($ReusePayloadZip)) {
+    Write-Step "Skip build"
+    Write-Host "Reusing payload from existing release zip; only Windows package files/docs will be refreshed."
+    return
+  }
+
   if ($SkipBuild) {
     Write-Step "Skip build"
     return
@@ -130,14 +183,16 @@ function Copy-RequiredArtifacts {
   New-Item -ItemType Directory -Force -Path (Join-Path $PackageRoot "payload") | Out-Null
   New-Item -ItemType Directory -Force -Path (Join-Path $PackageRoot "scripts\windows") | Out-Null
 
-  $distManifest = Join-Path $RepoRoot "dist\manifest.json"
-  $installSh = Join-Path $RepoRoot "dist\install.sh"
+  $payloadSourceRoot = if ([string]::IsNullOrWhiteSpace($script:ReusePayloadRoot)) { $RepoRoot } else { $script:ReusePayloadRoot }
+  $payloadDistRoot = if ([string]::IsNullOrWhiteSpace($script:ReusePayloadRoot)) { Join-Path $RepoRoot "dist" } else { Join-Path $script:ReusePayloadRoot "payload" }
+  $distManifest = if ([string]::IsNullOrWhiteSpace($script:ReusePayloadRoot)) { Join-Path $RepoRoot "dist\manifest.json" } else { Join-Path $payloadSourceRoot "manifest.json" }
+  $installSh = if ([string]::IsNullOrWhiteSpace($script:ReusePayloadRoot)) { Join-Path $RepoRoot "dist\install.sh" } else { Join-Path $payloadDistRoot "install.sh" }
   Require-File $distManifest
   Require-File $installSh
 
-  $linuxBundle = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "dist") -Filter "miloco-linux-x86_64-*.tar.gz" | Select-Object -First 1
+  $linuxBundle = Get-ChildItem -LiteralPath $payloadDistRoot -Filter "miloco-linux-x86_64-*.tar.gz" | Select-Object -First 1
   if (-not $linuxBundle) {
-    throw "dist/miloco-linux-x86_64-*.tar.gz not found. Build artifacts are incomplete."
+    throw "miloco-linux-x86_64-*.tar.gz not found in payload source. Build artifacts are incomplete."
   }
 
   Copy-Item -LiteralPath (Join-Path $RepoRoot "windows\package\install.bat") -Destination (Join-Path $PackageRoot "install.bat") -Force
@@ -293,10 +348,15 @@ if ($DryRun) {
   exit 0
 }
 
-Invoke-RepoBuild
-Copy-RequiredArtifacts
-Compress-Package
-Test-Package
+try {
+  Initialize-ReusedPayload
+  Invoke-RepoBuild
+  Copy-RequiredArtifacts
+  Compress-Package
+  Test-Package
+} finally {
+  Clear-ReusedPayload
+}
 
 Write-Host ""
 Write-Host "Release package ready:"

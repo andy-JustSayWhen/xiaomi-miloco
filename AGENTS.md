@@ -13,6 +13,7 @@
 - Commit small useful checkpoints. Commit frequency should favor rollback safety over tidiness.
 - Push when a checkpoint is useful remotely, after tests, or when the user asks. Do not keep saying "later" when a commit/push is practical now.
 - Before replacing or uploading any GitHub Release asset, ask the user for explicit confirmation. Do not auto-clobber release zips after every fix.
+- Release packaging should default to Windows-side repackaging with the existing `payload/`; only use GitHub Actions, Docker, a Linux machine, or WSL when the Linux runtime bundle truly needs to be rebuilt.
 - After the user explicitly confirms GitHub Release replacement, use `docs/scripts/publish-github-release-asset.ps1` as the fixed publish path. Do not hand-roll different `gh release upload` variants; the script must upload, verify size/digest, and fail loudly on mismatch.
 - If GitHub release upload/download or git network operations are slow, use the local Clash proxy at `http://127.0.0.1:7897` before waiting indefinitely.
 - For Azure VM or other remote deployment tests, do not run long blocking commands silently. If a VM step may exceed 60 seconds, prefer `docs/scripts/azure-vm-run-job-and-deallocate.ps1`; it starts/submits/polls and deallocates in `finally`. Its default mode polls small `status.json` every 20 seconds and fetches stdout tail only every few polls. Report user-facing progress every 30-60 seconds from the runner log.

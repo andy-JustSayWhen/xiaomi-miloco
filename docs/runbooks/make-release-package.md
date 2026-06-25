@@ -33,6 +33,12 @@ Test-Path .\windows\build-release.ps1
 .\windows\build-release.ps1 -Version v0.2 -Channel stable
 ```
 
+只改 Windows 安装器、文档或包外层文件时，必须复用现有 release zip 内的 `payload/`，避免无意义重建 Linux runtime bundle：
+
+```powershell
+.\windows\build-release.ps1 -Version v0.2 -Channel stable -ReusePayloadZip .\dist\windows\easy-miloco-v0.2-windows.zip
+```
+
 Dry run：
 
 ```powershell
