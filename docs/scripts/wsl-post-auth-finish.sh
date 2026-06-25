@@ -106,6 +106,26 @@ run_checked_json() {
   return 0
 }
 
+run_checked_json_retry() {
+  attempts="$1"
+  shift
+  i=1
+  while [ "$i" -le "$attempts" ]; do
+    if run_checked_json "$@"; then
+      return 0
+    fi
+    status=$?
+    if [ "$i" -ge "$attempts" ]; then
+      return "$status"
+    fi
+    log "Command failed with exit code ${status}; rechecking Miloco health and retrying (${i}/${attempts})"
+    wait_miloco_health 5 || true
+    sleep 2
+    i=$((i + 1))
+  done
+  return 2
+}
+
 wait_miloco_health() {
   attempts="${1:-30}"
   i=1
@@ -187,11 +207,14 @@ if [ -z "$MIMO_API_KEY" ]; then
 fi
 
 log "Writing Omni model config: model=${OMNI_MODEL}, base_url=${OMNI_BASE_URL}, api_key_length=${#MIMO_API_KEY}"
-run_checked_json miloco-cli config set \
-  model.omni.model "$OMNI_MODEL" \
-  model.omni.base_url "$OMNI_BASE_URL" \
-  model.omni.api_key "$MIMO_API_KEY" \
-  --no-restart
+if ! run_checked_json_retry 3 miloco-cli config set \
+    model.omni.model "$OMNI_MODEL" \
+    model.omni.base_url "$OMNI_BASE_URL" \
+    model.omni.api_key "$MIMO_API_KEY" \
+    --no-restart; then
+  printf 'Failed to write Miloco Omni model config after retries.\n' >&2
+  exit 2
+fi
 
 log "Writing OpenClaw Miloco plugin and main chat model config"
 if [ "$DRY_RUN" -eq 1 ]; then

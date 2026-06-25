@@ -535,3 +535,25 @@ FULL_READY=yes
 
 - `Invoke-FinishWorkflowOnce` 改为只在授权 payload 非空时传递 `-AuthPayload`，并在调用前校验 API Key、模型名和 Base URL 不能为空。
 - `Invoke-FinishWorkflowOnce` 增加与 `Invoke-WorkflowCapture` 一致的 `try/catch`，确保子进程错误会被记录并转换为非零退出码，而不是直接打断安装器。
+
+### 2026-06-26 远程 release 第十四轮复测补充
+
+第十四轮在 home02 远程 Windows 上把最新 `install.ps1` 覆盖进 release 解压目录后继续跑完整安装。home02 与米家 `andy的家` 设备不在同一局域网，因此本轮继续把局域网设备发现、摄像头本地直连、Host LAN 显示 N/A 判为环境合理现象，不作为安装器 bug。
+
+本轮通过项：
+
+- 旧版检测、Agent 恢复包导出、旧版卸载、新版安装、Miloco health、OpenClaw 依赖检查、桌面入口创建和诊断报告生成均完成。
+- `BindUrl` 两次返回 502 后安装器继续进入 API 配置，未再被小米授权链接接口阻断。
+- API Key、Base URL 和模型选择完成，`Post-auth finish` 进入 Miloco 服务检查；本轮没有再出现 `Missing an argument for parameter 'MimoApiKey'`，说明第十三轮参数传递修复有效。
+- UU 远程下普通回车仍可能不响应；把剪贴板内容设置为换行再粘贴，可以稳定提交 Base URL 和模型默认选项。该问题属于远程交互方法问题，不判为 easy-miloco bug。
+
+本轮问题：
+
+- `Post-auth finish` 写入配置阶段出现 `curl: (22) The requested URL returned error: 502`，随后安装器提示账号/API 设置没有完全成功，退出码为 2。
+- 该问题与 home02 和 `andy的家` 不在同一局域网无关；它发生在本机 WSL 内 `miloco-cli config set` 调用 Miloco 配置接口阶段，应按部署脚本容错问题处理。
+- `wsl-post-auth-finish.sh` 当前对 `miloco-cli config set` 没有重试，而且脚本不是 `set -e`，关键配置写入失败后仍可能继续执行后续 OpenClaw 配置和验证，导致用户只看到笼统的收尾失败。
+
+本轮迭代：
+
+- 为 `wsl-post-auth-finish.sh` 增加关键 JSON 命令重试包装。
+- `miloco-cli config set` 写入模型/API 配置改为重试 3 次，失败间隔重新检查 Miloco health；重试耗尽后立即退出并给出明确错误，避免继续执行造成误导。
