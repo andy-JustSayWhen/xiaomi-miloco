@@ -9,6 +9,7 @@ param(
   [string]$ScriptPath,
   [int]$PollSeconds = 45,
   [int]$TailLines = 180,
+  [int]$StatusTimeoutSeconds = 120,
   [int]$StatusMaxFailures = 5,
   [switch]$NoStart,
   [switch]$NoDeallocate
@@ -117,20 +118,42 @@ try {
     $elapsed = [int]((Get-Date) - $startedAt).TotalSeconds
     Write-Log ("Polling job {0}, elapsed={1}s" -f $JobName, $elapsed)
 
-    $oldErrorActionPreference = $ErrorActionPreference
-    $ErrorActionPreference = "Continue"
+    $tmpOut = Join-Path $env:TEMP ("easy-miloco-status-out-" + [guid]::NewGuid().ToString("N") + ".txt")
+    $tmpErr = Join-Path $env:TEMP ("easy-miloco-status-err-" + [guid]::NewGuid().ToString("N") + ".txt")
+    $statusCode = 1
     try {
-      $lastOutput = (& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $jobStatus `
-        -ResourceGroup $ResourceGroup `
-        -VmName $VmName `
-        -CredentialFile $CredentialFile `
-        -JobName $JobName `
-        -TailLines $TailLines) 2>&1 | Out-String
-      $statusCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+      $statusArgs = @(
+        "-NoProfile", "-ExecutionPolicy", "Bypass",
+        "-File", $jobStatus,
+        "-ResourceGroup", $ResourceGroup,
+        "-VmName", $VmName,
+        "-CredentialFile", $CredentialFile,
+        "-JobName", $JobName,
+        "-TailLines", [string]$TailLines
+      )
+      $statusProcess = Start-Process -FilePath powershell.exe -ArgumentList $statusArgs -RedirectStandardOutput $tmpOut -RedirectStandardError $tmpErr -PassThru -WindowStyle Hidden
+      if (-not $statusProcess.WaitForExit($StatusTimeoutSeconds * 1000)) {
+        try { Stop-Process -Id $statusProcess.Id -Force -ErrorAction SilentlyContinue } catch {}
+        $statusCode = 124
+        $lastOutput = "status query timed out after ${StatusTimeoutSeconds}s"
+      } else {
+        $statusCode = $statusProcess.ExitCode
+        $stdoutText = if (Test-Path -LiteralPath $tmpOut) { Get-Content -LiteralPath $tmpOut -Raw -Encoding UTF8 } else { "" }
+        $stderrText = if (Test-Path -LiteralPath $tmpErr) { Get-Content -LiteralPath $tmpErr -Raw -Encoding UTF8 } else { "" }
+        $lastOutput = ($stdoutText, $stderrText | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
+      }
     } finally {
-      $ErrorActionPreference = $oldErrorActionPreference
+      Remove-Item -LiteralPath $tmpOut, $tmpErr -Force -ErrorAction SilentlyContinue
     }
     Write-Host $lastOutput
+    if ($lastOutput -match 'RESULT=PASS') {
+      $exitCode = 0
+      break
+    }
+    if ($lastOutput -match 'RESULT=(UNINSTALL_FAILED|PREPARE_FAILED|VALIDATE_FAILED)') {
+      $exitCode = 1
+      break
+    }
     if ($statusCode -ne 0) {
       $statusFailures += 1
       Write-Log ("Status query failed with exit code {0}; consecutive_failures={1}/{2}" -f $statusCode, $statusFailures, $StatusMaxFailures)
