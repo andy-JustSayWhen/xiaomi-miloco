@@ -7,8 +7,9 @@ param(
   [string]$JobName = "",
   [Parameter(Mandatory = $true)]
   [string]$ScriptPath,
-  [int]$PollSeconds = 45,
+  [int]$PollSeconds = 20,
   [int]$TailLines = 180,
+  [int]$TailEveryPolls = 3,
   [int]$StatusTimeoutSeconds = 120,
   [int]$StatusMaxFailures = 5,
   [switch]$NoStart,
@@ -90,6 +91,7 @@ $startedAt = Get-Date
 $lastOutput = ""
 $exitCode = 1
 $statusFailures = 0
+$pollCount = 0
 
 try {
   if (-not $NoStart) {
@@ -115,8 +117,13 @@ try {
 
   while ($true) {
     Start-Sleep -Seconds $PollSeconds
+    $pollCount += 1
     $elapsed = [int]((Get-Date) - $startedAt).TotalSeconds
-    Write-Log ("Polling job {0}, elapsed={1}s" -f $JobName, $elapsed)
+    $effectiveTailLines = 0
+    if ($TailEveryPolls -le 1 -or (($pollCount - 1) % $TailEveryPolls) -eq 0) {
+      $effectiveTailLines = $TailLines
+    }
+    Write-Log ("Polling job {0}, elapsed={1}s, tail_lines={2}" -f $JobName, $elapsed, $effectiveTailLines)
 
     $tmpOut = Join-Path $env:TEMP ("easy-miloco-status-out-" + [guid]::NewGuid().ToString("N") + ".txt")
     $tmpErr = Join-Path $env:TEMP ("easy-miloco-status-err-" + [guid]::NewGuid().ToString("N") + ".txt")
@@ -133,7 +140,7 @@ try {
         "-VmName", $VmName,
         "-CredentialFile", $CredentialFile,
         "-JobName", $JobName,
-        "-TailLines", [string]$TailLines
+        "-TailLines", [string]$effectiveTailLines
       )
       $statusProcess = Start-Process -FilePath powershell.exe -ArgumentList $statusArgs -RedirectStandardOutput $tmpOut -RedirectStandardError $tmpErr -PassThru -WindowStyle Hidden
       if (-not $statusProcess.WaitForExit($StatusTimeoutSeconds * 1000)) {

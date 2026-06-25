@@ -150,6 +150,12 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -ScriptPath .local-secrets\vm-release-deploy-test.ps1
 ```
 
+默认轮询策略是每 20 秒读一次小 `status.json`，每 3 次轮询才取一次 stdout tail。这样能更快发现完成态，又避免每轮拖回大段中文日志造成 Azure/本机编码开销。需要更密集日志时可传：
+
+```powershell
+-PollSeconds 20 -TailLines 320 -TailEveryPolls 1
+```
+
 只有在需要调试底层机制时，才拆开使用下面三个脚本：
 
 1. 用 `azure-vm-start-user-job.ps1` 启动 VM 内后台 job。

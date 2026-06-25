@@ -35,7 +35,10 @@ if (Test-Path -LiteralPath `$statusPath) {
     stdout = `$stdoutPath
   } | ConvertTo-Json -Depth 4
 }
-if (Test-Path -LiteralPath `$stdoutPath) {
+if ($TailLines -le 0) {
+  '--- stdout tail ---'
+  'stdout tail skipped'
+} elseif (Test-Path -LiteralPath `$stdoutPath) {
   '--- stdout tail ---'
   Get-Content -LiteralPath `$stdoutPath -Encoding UTF8 -Tail $TailLines
 } else {
