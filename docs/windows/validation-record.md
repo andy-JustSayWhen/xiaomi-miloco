@@ -471,3 +471,25 @@ FULL_READY=yes
 
 - `windows/package/install.ps1` 的 post-auth 阻断条件收窄为只看 WSL 内 `[FAIL] miloco.health`；Windows 侧端口转发检查失败继续作为报告诊断项，不再阻断账号/API 配置。
 - `docs/scripts/wsl-miloco-validate.sh` 在 `openclaw gateway status` 已通过时，把根路径 HTTP 探测失败降级为 WARN，不再作为 hard fail。
+
+### 2026-06-26 远程 release 第十一轮复测补充
+
+第十一轮继续使用 GitHub Release 当前 `v0.2` 资产。为避开 Edge 临时缓存路径的解压异常，测试准备改为先把下载面板里的 zip 复制到桌面，再从桌面执行“全部解压缩”。
+
+本轮通过项：
+
+- 最新 release 可重新下载、保留、复制到桌面并解压。
+- 解压目录 `easy-miloco-v0.2-windows (12)` 可运行 `install.bat`。
+- 安装器完成旧版检测、恢复包导出、旧版卸载、新版解压、Miloco health、OpenClaw gateway/plugin、桌面入口创建和诊断报告生成。
+- 第十轮的报告阻断问题已缓解：console transcript 出现“接下来可以继续完成账号授权和大模型 API 配置”，说明 post-auth 入口已被调用。
+
+本轮问题：
+
+- 生成小米账号授权链接时，`BindUrl` 返回上游错误：`invalid JSON response 502`。
+- 该错误被 PowerShell 当前的 Stop 策略提升为终止错误，导致 post-auth 流程直接结束，没有继续进入 API 配置。
+- 这不是 home02 与 `andy的家` 不在同一局域网导致；它发生在调用小米账号授权链接接口阶段，属于上游不稳定加脚本容错不足。
+
+本轮迭代：
+
+- `windows/package/install.ps1` 的 `BindUrl` 调用改为走 `Invoke-WorkflowCapture`，捕获错误输出和退出码，不让 PowerShell 直接终止。
+- 授权链接生成失败时自动重试一次；仍失败则明确提示本次跳过小米账号授权，但继续进入 API 配置。

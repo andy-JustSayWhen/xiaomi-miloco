@@ -2175,13 +2175,19 @@ function Invoke-InteractivePostAuthSetup {
   Write-Host ""
 
   Write-Info "正在生成小米账号授权链接。"
-  $bindOutput = & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action BindUrl -Distro $resolvedDistro -MilocoPort $script:MilocoPort -OpenClawPort $OpenClawPort 2>&1 | ForEach-Object {
-    $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
-    Write-Host $line
-    $line
+  $bindResult = $null
+  for ($bindAttempt = 1; $bindAttempt -le 2; $bindAttempt++) {
+    if ($bindAttempt -gt 1) {
+      Write-Warn "小米账号授权链接生成失败，正在自动重试一次。"
+      Start-Sleep -Seconds 3
+    }
+    $bindResult = Invoke-WorkflowCapture -WorkflowAction "BindUrl"
+    if ($bindResult.Code -eq 0) {
+      break
+    }
   }
-  $bindCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
-  $bindText = ($bindOutput -join "`n")
+  $bindCode = if ($bindResult) { $bindResult.Code } else { 1 }
+  $bindText = if ($bindResult) { ($bindResult.Lines -join "`n") } else { "" }
   $oauthMatch = [regex]::Match($bindText, 'https://account\.xiaomi\.com/oauth2/authorize[^\s"<>]+')
   if ($bindCode -eq 0 -and $oauthMatch.Success) {
     Start-UserUrl -Url $oauthMatch.Value -Label "小米账号授权页"
@@ -2200,7 +2206,12 @@ function Invoke-InteractivePostAuthSetup {
   Write-Host "如果浏览器跳到 https://127.0.0.1/ 后显示无法访问，这是正常现象。" -ForegroundColor Yellow
   Write-Host "请复制浏览器地址栏里包含 code= 和 state= 的完整地址，粘贴回这里。" -ForegroundColor Yellow
   Write-Host "注意：直接回车不会跳过账号授权；只有输入 skip 才会跳过并继续配置 API。" -ForegroundColor Yellow
-  $interactiveAuthPayload = Read-XiaomiAuthPayloadOrSkip
+  if ($bindCode -eq 0 -and $oauthMatch.Success) {
+    $interactiveAuthPayload = Read-XiaomiAuthPayloadOrSkip
+  } else {
+    Write-Warn "本次没有拿到可打开的小米授权链接，已暂时跳过账号授权，安装器会继续配置 API。稍后可以重新运行 install.ps1 -Action Finish 补上账号授权。"
+    $interactiveAuthPayload = ""
+  }
   $selectedHomeId = ""
   if ([string]::IsNullOrWhiteSpace($interactiveAuthPayload)) {
     Write-Warn "已跳过小米账号授权收尾。安装器会继续配置 API；账号稍后可以重新运行 install.ps1 -Action Finish 补上。"
