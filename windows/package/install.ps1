@@ -1365,7 +1365,38 @@ function Get-OpenClawDashboardUrl {
   $url = "http://127.0.0.1:{0}/" -f $Port
   $token = ""
   try {
-    $py = 'import json; from pathlib import Path; p=Path.home()/".openclaw"/"miloco"/"config.json"; d=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}; print(((d.get("agent") or {}).get("auth_bearer") or "").strip())'
+    $py = @"
+import json
+from pathlib import Path
+
+def read_json(path):
+    try:
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return {}
+
+def text(value):
+    return value.strip() if isinstance(value, str) else ""
+
+home = Path.home()
+miloco = read_json(home / ".openclaw" / "miloco" / "config.json")
+openclaw = read_json(home / ".openclaw" / "openclaw.json")
+candidates = []
+agent = miloco.get("agent") if isinstance(miloco, dict) else {}
+if isinstance(agent, dict):
+    candidates.append(agent.get("auth_bearer"))
+gateway = openclaw.get("gateway") if isinstance(openclaw, dict) else {}
+auth = gateway.get("auth") if isinstance(gateway, dict) else {}
+if isinstance(auth, dict):
+    candidates.extend([auth.get("token"), auth.get("password"), auth.get("bearer")])
+for candidate in candidates:
+    value = text(candidate)
+    if value:
+        print(value)
+        raise SystemExit(0)
+"@
     $token = (& $script:WslExe -d $script:Distro -- python3 -c $py 2>$null | Select-Object -First 1)
   } catch {
     $token = ""
@@ -1551,7 +1582,38 @@ function Get-OpenClawDashboardUrl {
   $url = "http://127.0.0.1:{0}/" -f $Port
   $token = ""
   try {
-    $py = 'import json; from pathlib import Path; p=Path.home()/".openclaw"/"miloco"/"config.json"; d=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}; print(((d.get("agent") or {}).get("auth_bearer") or "").strip())'
+    $py = @"
+import json
+from pathlib import Path
+
+def read_json(path):
+    try:
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return {}
+
+def text(value):
+    return value.strip() if isinstance(value, str) else ""
+
+home = Path.home()
+miloco = read_json(home / ".openclaw" / "miloco" / "config.json")
+openclaw = read_json(home / ".openclaw" / "openclaw.json")
+candidates = []
+agent = miloco.get("agent") if isinstance(miloco, dict) else {}
+if isinstance(agent, dict):
+    candidates.append(agent.get("auth_bearer"))
+gateway = openclaw.get("gateway") if isinstance(openclaw, dict) else {}
+auth = gateway.get("auth") if isinstance(gateway, dict) else {}
+if isinstance(auth, dict):
+    candidates.extend([auth.get("token"), auth.get("password"), auth.get("bearer")])
+for candidate in candidates:
+    value = text(candidate)
+    if value:
+        print(value)
+        raise SystemExit(0)
+"@
     $token = (& $script:WslExe -d $script:Distro -- python3 -c $py 2>$null | Select-Object -First 1)
   } catch {
     $token = ""

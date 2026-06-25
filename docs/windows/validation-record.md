@@ -25,7 +25,7 @@
 
 ### 本轮迭代
 
-- `windows/package/install.ps1` 新增桌面 `OpenClaw 对话入口.lnk`，由隐藏 PowerShell 脚本读取 WSL 内 `agent.auth_bearer`，再以 `http://127.0.0.1:<port>/#token=<token>` 打开 OpenClaw。
+- `windows/package/install.ps1` 新增桌面 `OpenClaw 对话入口.lnk`，由隐藏 PowerShell 脚本优先读取 WSL 内 `agent.auth_bearer`，再兜底读取 OpenClaw `gateway.auth` token，以 `http://127.0.0.1:<port>/#token=<token>` 打开 OpenClaw。
 - 安装完成提示改为引导用户使用桌面 OpenClaw 对话入口，不再展示裸 OpenClaw 端口地址。
 - 卸载流程同步删除 `OpenClaw 对话入口.lnk` 和 `miloco-openclaw.ps1`。
 
@@ -228,3 +228,26 @@ FULL_READY=yes
 
 - 定期运行 `win-miloco-workflow.ps1 -Action Validate`。
 - 如果摄像头或账号变化，按 [Windows后授权失败排障与交付审计](post-auth-troubleshooting.md) 分层排查，不要直接重装。
+
+## 2026-06-25 远程 Windows release 部署复测记录
+
+测试对象：GitHub Release `v0.2` 的 `easy-miloco-v0.2-windows.zip`。
+
+当前通过项：
+
+- Release 包下载、解压、双击 `install.bat` 和管理员提权流程可走通。
+- 安装器检测到已有 Miloco 后，已导出兼容恢复包到桌面，随后卸载旧版并安装新版。
+- Miloco 基础服务、OpenClaw CLI/Gateway/plugin 自检通过。
+- Miloco WebUI 可打开；大模型 API 配置页可用，连通性测试成功，模型保存后生效。
+- 小米账号授权回调 URL 可粘贴回 WebUI；家庭选择可完成。
+- 设备页成功加载家庭设备，测试家庭显示 `127 devices` / `13 rooms`。
+
+阻塞项：
+
+- 桌面 `OpenClaw 对话入口` 未完成免登录进入。实际打开后停在 OpenClaw Gateway 登录/连接页，地址栏为 `http://127.0.0.1:18789/chat?session=main`，页面 token 字段为空并显示无法连接。
+- 期望行为：桌面入口应自动读取当前 OpenClaw/Miloco 认证 token，打开带认证信息的 OpenClaw 对话页，用户无需手动填写 token。
+
+处置：
+
+- 先记录本轮证据，再迭代入口脚本的 token 读取/兜底逻辑。
+- 修复后重新打包替换 GitHub Release，并直接在远程 Windows 上下载运行新 release 复测，不再额外等待“运行”确认。
