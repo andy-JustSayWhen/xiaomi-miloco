@@ -14,6 +14,7 @@
 - Push when a checkpoint is useful remotely, after tests, or when the user asks. Do not keep saying "later" when a commit/push is practical now.
 - When the user asks to release, replace, update, or publish a GitHub Release asset for this repository, default to replacing the existing asset without asking for an extra confirmation.
 - When the Agent determines that a fix must be published to GitHub Release before remote deployment automation can continue, rebuild as needed and replace the Release asset automatically; do not pause only to ask whether to publish.
+- When a remote deployment test needs the newly published release, proceed to download and run that release by default; do not require the user to reply "run" or "运行" first.
 - Release packaging should default to Windows-side repackaging with the existing `payload/`; only use GitHub Actions, Docker, a Linux machine, or WSL when the Linux runtime bundle truly needs to be rebuilt.
 - For GitHub Release replacement, use `docs/scripts/publish-github-release-asset.ps1 -Replace` as the fixed publish path. Do not hand-roll different `gh release upload` variants; the script must upload, verify size/digest, and fail loudly on mismatch.
 - If GitHub release upload/download or git network operations are slow, use the local Clash proxy at `http://127.0.0.1:7897` before waiting indefinitely.
