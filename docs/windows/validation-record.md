@@ -274,3 +274,25 @@ FULL_READY=yes
 本轮迭代：
 
 - `windows/package/install.ps1` 的桌面入口改为优先调用 `openclaw dashboard --no-open`，使用 OpenClaw 官方 CLI 生成当前 dashboard URL；只有 CLI 未返回 token URL 时，才回退到本地配置读取。
+
+### 2026-06-25 远程 release 第三轮复测补充
+
+第三轮 release 包重新下载为 `easy-miloco-v0.2-windows (9).zip`，解压后运行 `install.bat`。
+
+本轮通过项：
+
+- 安装器再次完成已有安装检测、恢复包导出、旧版卸载、新版安装。
+- `[9/12]` OpenClaw CLI / Gateway / `miloco-openclaw-plugin` 自检通过。
+- `[10/12]` 桌面 `Miloco 控制台.bat`、`miloco-console.ps1`、`OpenClaw 对话入口.lnk` 创建成功。
+- 安装流程可到达完成页，说明 release 包主体安装路径仍可走通。
+
+本轮问题：
+
+- `OpenClaw 对话入口` 仍打开到 Gateway 登录页，token 字段为空，页面提示需要认证。说明仅调用 `openclaw dashboard --no-open` 仍不足以保证桌面入口拿到可用 token。
+- 本轮未重新配置小米账号和大模型 API；原因是当前阻塞集中在 OpenClaw 桌面入口认证，安装器完整重装后进入未配置状态属于预期。
+
+本轮迭代：
+
+- `windows/package/install.ps1` 的桌面入口在 `dashboard --no-open` 和本地配置读取都拿不到 token 时，增加 `openclaw doctor generate-token` 兜底。
+- 新逻辑会同时解析 `doctor generate-token` 的 stdout、带 token 的 dashboard URL，以及生成后写入的 OpenClaw/Miloco 配置，再拼接 `#token=` 打开 OpenClaw。
+- 修复后自动重打 release 并替换 GitHub Release 资产，远程 Windows 直接下载最新包继续测试。

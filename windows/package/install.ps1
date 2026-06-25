@@ -1432,6 +1432,39 @@ for candidate in candidates:
   } catch {
     $token = ""
   }
+  if (-not $token) {
+    try {
+      $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; token_output="$(openclaw doctor generate-token 2>/tmp/openclaw-doctor-generate-token.err || true)"; printf "%s\n" "$token_output" > /tmp/openclaw-doctor-generate-token.log; printf "%s\n" "$token_output"; openclaw gateway restart >/tmp/openclaw-dashboard-token-restart.log 2>&1 || true; openclaw dashboard --no-open 2>/tmp/openclaw-dashboard-url-after-token.err || true'
+      foreach ($line in (Invoke-WslText $cmd)) {
+        $lineText = [string]$line
+        $match = [regex]::Match($lineText, 'https?://[^\s"''<>]+')
+        if ($match.Success) {
+          $candidate = $match.Value.Trim()
+          if ($candidate -match '(^|[#?&])token=') {
+            return $candidate
+          }
+          if (-not $dashboardUrl) {
+            $dashboardUrl = $candidate
+          }
+        }
+        $tokenMatch = [regex]::Match($lineText, '(?i)(?:token|password|bearer)[^A-Za-z0-9._~+\-]{0,20}([A-Za-z0-9._~+\-]{16,})')
+        if ($tokenMatch.Success) {
+          $token = $tokenMatch.Groups[1].Value
+          break
+        }
+        $bareTokenMatch = [regex]::Match($lineText.Trim(), '^[A-Za-z0-9._~+\-]{24,}$')
+        if ($bareTokenMatch.Success) {
+          $token = $bareTokenMatch.Value
+          break
+        }
+      }
+      if (-not $token) {
+        $token = (& $script:WslExe -d $script:Distro -- python3 -c $py 2>$null | Select-Object -First 1)
+      }
+    } catch {
+      $token = ""
+    }
+  }
   if ($token) {
     return ("{0}#token={1}" -f $url, [Uri]::EscapeDataString($token.Trim()))
   }
@@ -1678,6 +1711,39 @@ for candidate in candidates:
     $token = (& $script:WslExe -d $script:Distro -- python3 -c $py 2>$null | Select-Object -First 1)
   } catch {
     $token = ""
+  }
+  if (-not $token) {
+    try {
+      $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; token_output="$(openclaw doctor generate-token 2>/tmp/openclaw-doctor-generate-token.err || true)"; printf "%s\n" "$token_output" > /tmp/openclaw-doctor-generate-token.log; printf "%s\n" "$token_output"; openclaw gateway restart >/tmp/openclaw-dashboard-token-restart.log 2>&1 || true; openclaw dashboard --no-open 2>/tmp/openclaw-dashboard-url-after-token.err || true'
+      foreach ($line in (Invoke-WslText $cmd)) {
+        $lineText = [string]$line
+        $match = [regex]::Match($lineText, 'https?://[^\s"''<>]+')
+        if ($match.Success) {
+          $candidate = $match.Value.Trim()
+          if ($candidate -match '(^|[#?&])token=') {
+            return $candidate
+          }
+          if (-not $dashboardUrl) {
+            $dashboardUrl = $candidate
+          }
+        }
+        $tokenMatch = [regex]::Match($lineText, '(?i)(?:token|password|bearer)[^A-Za-z0-9._~+\-]{0,20}([A-Za-z0-9._~+\-]{16,})')
+        if ($tokenMatch.Success) {
+          $token = $tokenMatch.Groups[1].Value
+          break
+        }
+        $bareTokenMatch = [regex]::Match($lineText.Trim(), '^[A-Za-z0-9._~+\-]{24,}$')
+        if ($bareTokenMatch.Success) {
+          $token = $bareTokenMatch.Value
+          break
+        }
+      }
+      if (-not $token) {
+        $token = (& $script:WslExe -d $script:Distro -- python3 -c $py 2>$null | Select-Object -First 1)
+      }
+    } catch {
+      $token = ""
+    }
   }
   if ($token) {
     return ("{0}#token={1}" -f $url, [Uri]::EscapeDataString($token.Trim()))
