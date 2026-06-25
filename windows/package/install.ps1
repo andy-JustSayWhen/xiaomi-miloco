@@ -2253,9 +2253,8 @@ function Invoke-InteractivePostAuthSetup {
   if ($finishCode -eq 0) {
     Write-Ok "账号授权和 API 配置已执行完成。"
     Write-Host ""
-    Write-Host "说明：刚才配置的是 Miloco 摄像头视觉理解/家庭感知模型，并同步给 Miloco OpenClaw 插件使用。" -ForegroundColor Cyan
-    Write-Host "OpenClaw 主聊天模型是另一套配置；如果 OpenClaw 聊天提示没有 provider API Key，需要在 OpenClaw 的模型/代理设置里继续配置主聊天 LLM。" -ForegroundColor Yellow
-    Write-Host "推荐思路：Miloco 视觉用支持视觉的模型，例如 mimo-v2.5；OpenClaw 主聊天可用更强的文本模型，例如 mimo-v2.5-pro。" -ForegroundColor Yellow
+    Write-Host "说明：刚才配置的是 Miloco 摄像头视觉理解/家庭感知模型，也会同步写入 Miloco OpenClaw 插件和 OpenClaw 主聊天模型。" -ForegroundColor Cyan
+    Write-Host "如果需要把 OpenClaw 主聊天换成更强的文本模型，以后可以在 OpenClaw 模型设置里单独调整。" -ForegroundColor Yellow
   } else {
     Write-Warn ("账号/API 收尾没有完全成功，退出码：{0}。请保留窗口输出或诊断报告继续排查。" -f $finishCode)
   }

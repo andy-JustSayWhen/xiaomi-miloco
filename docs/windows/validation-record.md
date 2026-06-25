@@ -319,3 +319,35 @@ FULL_READY=yes
 - `windows/package/install.ps1` 拼 token 时改用 `dashboard --no-open` 返回的完整 URL 作为基准，只有没有 dashboard URL 时才回退裸 `http://127.0.0.1:<port>/`。
 - 独立 `OpenClaw 对话入口` 不再只判断端口打开；重启/启动 Gateway 后等待 `openclaw gateway status` connectivity 通过，再打开浏览器。
 - 控制台入口的 OpenClaw 打开路径同步增加 Gateway connectivity 检查，避免端口开但 WebSocket 不可用时误导用户。
+
+### 2026-06-26 远程 release 第五轮复测补充
+
+第五轮使用 GitHub Release 当前 `v0.2` 资产重新下载，release zip SHA256 为 `3fed5147322657206ee4ce1c8926b75b5fc4dc9cb12b90df5b3b4c09d314b0c6`。远程 Windows 通过 UU 远程控制模拟用户下载、解压、运行 `install.bat`，并在安全提示中取消每次询问后继续运行。
+
+本轮通过项：
+
+- 安装器完成已有安装检测、Agent 恢复包导出、旧版卸载、新版安装。
+- `[8/12]` 依赖检查和 `[9/12]` OpenClaw CLI / Gateway / `miloco-openclaw-plugin` 自检通过。
+- `[10/12]` 桌面入口创建成功，`[11/12]` 部署报告生成完成。
+- 桌面 `OpenClaw 对话入口` 约 2 分钟后直接进入 `http://127.0.0.1:18789/chat?session=main`，未再停在 Gateway token 或连接错误页。
+- Miloco WebUI 模型页用 `https://token-plan-sgp.xiaomimimo.com/v1` 和 `mimo-v2.5` 测试连接成功，返回约 `5981ms`，模型保存并启用。
+- 小米 OAuth 页授权后跳到 `https://127.0.0.1/?code=...&state=...`，复制完整回调 URL 粘贴回 Miloco WebUI 可完成绑定。
+- 家庭选择弹窗可确认 `andy的家`；随后概览显示 `andy的家`、账号 `mdidb`、`127 件设备`。
+- 设备页可展开，显示 `127 devices` / `13 rooms`，可见设备列表和在线/离线状态。
+
+本轮问题：
+
+- OpenClaw 聊天页虽然能进入，但底部模型仍显示 `gpt-5.1 - openai - Medium`，说明安装器当前写入的是 Miloco 视觉模型和 Miloco OpenClaw 插件模型配置，没有同步写入 OpenClaw 主聊天 LLM。
+- 这会导致普通用户以为 API 已完整配置，但 OpenClaw 主聊天仍可能因为默认 OpenAI provider 没有 API Key 而失败。旧验收报告也记录过同类错误：`Agent failed before reply: No API key found for provider "openai"`。
+
+本轮迭代：
+
+- `docs/scripts/wsl-post-auth-finish.sh` 在写入 `model.omni.*` 和 `miloco-openclaw-plugin.config.omni_*` 后，同步写入 `~/.openclaw/openclaw.json`：
+  - `agents.defaults.model.primary`
+  - `agents.defaults.models.<provider/model>`
+  - `models.providers.<provider>.baseUrl/apiKey/api/models[]`
+- 对 Xiaomi MIMO / token-plan endpoint，provider 默认写为 `mimo`；其它 OpenAI-compatible endpoint 默认写为 `miloco-llm`。
+- 写入后运行 `openclaw config validate`；若验证失败，自动恢复旧 `openclaw.json`，避免 Gateway 因错误配置无法启动。
+- `docs/scripts/wsl-miloco-validate.sh` 新增 `openclaw.main_chat_model` 检查，确认 primary、provider baseUrl、apiKey 和 model row 均已配置。
+- `windows/package/install.ps1` 的完成提示改为说明 API 会同步写入 Miloco 视觉模型、Miloco OpenClaw 插件和 OpenClaw 主聊天模型，不再提示用户自行另配主聊天 LLM。
+- 新增 `.gitattributes` 固定 `*.sh text eol=lf`，避免 Windows 工作区把 WSL shell 脚本转成 CRLF。

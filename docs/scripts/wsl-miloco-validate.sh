@@ -184,6 +184,61 @@ if command -v openclaw >/dev/null 2>&1; then
   else
     fail "openclaw.miloco_plugin" "$plugin_status" "Install/enable the miloco-openclaw-plugin, then restart gateway."
   fi
+
+  openclaw_model_status="$(python3 - <<'PY' 2>&1
+import json
+from pathlib import Path
+
+path = Path.home() / ".openclaw" / "openclaw.json"
+if not path.exists():
+    print("openclaw.json missing")
+    raise SystemExit(1)
+
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+except Exception as exc:
+    print(f"openclaw.json unreadable: {exc}")
+    raise SystemExit(1)
+
+agents = data.get("agents") if isinstance(data, dict) else {}
+defaults = agents.get("defaults") if isinstance(agents, dict) else {}
+model = defaults.get("model") if isinstance(defaults, dict) else {}
+primary = model.get("primary") if isinstance(model, dict) else ""
+if not isinstance(primary, str) or "/" not in primary:
+    print(f"primary={primary or '<empty>'}")
+    raise SystemExit(1)
+
+provider_id, model_id = primary.split("/", 1)
+models = data.get("models") if isinstance(data, dict) else {}
+providers = models.get("providers") if isinstance(models, dict) else {}
+provider = providers.get(provider_id) if isinstance(providers, dict) else {}
+if not isinstance(provider, dict):
+    print(f"primary={primary} provider={provider_id} missing")
+    raise SystemExit(1)
+
+base_url = provider.get("baseUrl") or provider.get("baseURL") or ""
+api_key = provider.get("apiKey") or ""
+api = provider.get("api") or ""
+rows = provider.get("models")
+has_model_row = any(isinstance(row, dict) and row.get("id") == model_id for row in rows) if isinstance(rows, list) else False
+
+print(f"primary={primary}")
+print(f"provider={provider_id}")
+print(f"api={api or '<empty>'}")
+print(f"baseUrl={'configured' if isinstance(base_url, str) and base_url else 'empty'}")
+print(f"apiKey={'configured' if isinstance(api_key, str) and api_key else 'empty'}")
+print(f"modelRow={'configured' if has_model_row else 'missing'}")
+
+if not base_url or not api_key or not has_model_row:
+    raise SystemExit(1)
+PY
+)"
+  if [ $? -eq 0 ]; then
+    pass "openclaw.main_chat_model" "$openclaw_model_status"
+  else
+    mark_full_missing
+    warn "openclaw.main_chat_model" "$openclaw_model_status" "Set agents.defaults.model.primary plus models.providers.<provider>.baseUrl/apiKey/models[] in ~/.openclaw/openclaw.json."
+  fi
 fi
 
 if command -v curl >/dev/null 2>&1; then

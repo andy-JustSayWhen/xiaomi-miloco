@@ -8,6 +8,7 @@ MILOCO_AUTH_PAYLOAD="${MILOCO_AUTH_PAYLOAD:-}"
 MIMO_API_KEY="${MIMO_API_KEY:-}"
 OMNI_MODEL="${OMNI_MODEL:-xiaomi/mimo-v2.5}"
 OMNI_BASE_URL="${OMNI_BASE_URL:-https://api.xiaomimimo.com/v1}"
+OPENCLAW_CHAT_MODEL="${OPENCLAW_CHAT_MODEL:-}"
 MILOCO_HOME_ID="${MILOCO_HOME_ID:-}"
 MILOCO_CAMERA_DIDS="${MILOCO_CAMERA_DIDS:-}"
 PRINT_BIND_URL=0
@@ -29,6 +30,7 @@ Environment variables:
   MIMO_API_KEY          MiMo / Omni API key
   OMNI_MODEL            Default: xiaomi/mimo-v2.5
   OMNI_BASE_URL         Default: https://api.xiaomimimo.com/v1
+  OPENCLAW_CHAT_MODEL   Optional OpenClaw main chat model; defaults to OMNI_MODEL
   MILOCO_HOME_ID        Optional home_id to switch after account binding
   MILOCO_CAMERA_DIDS    Optional whitespace-separated camera did list to enable
   MILOCO_PORT           Default: 18860
@@ -186,37 +188,138 @@ run_checked_json miloco-cli config set \
   model.omni.api_key "$MIMO_API_KEY" \
   --no-restart
 
-log "Writing OpenClaw Miloco plugin Omni fallback config"
+log "Writing OpenClaw Miloco plugin and main chat model config"
 if [ "$DRY_RUN" -eq 1 ]; then
-  printf '[DRY_RUN] update ~/.openclaw/openclaw.json plugin miloco-openclaw-plugin omni_* config\n'
+  printf '[DRY_RUN] update ~/.openclaw/openclaw.json plugin miloco-openclaw-plugin omni_* and OpenClaw main chat model config\n'
 else
   python3 - <<'PY'
 import json
 import os
 import shutil
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
 path = Path.home() / ".openclaw" / "openclaw.json"
-if not path.exists():
-    print(f"[WARN] OpenClaw config not found: {path}")
-    raise SystemExit(0)
+path.parent.mkdir(parents=True, exist_ok=True)
 
-data = json.loads(path.read_text(encoding="utf-8"))
+if path.exists():
+    data = json.loads(path.read_text(encoding="utf-8"))
+else:
+    data = {}
+
+omni_model = os.environ.get("OMNI_MODEL", "").strip()
+omni_base_url = os.environ.get("OMNI_BASE_URL", "").strip()
+api_key = os.environ.get("MIMO_API_KEY", "")
+chat_model = os.environ.get("OPENCLAW_CHAT_MODEL", "").strip() or omni_model
+
+def as_dict(parent, key):
+    value = parent.get(key)
+    if not isinstance(value, dict):
+        value = {}
+        parent[key] = value
+    return value
+
+def normalize_model_id(value):
+    value = (value or "").strip()
+    if "/" not in value:
+        return value
+    prefix, rest = value.split("/", 1)
+    if prefix in {"mimo", "xiaomi"}:
+        return rest
+    return value
+
+def infer_provider_id(base_url, model):
+    text = f"{base_url} {model}".lower()
+    if "xiaomimimo" in text or "token-plan" in text or model.startswith(("mimo-", "mimo_")):
+        return "mimo"
+    return "miloco-llm"
+
+provider_id = infer_provider_id(omni_base_url, normalize_model_id(chat_model))
+chat_model_id = normalize_model_id(chat_model)
+omni_model_id = normalize_model_id(omni_model)
+chat_ref = f"{provider_id}/{chat_model_id}"
+
 plugins = data.setdefault("plugins", {}).setdefault("entries", {})
 entry = plugins.setdefault("miloco-openclaw-plugin", {})
 config = entry.setdefault("config", {})
-config["omni_model"] = os.environ.get("OMNI_MODEL", "")
-config["omni_base_url"] = os.environ.get("OMNI_BASE_URL", "")
-config["omni_api_key"] = os.environ.get("MIMO_API_KEY", "")
+config["omni_model"] = omni_model
+config["omni_base_url"] = omni_base_url
+config["omni_api_key"] = api_key
+
+agents = as_dict(data, "agents")
+defaults = as_dict(agents, "defaults")
+model_default = as_dict(defaults, "model")
+model_default["primary"] = chat_ref
+
+agent_models = as_dict(defaults, "models")
+agent_row = as_dict(agent_models, chat_ref)
+params = as_dict(agent_row, "params")
+params.setdefault("maxTokens", 8192)
+if provider_id == "mimo" and chat_model_id in {"mimo-v2.5-pro", "mimo-v2-pro", "mimo-v2.6-pro"}:
+    extra_body = as_dict(params, "extraBody")
+    extra_body.setdefault("thinking", {"type": "enabled"})
+    extra_body.setdefault("reasoning_effort", "high")
+
+models = as_dict(data, "models")
+models.setdefault("mode", "merge")
+providers = as_dict(models, "providers")
+provider = as_dict(providers, provider_id)
+provider["baseUrl"] = omni_base_url
+provider["apiKey"] = api_key
+provider["api"] = "openai-completions"
+provider.setdefault("timeoutSeconds", 300)
+provider.setdefault("contextWindow", 1000000)
+provider.setdefault("contextTokens", 1000000)
+
+provider_models = provider.get("models")
+if not isinstance(provider_models, list):
+    provider_models = []
+
+def upsert_model_row(model_id, image):
+    if not model_id:
+        return
+    for row in provider_models:
+        if isinstance(row, dict) and row.get("id") == model_id:
+            break
+    else:
+        row = {"id": model_id, "name": model_id}
+        provider_models.append(row)
+    row.setdefault("input", ["text", "image"] if image else ["text"])
+    row.setdefault("contextWindow", 1000000)
+    row.setdefault("contextTokens", 1000000)
+    row.setdefault("maxTokens", 8192)
+
+upsert_model_row(chat_model_id, False)
+upsert_model_row(omni_model_id, True)
+provider["models"] = provider_models
 
 backup = path.with_name(path.name + ".bak.miloco-omni-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
-shutil.copy2(path, backup)
+if path.exists():
+    shutil.copy2(path, backup)
+else:
+    backup = None
 path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-print(f"[OK] OpenClaw Miloco plugin config updated; backup={backup}")
+
+validated = subprocess.run(
+    ["openclaw", "config", "validate"],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.STDOUT,
+    text=True,
+    timeout=30,
+)
+if validated.returncode != 0:
+    if backup is not None:
+        shutil.copy2(backup, path)
+    print("[FAIL] OpenClaw config validation failed; restored previous config." if backup is not None else "[FAIL] OpenClaw config validation failed.")
+    print(validated.stdout)
+    raise SystemExit(2)
+
+backup_note = str(backup) if backup is not None else "created-new-config"
+print(f"[OK] OpenClaw plugin and main chat model config updated; primary={chat_ref}; backup={backup_note}")
 PY
 fi
-log "Note: the above config is for Miloco visual perception and the Miloco OpenClaw plugin. OpenClaw main chat LLM provider is separate."
+log "OpenClaw main chat LLM now uses the same API credentials unless OPENCLAW_CHAT_MODEL overrides the model."
 
 if [ -n "$MILOCO_HOME_ID" ]; then
   log "Switching Miloco home: ${MILOCO_HOME_ID}"
