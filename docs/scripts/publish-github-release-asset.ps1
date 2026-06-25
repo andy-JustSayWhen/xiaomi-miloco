@@ -113,7 +113,7 @@ if ($VerifyOnly) {
   }
 } else {
   if ($current.Asset -and -not $Replace) {
-    throw "Release asset already exists. Re-run with -Replace only after the user explicitly confirms replacement."
+    throw "Release asset already exists. Re-run with -Replace to replace it through the fixed release publish path."
   }
 
   $uploadArgs = @("release", "upload", $Tag, $assetFullPath, "--repo", $Repo)
