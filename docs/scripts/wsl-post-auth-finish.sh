@@ -144,6 +144,7 @@ wait_miloco_health() {
 
 recover_miloco_service() {
   reason="${1:-Recovering Miloco backend}"
+  allow_degraded="${2:-0}"
   log "$reason"
   if run_checked_json miloco-cli service restart; then
     if wait_miloco_health 30; then
@@ -157,7 +158,14 @@ recover_miloco_service() {
   run_checked_json miloco-cli service stop || true
   sleep 2
   run_checked_json miloco-cli service start || true
-  wait_miloco_health 45
+  if wait_miloco_health 45; then
+    return 0
+  fi
+  if [ "$allow_degraded" -eq 1 ]; then
+    log "Miloco health is still not ok after restart/start; continuing because account/model/OpenClaw config has been written. This can be expected when cameras, devices, or local LAN nodes are unreachable from this computer."
+    return 0
+  fi
+  return 2
 }
 
 write_miloco_model_config() {
@@ -431,7 +439,7 @@ if [ -n "$MILOCO_HOME_ID" ]; then
   run_checked_json miloco-cli scope home switch --pretty "$MILOCO_HOME_ID"
 fi
 
-if ! recover_miloco_service "Restarting Miloco backend"; then
+if ! recover_miloco_service "Restarting Miloco backend" 1; then
   log "Miloco did not recover after restart/start"
   exit 2
 fi

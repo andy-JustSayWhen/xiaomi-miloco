@@ -623,3 +623,24 @@ FULL_READY=yes
 - Finish 脚本改为：如果没有小米授权 payload、只是继续写模型/API 配置，则 pre-check 的 `/health` 失败不再直接阻断，而是继续尝试写配置。
 - `miloco-cli config set` 三次失败后，新增直接写 `$MILOCO_HOME/config.json` 的兜底，写入 `model.omni.model`、`model.omni.base_url` 和 `model.omni.api_key`。
 - 之后再通过统一的 `recover_miloco_service` 重启并验证 health，避免未配置态卡死在配置写入之前。
+
+### 2026-06-26 远程 release 第十八轮复测补充
+
+第十八轮继续在 home02 远程 Windows 上复测 Finish 收尾。用户确认：这台电脑位于 home02，而米家 `andy的家` 内设备位于 home01，二者不在同一局域网。因此本轮开始把设备局域网发现、摄像头本地直连、依赖本地网段的设备可达性失败明确判为环境预期；账号授权、API 写入、OpenClaw 配置和本机服务脚本异常仍按实质问题处理。
+
+本轮通过项：
+
+- 第十七轮补丁有效：即使 pre-check 阶段 `/health` 返回 502，脚本也没有在写模型/API 配置之前退出。
+- `miloco-cli config set model.omni.model/base_url/api_key --no-restart` 三项均返回 `{"code": 0, "message": "ok", "updated": ...}`，说明模型名、Base URL 和 API Key 已写入 Miloco 配置。
+- OpenClaw 插件配置和 OpenClaw 主聊天配置均已写入。
+
+本轮问题：
+
+- 写完配置后的 `recover_miloco_service "Restarting Miloco backend"` 仍然在 `restart` 与 `stop/start` 后遇到 `/health` 502，并以退出码 2 结束。
+- 结合 home02/home01 不同局域网这一环境事实，配置已成功写入后的最终 `/health` 502 不能再直接判为安装器失败；它可能包含设备、摄像头、本地节点或下游依赖不可达造成的降级健康状态。
+- 当前 Finish 流程把“API/OpenClaw 已配置，但 backend 健康降级”当作硬失败，会误导用户认为账号/API 配置完全失败。
+
+本轮迭代：
+
+- 最终配置写入后的 Miloco 恢复检查改为允许降级完成：仍尝试 `restart` 与 `stop/start`，但如果最终 `/health` 仍不 OK，只输出警告并继续后续 OpenClaw 重启与验证。
+- 授权、列家庭等必须依赖健康 backend 的步骤保持严格失败；只有模型/API/OpenClaw 配置已经成功写入之后，才允许把最终 health 异常降级为环境/服务健康警告。
