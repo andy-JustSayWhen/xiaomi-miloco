@@ -2055,12 +2055,24 @@ set -e
 
 health_body=/tmp/miloco-windows-health-body.txt
 health_err=/tmp/miloco-windows-health-curl.err
+last_running_status=""
 for i in $(seq 1 90); do
   http_code="$(curl -sS --max-time 2 -o "$health_body" -w "%{http_code}" "http://127.0.0.1:__MILOCO_PORT__/health" 2>"$health_err" || true)"
   body="$(cat "$health_body" 2>/dev/null || true)"
   if [ "$http_code" = "200" ] && printf '%s' "$body" | grep -q '"status":"ok"'; then
     printf '[OK] Miloco 后端已在端口 __MILOCO_PORT__ 启动。\n'
     exit 0
+  fi
+  last_running_status="$(miloco-cli service status 2>/dev/null || true)"
+  if printf '%s' "$last_running_status" | grep -Eq '"running"[[:space:]]*:[[:space:]]*true'; then
+    if [ "$http_code" = "502" ] || [ "$http_code" = "503" ]; then
+      if [ "$i" -ge 45 ]; then
+        printf '[警告] Miloco 进程和端口已启动，但 /health 暂时返回 HTTP %s。\n' "$http_code" >&2
+        printf '[说明] 这通常是首次启动、设备扫描或内部节点还在预热；安装器会继续完成基础部署，后续诊断报告会继续检查。\n' >&2
+        printf '[诊断] miloco-cli service status：%s\n' "$last_running_status" >&2
+        exit 0
+      fi
+    fi
   fi
   if [ "$http_code" = "503" ] && printf '%s' "$body" | grep -Eq '"status":"(unhealthy|unknown)"'; then
     printf '[警告] Miloco 后端 API 已经启动，但 /health 还不是 ok：%s\n' "$body" >&2

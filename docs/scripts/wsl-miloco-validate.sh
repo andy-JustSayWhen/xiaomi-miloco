@@ -162,6 +162,9 @@ if command -v curl >/dev/null 2>&1; then
   elif [ "$health_degraded" -eq 1 ] && [ "$STRICT_FULL" -eq 0 ]; then
     mark_full_missing
     warn "miloco.health" "HTTP ${health_code} ${health}" "Miloco API is reachable, but /health is not ok yet. Continue basic setup and inspect node diagnostics after account/API key configuration."
+  elif [ "$STRICT_FULL" -eq 0 ] && [ "${service_status_ok:-0}" -eq 1 ] && { [ "$health_code" = "502" ] || [ "$health_code" = "503" ]; }; then
+    mark_full_missing
+    warn "miloco.health" "HTTP ${health_code} ${health} ${health_err}" "Miloco service is running and the port is listening, but /health is still warming up. Continue basic setup, then rerun validation after account/API configuration."
   else
     fail "miloco.health" "HTTP ${health_code} ${health} ${health_err}" "Miloco did not answer /health with status ok within 20 seconds. Check server.url/server.port and service logs."
   fi
