@@ -142,6 +142,24 @@ wait_miloco_health() {
   return 2
 }
 
+recover_miloco_service() {
+  reason="${1:-Recovering Miloco backend}"
+  log "$reason"
+  if run_checked_json miloco-cli service restart; then
+    if wait_miloco_health 30; then
+      return 0
+    fi
+    log "Miloco restart completed but health is still not ok; trying stop/start"
+  else
+    log "Miloco restart reported an error; trying stop/start"
+  fi
+
+  run_checked_json miloco-cli service stop || true
+  sleep 2
+  run_checked_json miloco-cli service start || true
+  wait_miloco_health 45
+}
+
 need_cmd curl
 need_cmd miloco-cli
 
@@ -157,20 +175,11 @@ log "Pre-checking Miloco service"
 service_status="$(miloco-cli service status 2>&1 || true)"
 printf '%s\n' "$service_status"
 if ! printf '%s' "$service_status" | grep -Eq '"running"[[:space:]]*:[[:space:]]*true'; then
-  log "Miloco service is not running; trying restart/start"
-  if ! run_checked_json miloco-cli service restart; then
-    log "Miloco restart reported an error; trying service start"
-    run_checked_json miloco-cli service start || true
-  fi
+  recover_miloco_service "Miloco service is not running; trying restart/stop/start"
 fi
 
 if ! wait_miloco_health 10; then
-  log "Miloco service is running but health is not ok; restarting backend and retrying health check"
-  if ! run_checked_json miloco-cli service restart; then
-    log "Miloco restart reported an error; trying service start"
-    run_checked_json miloco-cli service start || true
-  fi
-  if ! wait_miloco_health 30; then
+  if ! recover_miloco_service "Miloco service is running but health is not ok; trying restart/stop/start"; then
     exit 2
   fi
 fi
@@ -361,12 +370,7 @@ if [ -n "$MILOCO_HOME_ID" ]; then
   run_checked_json miloco-cli scope home switch --pretty "$MILOCO_HOME_ID"
 fi
 
-log "Restarting Miloco backend"
-if ! run_checked_json miloco-cli service restart; then
-  log "Miloco restart reported an error; trying service start"
-  run_checked_json miloco-cli service start || true
-fi
-if ! wait_miloco_health 30; then
+if ! recover_miloco_service "Restarting Miloco backend"; then
   log "Miloco did not recover after restart/start"
   exit 2
 fi

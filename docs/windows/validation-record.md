@@ -577,3 +577,27 @@ FULL_READY=yes
 
 - `wsl-post-auth-finish.sh` 的初始 health 检查改为：第一次 health 失败时先重启 Miloco backend，再等待 health 恢复；仍失败才退出。
 - 这样可以覆盖 running 但 backend HTTP 层暂时 502 的状态，避免用户必须手动重启后再跑 Finish。
+
+### 2026-06-26 远程 release 第十六轮复测补充
+
+第十六轮继续在 home02 的同一 release 解压目录中复测 Finish 收尾。先修正第十五轮临时脚本覆盖路径错误：真实执行路径是 release 根目录下的 `scripts/windows/wsl-post-auth-finish.sh`，不是 `docs/scripts/wsl-post-auth-finish.sh`。home02 与米家 `andy的家` 设备不在同一局域网，因此设备 LAN 发现、摄像头直连和本地设备可达性失败仍判为环境合理现象；本轮失败发生在 WSL 内 Miloco backend 健康恢复阶段，不归因于局域网隔离。
+
+本轮通过项：
+
+- 覆盖到正确路径后，`Post-auth finish` 已运行新版脚本。
+- API Key、指定 Base URL `https://token-plan-sgp.xiaomimimo.com/v1` 和默认模型 `mimo-v2.5` 均正确进入流程。
+- 模型列表可从指定 Base URL 拉取成功。
+- 第十五轮新增的 health 恢复逻辑被触发：`/health` 502 后脚本输出“service is running but health is not ok; restarting backend and retrying health check”。
+
+本轮问题：
+
+- `miloco-cli service restart` 返回 `service did not become ready within 30s`，随后 fallback 的 `miloco-cli service start` 返回 `already running`。
+- 二次 `/health` 仍返回 `curl: (22) The requested URL returned error: 502`，Finish 退出码为 2，账号/API 收尾未完成。
+- 这说明第十五轮补丁方向正确，但恢复动作不够强：`restart` 失败后只 `start`，没有先 `stop` 清理卡住的旧进程，遇到 `already running` 竞态时无法真正恢复 backend。
+- UU/Computer Use 文本输入会复用剪贴板内容；本轮曾把 Base URL 误粘到 API Key 输入位。该问题属于远程交互方法问题，不判为 easy-miloco bug。后续远程输入 API/URL 前必须显式设置剪贴板，再用 Ctrl+V。
+
+本轮迭代：
+
+- 抽出 `recover_miloco_service`，统一处理 pre-check、初始 health 恢复和配置写入后的 Miloco 重启。
+- 恢复策略改为：先 `miloco-cli service restart` 并等待 health；如果 restart 报错或 health 仍不 OK，则执行 `service stop`、短等、`service start`，最后用 `/health` 作为唯一通过标准。
+- 三处原先重复的 `restart` 失败后直接 `start` 逻辑全部改为调用该恢复函数，避免以后只修一处造成行为不一致。
