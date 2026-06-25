@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { useTranslation } from "react-i18next";
 import {
   getOmniConfig,
@@ -27,6 +28,10 @@ import { toast } from "./Toast";
 const INPUT_CLS =
   "w-full px-3 py-2 rounded-lg bg-bg-primary border border-border " +
   "focus:border-brand-primary focus:outline-none text-text-primary num";
+
+const MASKED_TEXT_INPUT_STYLE = {
+  WebkitTextSecurity: "disc",
+} as CSSProperties & { WebkitTextSecurity?: string };
 
 // omni 测试 / 模型列表的后端机器码 → i18n key;命中走前端本地化,
 // 未命中(如 http_error,含动态 HTTP 细节)回退后端 message。
@@ -426,19 +431,22 @@ export function UsageOmniConfig() {
                   </Field>
                   <Field label={t("usage.apiKeyLabel")}>
                     <input
-                      type="password"
+                      type="text"
                       value={apiKey}
                       onChange={(e) => {
                         setApiKey(e.target.value);
                         setTestResult(null);
                       }}
                       onBlur={() => fetchModels(baseUrl, apiKey)}
+                      name="miloco-omni-api-key"
                       placeholder={
                         existing?.has_key
                           ? t("usage.apiKeyPlaceholderExisting")
                           : t("usage.apiKeyPlaceholderNew")
                       }
                       autoComplete="off"
+                      spellCheck={false}
+                      style={MASKED_TEXT_INPUT_STYLE}
                       className={INPUT_CLS}
                     />
                   </Field>
