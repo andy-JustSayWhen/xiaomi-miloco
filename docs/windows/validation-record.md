@@ -449,3 +449,25 @@ FULL_READY=yes
 - `windows/package/install.ps1` 的小米账号授权输入改为显式等待：直接回车不再跳过账号授权，而是提示继续等待浏览器跳到 `127.0.0.1` 后复制地址栏。
 - 如需跳过账号授权，必须输入 `skip`、`s` 或 `跳过`，然后继续 API 配置。
 - 输入校验同时支持完整 `code=`/`state=` 回调地址和已经转换好的 base64 授权 payload，避免破坏高级兜底路径。
+
+### 2026-06-26 远程 release 第十轮复测补充
+
+第十轮继续使用 GitHub Release 当前 `v0.2` 资产。测试准备阶段确认：Edge 下载拦截需要先选择保留；Windows 资源管理器手工复制 zip 内容在 UU 远程下容易焦点错位，改用系统“全部解压缩”向导后可成功解压。
+
+本轮通过项：
+
+- 解压后的普通文件夹可直接双击 `install.bat` 运行，安全提示按既定流程取消“打开此文件前总是询问”后可继续。
+- 安装器完成旧版检测、Agent 恢复包导出、旧版卸载、新版解压、Miloco 启动、OpenClaw 插件检查和桌面入口创建。
+- Miloco WSL 内健康检查通过，OpenClaw Gateway status 显示 running/listening/connectivity ok，`miloco-openclaw-plugin` loaded。
+
+本轮问题：
+
+- 安装器在 `[11/12]` 诊断报告后仍暂停，没有进入账号授权/API 配置。
+- 报告中 OpenClaw Gateway status 已证明 `127.0.0.1:18789` running/listening/connectivity ok，但 `openclaw.gateway_http` 仍可因根路径 HTTP 探测连接失败被判为 hard fail。
+- Windows 侧 `miloco_http` / 端口转发类检查偶发失败时，不应阻断 post-auth，因为账号授权和 API 写入走 WSL 内 Miloco/OpenClaw，本轮 WSL 内 Miloco health 已经通过。
+- 这些问题与 home02 和 `andy的家` 不在同一局域网无关；它们都发生在本机报告判定和 post-auth 入口条件。
+
+本轮迭代：
+
+- `windows/package/install.ps1` 的 post-auth 阻断条件收窄为只看 WSL 内 `[FAIL] miloco.health`；Windows 侧端口转发检查失败继续作为报告诊断项，不再阻断账号/API 配置。
+- `docs/scripts/wsl-miloco-validate.sh` 在 `openclaw gateway status` 已通过时，把根路径 HTTP 探测失败降级为 WARN，不再作为 hard fail。

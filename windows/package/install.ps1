@@ -233,8 +233,7 @@ function Test-ReportAllowsPostAuthSetup {
 
   $text = Get-Content -Encoding utf8 -LiteralPath $ReportPath -Raw
   $milocoBlockingFailure =
-    ($text -match '\[FAIL\]\s+miloco\.health') -or
-    ($text -match '\[FAIL\]\s+windows\.miloco_http')
+    ($text -match '\[FAIL\]\s+miloco\.health')
   if ($milocoBlockingFailure) {
     return $false
   }

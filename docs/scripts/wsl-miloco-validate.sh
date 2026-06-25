@@ -173,8 +173,10 @@ fi
 if command -v openclaw >/dev/null 2>&1; then
   gateway_status="$(run_capture 10 openclaw gateway status)"
   if printf '%s' "$gateway_status" | grep -Eiq 'runtime.*running|connectivity.*ok|running'; then
+    gateway_status_ok=1
     pass "openclaw.gateway_status" "$gateway_status"
   else
+    gateway_status_ok=0
     fail "openclaw.gateway_status" "$gateway_status" "Run: openclaw gateway start or inspect the user systemd service."
   fi
 
@@ -259,6 +261,9 @@ if command -v curl >/dev/null 2>&1; then
   done
   if printf '%s' "$gateway_http_code" | grep -Eq '^[234][0-9][0-9]$'; then
     pass "openclaw.gateway_http" "http://127.0.0.1:${OPENCLAW_PORT}/ responded with HTTP ${gateway_http_code}."
+  elif [ "${gateway_status_ok:-0}" -eq 1 ]; then
+    mark_full_missing
+    warn "openclaw.gateway_http" "HTTP ${gateway_http_code} ${gateway_http_body} ${gateway_http_err}" "OpenClaw gateway status is running, but root HTTP probe did not respond in time. Continue setup and use OpenClaw dashboard shortcut after configuration."
   else
     fail "openclaw.gateway_http" "HTTP ${gateway_http_code} ${gateway_http_body} ${gateway_http_err}" "Check openclaw gateway status and port."
   fi
