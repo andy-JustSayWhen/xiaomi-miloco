@@ -515,3 +515,23 @@ FULL_READY=yes
 
 - `windows/package/install.ps1` 的 `Invoke-WorkflowCapture` 增加 `try/catch`，把子进程 stderr 触发的 terminating error 写入输出行并返回非零退出码。
 - 这样 `BindUrl` 502 会走外层重试；两次失败后应提示跳过小米账号授权，并继续进入 API Key / Base URL / 模型选择配置。
+
+### 2026-06-26 远程 release 第十三轮复测补充
+
+第十三轮继续在 home02 远程 Windows 上运行已替换的 release 脚本。home02 与米家 `andy的家` 设备不在同一局域网，因此本轮仍把局域网设备发现、摄像头本地直连和设备 LAN 可达性失败判为环境合理现象，不作为安装器 bug。
+
+本轮通过项：
+
+- 第十二轮的 `Invoke-WorkflowCapture` 容错修复有效：`BindUrl` 两次返回 `invalid JSON response: 502` 后，安装器没有直接退出，而是明确提示本次跳过小米账号授权并继续进入 API 配置。
+- 使用剪贴板粘贴 API Key 和 Base URL 的方式在 UU 远程中有效；模型列表可以拉取成功，并可直接回车选择推荐模型 `mimo-v2.5`。
+
+本轮问题：
+
+- API 写入阶段报错：`Missing an argument for parameter 'MimoApiKey'`，随后显示账号/API 收尾没有完全成功。
+- 该问题与 home02 和 `andy的家` 不在同一局域网无关；它发生在 Windows 安装器调用 `win-miloco-workflow.ps1 -Action Finish` 的参数传递层。
+- 初步判断为 `Invoke-FinishWorkflowOnce` 无条件传递空的 `-AuthPayload ""`，在 Windows PowerShell 5.1 调用子进程时空字符串参数可能被丢弃并导致后续具名参数错位；同时该函数尚未像 `Invoke-WorkflowCapture` 一样捕获子进程 stderr 触发的 terminating error。
+
+本轮迭代：
+
+- `Invoke-FinishWorkflowOnce` 改为只在授权 payload 非空时传递 `-AuthPayload`，并在调用前校验 API Key、模型名和 Base URL 不能为空。
+- `Invoke-FinishWorkflowOnce` 增加与 `Invoke-WorkflowCapture` 一致的 `try/catch`，确保子进程错误会被记录并转换为非零退出码，而不是直接打断安装器。

@@ -2126,6 +2126,19 @@ function Invoke-FinishWorkflowOnce {
   )
 
   Require-File $Workflow
+  if ([string]::IsNullOrWhiteSpace($FinishMimoApiKey)) {
+    Write-Warn "API Key 为空，无法写入大模型配置。"
+    return 1
+  }
+  if ([string]::IsNullOrWhiteSpace($FinishOmniModel)) {
+    Write-Warn "模型名为空，无法写入大模型配置。"
+    return 1
+  }
+  if ([string]::IsNullOrWhiteSpace($FinishOmniBaseUrl)) {
+    Write-Warn "Base URL 为空，无法写入大模型配置。"
+    return 1
+  }
+
   $resolvedDistro = Get-ResolvedDistro
   $args = @(
     "-NoProfile",
@@ -2135,11 +2148,13 @@ function Invoke-FinishWorkflowOnce {
     "-Distro", $resolvedDistro,
     "-MilocoPort", [string]$script:MilocoPort,
     "-OpenClawPort", [string]$OpenClawPort,
-    "-AuthPayload", $FinishAuthPayload,
     "-MimoApiKey", $FinishMimoApiKey,
     "-OmniModel", $FinishOmniModel,
     "-OmniBaseUrl", $FinishOmniBaseUrl
   )
+  if (-not [string]::IsNullOrWhiteSpace($FinishAuthPayload)) {
+    $args += @("-AuthPayload", $FinishAuthPayload)
+  }
   $homeToUse = if (-not [string]::IsNullOrWhiteSpace($FinishHomeId)) { $FinishHomeId } else { $HomeId }
   if (-not [string]::IsNullOrWhiteSpace($homeToUse)) {
     $args += @("-HomeId", $homeToUse)
@@ -2153,16 +2168,22 @@ function Invoke-FinishWorkflowOnce {
 
   $powershellExe = Get-PowerShellExe
   $oldErrorActionPreference = $ErrorActionPreference
+  $finishExitCode = $null
   try {
     $ErrorActionPreference = "Continue"
     & $powershellExe @args 2>&1 | ForEach-Object {
       $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
       Write-Host $line
     }
+    $finishExitCode = $LASTEXITCODE
+  } catch {
+    $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
+    Write-Host $line -ForegroundColor Yellow
+    $finishExitCode = if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { $LASTEXITCODE } else { 1 }
   } finally {
     $ErrorActionPreference = $oldErrorActionPreference
   }
-  $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  $code = if ($null -eq $finishExitCode) { 0 } else { $finishExitCode }
   if ($code -eq 0) {
     Install-DesktopLauncher
   }
