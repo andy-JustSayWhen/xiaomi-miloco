@@ -2051,6 +2051,7 @@ function Invoke-WorkflowCapture {
   $lines = New-Object System.Collections.Generic.List[string]
   $powershellExe = Get-PowerShellExe
   $oldErrorActionPreference = $ErrorActionPreference
+  $captureExitCode = $null
   try {
     $ErrorActionPreference = "Continue"
     & $powershellExe @args 2>&1 | ForEach-Object {
@@ -2058,10 +2059,16 @@ function Invoke-WorkflowCapture {
       Write-Host $line
       $lines.Add($line) | Out-Null
     }
+    $captureExitCode = $LASTEXITCODE
+  } catch {
+    $line = if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.Exception.Message } else { $_.ToString() }
+    Write-Host $line -ForegroundColor Yellow
+    $lines.Add($line) | Out-Null
+    $captureExitCode = if ($null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) { $LASTEXITCODE } else { 1 }
   } finally {
     $ErrorActionPreference = $oldErrorActionPreference
   }
-  $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  $code = if ($null -eq $captureExitCode) { 0 } else { $captureExitCode }
   return [pscustomobject]@{
     Code = $code
     Lines = @($lines.ToArray())

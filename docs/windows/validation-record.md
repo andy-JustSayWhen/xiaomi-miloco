@@ -493,3 +493,25 @@ FULL_READY=yes
 
 - `windows/package/install.ps1` 的 `BindUrl` 调用改为走 `Invoke-WorkflowCapture`，捕获错误输出和退出码，不让 PowerShell 直接终止。
 - 授权链接生成失败时自动重试一次；仍失败则明确提示本次跳过小米账号授权，但继续进入 API 配置。
+
+### 2026-06-26 远程 release 第十二轮复测补充
+
+第十二轮使用已发布的 `v0.2` release 资产，通过 UU 远程文件传输把 zip 覆盖到 home02 桌面后，从真实 Windows 资源管理器运行解压目录 `easy-miloco-v0.2-windows (12)` 内的 `install.bat`。home02 与米家 `andy的家` 设备不在同一局域网，因此本轮继续把局域网设备发现、摄像头本地直连和设备 LAN 可达性失败判为环境合理现象，不作为安装器 bug。
+
+本轮通过项：
+
+- UU 文件传输可把本机 `dist/windows/easy-miloco-v0.2-windows.zip` 发送到远端桌面；同名文件存在时选择“替换”后可继续。
+- 安装器完成旧版检测、Agent 恢复包导出、旧版卸载、新版安装、Miloco 启动、OpenClaw gateway/plugin 检查、桌面入口创建和诊断报告生成。
+- Miloco 启动期曾出现一次 HTTP 502，但脚本继续轮询后拿到 `Miloco health ok`；这属于启动期暂态现象，不阻断安装。
+- post-auth 入口确实被调用，console log 出现“接下来可以继续完成账号授权和大模型 API 配置”。
+
+本轮问题：
+
+- `BindUrl` 上游仍返回 `invalid JSON response: 502`。
+- 虽然第十一轮已经把外层改为 `Invoke-WorkflowCapture`，但该函数内部仍使用 `& powershell.exe ... 2>&1 | ForEach-Object`。在 Windows PowerShell 5.1 下，子进程 stderr 可被包装成 terminating error，导致外层循环来不及把它转换成 `Code=1`，安装器仍然直接结束，没有进入 API 配置。
+- 这不是 home02 与 `andy的家` 不在同一局域网造成；它发生在小米授权链接生成接口和 Windows PowerShell 错误捕获层，属于脚本容错 bug。
+
+本轮迭代：
+
+- `windows/package/install.ps1` 的 `Invoke-WorkflowCapture` 增加 `try/catch`，把子进程 stderr 触发的 terminating error 写入输出行并返回非零退出码。
+- 这样 `BindUrl` 502 会走外层重试；两次失败后应提示跳过小米账号授权，并继续进入 API Key / Base URL / 模型选择配置。
