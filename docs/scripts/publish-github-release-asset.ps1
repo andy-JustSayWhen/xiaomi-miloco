@@ -5,7 +5,7 @@ param(
   [string]$Tag = "v0.2",
   [string]$AssetPath = "dist/windows/easy-miloco-v0.2-windows.zip",
   [string]$ProxyUrl = "http://127.0.0.1:7897",
-  [int]$UploadTimeoutSeconds = 900,
+  [int]$UploadTimeoutSeconds = 240,
   [int]$MaxAttempts = 2,
   [switch]$Replace,
   [switch]$VerifyOnly
@@ -83,6 +83,25 @@ function Get-ReleaseAsset {
   }
 }
 
+function Test-ReleaseAssetMatches {
+  param(
+    [object]$Asset,
+    [int64]$ExpectedSize,
+    [string]$ExpectedSha256
+  )
+  if (-not $Asset) {
+    return $false
+  }
+  if ([int64]$Asset.size -ne $ExpectedSize) {
+    return $false
+  }
+  $digest = [string]$Asset.digest
+  if ($digest -notmatch '^sha256:(.+)$') {
+    return $false
+  }
+  return ($matches[1].ToLowerInvariant() -eq $ExpectedSha256)
+}
+
 $assetFullPath = Resolve-RepoPath $AssetPath
 $assetName = Split-Path -Leaf $assetFullPath
 $assetItem = Get-Item -LiteralPath $assetFullPath
@@ -134,10 +153,19 @@ if ($VerifyOnly) {
       Invoke-GhWithTimeout -Arguments $uploadArgs -TimeoutSeconds $UploadTimeoutSeconds | Write-Host
       break
     } catch {
+      Write-Warning $_.Exception.Message
+      try {
+        $maybeUploaded = Get-ReleaseAsset -RepoName $Repo -ReleaseTag $Tag -AssetName $assetName
+        if (Test-ReleaseAssetMatches -Asset $maybeUploaded.Asset -ExpectedSize $localSize -ExpectedSha256 $localSha256) {
+          Write-Host "Upload command did not return cleanly, but remote asset already matches local file."
+          break
+        }
+      } catch {
+        Write-Warning ("Post-timeout asset verification failed: {0}" -f $_.Exception.Message)
+      }
       if ($attempt -ge $MaxAttempts) {
         throw
       }
-      Write-Warning $_.Exception.Message
       Start-Sleep -Seconds ([Math]::Min(20 * $attempt, 60))
       $attempt += 1
     }
