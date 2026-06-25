@@ -165,7 +165,14 @@ if ! printf '%s' "$service_status" | grep -Eq '"running"[[:space:]]*:[[:space:]]
 fi
 
 if ! wait_miloco_health 10; then
-  exit 2
+  log "Miloco service is running but health is not ok; restarting backend and retrying health check"
+  if ! run_checked_json miloco-cli service restart; then
+    log "Miloco restart reported an error; trying service start"
+    run_checked_json miloco-cli service start || true
+  fi
+  if ! wait_miloco_health 30; then
+    exit 2
+  fi
 fi
 
 if [ "$LIST_HOMES_JSON" -eq 1 ]; then

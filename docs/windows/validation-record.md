@@ -557,3 +557,23 @@ FULL_READY=yes
 
 - 为 `wsl-post-auth-finish.sh` 增加关键 JSON 命令重试包装。
 - `miloco-cli config set` 写入模型/API 配置改为重试 3 次，失败间隔重新检查 Miloco health；重试耗尽后立即退出并给出明确错误，避免继续执行造成误导。
+
+### 2026-06-26 远程 release 第十五轮复测补充
+
+第十五轮改用最短 Finish 复测路径：在 home02 release 解压目录中临时覆盖 `wsl-post-auth-finish.sh` 和一个只调用 `install.ps1 -Action Finish` 的 `install.bat` wrapper，再用鼠标双击 wrapper 触发真实安装器交互。期间发现 UU 传 `.bat` 会先落成 `.downloading`，需要等待或避免依赖该中间状态；临时 `install.ps1` 若没有 UTF-8 BOM，会被 Windows PowerShell 5.1 按错误编码解析并出现中文乱码 ParserError。该编码错误来自临时测试文件生成方式，release zip 内 `install.ps1` 已反查为 UTF-8 BOM，不判为 release 包 bug。
+
+本轮通过项：
+
+- BOM 版临时 `install.ps1` 可以通过 wrapper 正常进入 `install.ps1 -Action Finish`。
+- API Key、Base URL 和模型选择仍可完成；模型列表可从 `https://token-plan-sgp.xiaomimimo.com/v1/models` 拉取，默认 `mimo-v2.5` 可选择。
+
+本轮问题：
+
+- `Post-auth finish` 开始时 `miloco-cli service status` 显示 running，但随后 `/health` 连续返回 `curl: (22) The requested URL returned error: 502`，脚本直接退出，账号/API 收尾仍未完成。
+- 该问题与 home02 和米家 `andy的家` 不在同一局域网无关；它发生在 WSL 内本机 Miloco backend 健康恢复阶段。
+- Finish 流程当前只在 service status 非 running 时尝试 restart/start；如果 status running 但 health 502，则没有主动重启恢复。
+
+本轮迭代：
+
+- `wsl-post-auth-finish.sh` 的初始 health 检查改为：第一次 health 失败时先重启 Miloco backend，再等待 health 恢复；仍失败才退出。
+- 这样可以覆盖 running 但 backend HTTP 层暂时 502 的状态，避免用户必须手动重启后再跑 Finish。
