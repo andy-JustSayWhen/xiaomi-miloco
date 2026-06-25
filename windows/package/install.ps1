@@ -1897,6 +1897,33 @@ function ConvertTo-MilocoAuthPayload {
   return $value
 }
 
+function Read-XiaomiAuthPayloadOrSkip {
+  while ($true) {
+    $rawInput = (Read-InstallerInput "授权完成后，粘贴包含 code= 和 state= 的完整回调地址；如需跳过账号授权请输入 skip").Trim()
+    if ([string]::IsNullOrWhiteSpace($rawInput)) {
+      Write-Warn "还没有收到授权回调地址。请继续等待浏览器跳到 127.0.0.1 后复制地址栏；如需跳过请输入 skip。"
+      continue
+    }
+    if ($rawInput -match '^(skip|s|跳过)$') {
+      return ""
+    }
+    $payload = ConvertTo-MilocoAuthPayload $rawInput
+    if ($payload -eq $rawInput) {
+      try {
+        $decoded = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($rawInput))
+        $decodedObj = $decoded | ConvertFrom-Json
+        if ($decodedObj -and -not [string]::IsNullOrWhiteSpace([string]$decodedObj.code) -and -not [string]::IsNullOrWhiteSpace([string]$decodedObj.state)) {
+          return $rawInput
+        }
+      } catch {
+      }
+      Write-Warn "没有识别到 code= 和 state=。请粘贴浏览器地址栏里的完整 127.0.0.1 回调地址；如需跳过请输入 skip。"
+      continue
+    }
+    return $payload
+  }
+}
+
 function Get-OpenAiModelIds {
   param(
     [string]$BaseUrl,
@@ -2173,13 +2200,12 @@ function Invoke-InteractivePostAuthSetup {
   Write-Host "如果长时间不动，可以直接关闭这个浏览器标签页，回到安装窗口重新生成授权页。" -ForegroundColor Yellow
   Write-Host "如果浏览器跳到 https://127.0.0.1/ 后显示无法访问，这是正常现象。" -ForegroundColor Yellow
   Write-Host "请复制浏览器地址栏里包含 code= 和 state= 的完整地址，粘贴回这里。" -ForegroundColor Yellow
-  $interactiveAuthPayload = (Read-InstallerInput "授权完成后，粘贴授权码或完整回调地址；暂时没有就直接回车跳过账号授权，继续配置 API").Trim()
+  Write-Host "注意：直接回车不会跳过账号授权；只有输入 skip 才会跳过并继续配置 API。" -ForegroundColor Yellow
+  $interactiveAuthPayload = Read-XiaomiAuthPayloadOrSkip
   $selectedHomeId = ""
   if ([string]::IsNullOrWhiteSpace($interactiveAuthPayload)) {
     Write-Warn "已跳过小米账号授权收尾。安装器会继续配置 API；账号稍后可以重新运行 install.ps1 -Action Finish 补上。"
   } else {
-    $interactiveAuthPayload = ConvertTo-MilocoAuthPayload $interactiveAuthPayload
-
     Write-Host ""
     Write-Info "正在提交小米账号授权，并获取可选择的家庭列表。"
     $authorizeResult = Invoke-WorkflowCapture -WorkflowAction "AuthorizeOnly" -CaptureAuthPayload $interactiveAuthPayload
