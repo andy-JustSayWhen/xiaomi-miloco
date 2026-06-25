@@ -601,3 +601,25 @@ FULL_READY=yes
 - 抽出 `recover_miloco_service`，统一处理 pre-check、初始 health 恢复和配置写入后的 Miloco 重启。
 - 恢复策略改为：先 `miloco-cli service restart` 并等待 health；如果 restart 报错或 health 仍不 OK，则执行 `service stop`、短等、`service start`，最后用 `/health` 作为唯一通过标准。
 - 三处原先重复的 `restart` 失败后直接 `start` 逻辑全部改为调用该恢复函数，避免以后只修一处造成行为不一致。
+
+### 2026-06-26 远程 release 第十七轮复测补充
+
+第十七轮继续在 home02 的同一 Finish 最短路径上复测第十六轮补丁。home02 与米家 `andy的家` 设备不在同一局域网，因此仍只把设备 LAN 可达性问题视为环境限制；本轮失败仍发生在 WSL 内 Miloco backend 与配置写入顺序。
+
+本轮通过项：
+
+- 新版 `recover_miloco_service` 已生效，日志从“retrying health check”变为“trying restart/stop/start”。
+- 当 `service restart` 30 秒未 ready 时，脚本进入强制 stop/start 分支。
+- `miloco-cli service stop` 成功停止旧进程，日志返回 `{"code": 0, "message": "stopped", "pid": ...}`。
+
+本轮问题：
+
+- `service start` 仍返回 `service did not become ready within 30s`，随后 `/health` 继续 502，Finish 失败。
+- 这说明问题不只是旧进程未清理，而是“写 API 配置前要求 health OK”可能形成死锁：当前 backend 因模型/API 未配置而不健康，但脚本又因为 health 不健康而无法可靠走 `miloco-cli config set`。
+- 该现象与 home02/home01 不同局域网无关；它发生在本机 backend 的未配置态和健康检查语义之间。
+
+本轮迭代：
+
+- Finish 脚本改为：如果没有小米授权 payload、只是继续写模型/API 配置，则 pre-check 的 `/health` 失败不再直接阻断，而是继续尝试写配置。
+- `miloco-cli config set` 三次失败后，新增直接写 `$MILOCO_HOME/config.json` 的兜底，写入 `model.omni.model`、`model.omni.base_url` 和 `model.omni.api_key`。
+- 之后再通过统一的 `recover_miloco_service` 重启并验证 health，避免未配置态卡死在配置写入之前。

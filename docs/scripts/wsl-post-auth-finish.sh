@@ -160,6 +160,53 @@ recover_miloco_service() {
   wait_miloco_health 45
 }
 
+write_miloco_model_config() {
+  log "Writing Omni model config: model=${OMNI_MODEL}, base_url=${OMNI_BASE_URL}, api_key_length=${#MIMO_API_KEY}"
+  if run_checked_json_retry 3 miloco-cli config set \
+      model.omni.model "$OMNI_MODEL" \
+      model.omni.base_url "$OMNI_BASE_URL" \
+      model.omni.api_key "$MIMO_API_KEY" \
+      --no-restart; then
+    return 0
+  fi
+
+  log "miloco-cli config set failed after retries; writing ${MILOCO_HOME}/config.json directly"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    printf '[DRY_RUN] direct write model.omni.* to %s/config.json\n' "$MILOCO_HOME"
+    return 0
+  fi
+
+  python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+path = Path(os.environ.get("MILOCO_HOME", "~/.openclaw/miloco")).expanduser() / "config.json"
+try:
+    data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+except (json.JSONDecodeError, OSError):
+    data = {}
+if not isinstance(data, dict):
+    data = {}
+model = data.setdefault("model", {})
+if not isinstance(model, dict):
+    model = {}
+    data["model"] = model
+omni = model.setdefault("omni", {})
+if not isinstance(omni, dict):
+    omni = {}
+    model["omni"] = omni
+omni["model"] = os.environ["OMNI_MODEL"]
+omni["base_url"] = os.environ["OMNI_BASE_URL"]
+omni["api_key"] = os.environ["MIMO_API_KEY"]
+path.parent.mkdir(parents=True, exist_ok=True)
+tmp = path.with_suffix(".tmp")
+tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+tmp.replace(path)
+print(f"[OK] Miloco model config written directly; path={path}")
+PY
+}
+
 need_cmd curl
 need_cmd miloco-cli
 
@@ -175,18 +222,37 @@ log "Pre-checking Miloco service"
 service_status="$(miloco-cli service status 2>&1 || true)"
 printf '%s\n' "$service_status"
 if ! printf '%s' "$service_status" | grep -Eq '"running"[[:space:]]*:[[:space:]]*true'; then
-  recover_miloco_service "Miloco service is not running; trying restart/stop/start"
-fi
-
-if ! wait_miloco_health 10; then
-  if ! recover_miloco_service "Miloco service is running but health is not ok; trying restart/stop/start"; then
+  if ! recover_miloco_service "Miloco service is not running; trying restart/stop/start"; then
     exit 2
   fi
 fi
 
+if ! wait_miloco_health 10; then
+  if [ -n "$MILOCO_AUTH_PAYLOAD" ] || [ "$AUTHORIZE_ONLY" -eq 1 ] || [ "$LIST_HOMES_JSON" -eq 1 ]; then
+    if ! recover_miloco_service "Miloco service is running but health is not ok; trying restart/stop/start"; then
+      exit 2
+    fi
+  else
+    log "Miloco health is not ok before model/API config; continuing so config can be written and backend can recover after restart"
+  fi
+fi
+
 if [ "$LIST_HOMES_JSON" -eq 1 ]; then
+  if ! wait_miloco_health 10; then
+    if ! recover_miloco_service "Miloco service is not healthy before listing homes; trying restart/stop/start"; then
+      exit 2
+    fi
+  fi
   miloco-cli scope home list
   exit $?
+fi
+
+if [ "$AUTHORIZE_ONLY" -eq 1 ] || [ -n "$MILOCO_AUTH_PAYLOAD" ]; then
+  if ! wait_miloco_health 10; then
+    if ! recover_miloco_service "Miloco service is not healthy before Xiaomi authorization; trying restart/stop/start"; then
+      exit 2
+    fi
+  fi
 fi
 
 account_before="$(miloco-cli account status 2>&1 || true)"
@@ -222,13 +288,8 @@ if [ -z "$MIMO_API_KEY" ]; then
   exit 2
 fi
 
-log "Writing Omni model config: model=${OMNI_MODEL}, base_url=${OMNI_BASE_URL}, api_key_length=${#MIMO_API_KEY}"
-if ! run_checked_json_retry 3 miloco-cli config set \
-    model.omni.model "$OMNI_MODEL" \
-    model.omni.base_url "$OMNI_BASE_URL" \
-    model.omni.api_key "$MIMO_API_KEY" \
-    --no-restart; then
-  printf 'Failed to write Miloco Omni model config after retries.\n' >&2
+if ! write_miloco_model_config; then
+  printf 'Failed to write Miloco Omni model config.\n' >&2
   exit 2
 fi
 
