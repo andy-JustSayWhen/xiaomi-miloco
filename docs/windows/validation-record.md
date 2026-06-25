@@ -296,3 +296,26 @@ FULL_READY=yes
 - `windows/package/install.ps1` 的桌面入口在 `dashboard --no-open` 和本地配置读取都拿不到 token 时，增加 `openclaw doctor generate-token` 兜底。
 - 新逻辑会同时解析 `doctor generate-token` 的 stdout、带 token 的 dashboard URL，以及生成后写入的 OpenClaw/Miloco 配置，再拼接 `#token=` 打开 OpenClaw。
 - 修复后自动重打 release 并替换 GitHub Release 资产，远程 Windows 直接下载最新包继续测试。
+
+### 2026-06-26 远程 release 第四轮复测补充
+
+第四轮 release 包重新下载为 `easy-miloco-v0.2-windows (10).zip`，解压后运行 `install.bat`。
+
+本轮通过项：
+
+- 安装器完成已有安装检测、Agent 恢复包导出、旧版卸载、新版安装。
+- `[9/12]` OpenClaw CLI / Gateway / `miloco-openclaw-plugin` 自检通过。
+- `[10/12]` 桌面 `Miloco 控制台.bat`、`miloco-console.ps1`、`OpenClaw 对话入口.lnk` 创建成功。
+- `[11/12]` 部署报告生成完成。
+- 通过桌面 `OpenClaw 对话入口` 打开 Gateway 页面时，网关令牌输入框已自动填入，说明 token 自动生成和传递不再是空值。
+
+本轮问题：
+
+- 点击 Gateway 页面“连接”后仍提示无法连接 Gateway。现象从“token 为空/需要认证”推进为“token 已填但 WebSocket/Gateway 连接不可用”。
+- 说明桌面入口只等待 Windows 端口可达还不够；需要等待 `openclaw gateway status` 的 connectivity probe 通过，并且拼接 token 时不能丢弃 `openclaw dashboard --no-open` 返回的完整 dashboard URL。
+
+本轮迭代：
+
+- `windows/package/install.ps1` 拼 token 时改用 `dashboard --no-open` 返回的完整 URL 作为基准，只有没有 dashboard URL 时才回退裸 `http://127.0.0.1:<port>/`。
+- 独立 `OpenClaw 对话入口` 不再只判断端口打开；重启/启动 Gateway 后等待 `openclaw gateway status` connectivity 通过，再打开浏览器。
+- 控制台入口的 OpenClaw 打开路径同步增加 Gateway connectivity 检查，避免端口开但 WebSocket 不可用时误导用户。

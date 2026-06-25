@@ -1466,12 +1466,35 @@ for candidate in candidates:
     }
   }
   if ($token) {
-    return ("{0}#token={1}" -f $url, [Uri]::EscapeDataString($token.Trim()))
+    $targetUrl = $url
+    if ($dashboardUrl) {
+      $targetUrl = $dashboardUrl
+    }
+    $encodedToken = [Uri]::EscapeDataString($token.Trim())
+    if ($targetUrl -match '(^|[#?&])token=') {
+      return $targetUrl
+    }
+    if ($targetUrl -match '#') {
+      $parts = $targetUrl -split '#', 2
+      if ($parts[1]) {
+        return ("{0}#token={1}&{2}" -f $parts[0], $encodedToken, $parts[1])
+      }
+      return ("{0}#token={1}" -f $parts[0], $encodedToken)
+    }
+    return ("{0}#token={1}" -f $targetUrl, $encodedToken)
   }
   if ($dashboardUrl) {
     return $dashboardUrl
   }
   return $url
+}
+
+function Wait-OpenClawReady {
+  param([int]$Seconds = 45)
+
+  $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; for i in $(seq 1 __SECONDS__); do openclaw gateway status >/tmp/openclaw-desktop-status.log 2>&1 || true; if grep -Eiq "Connectivity probe[:= ]+(ok|passed)|connectivity.*ok|probe.*ok" /tmp/openclaw-desktop-status.log; then exit 0; fi; sleep 1; done; exit 1'
+  $cmd = $cmd.Replace("__SECONDS__", [string]$Seconds)
+  return (Invoke-WslBash $cmd)
 }
 
 function Open-WhenReady {
@@ -1499,6 +1522,13 @@ function Open-WhenReady {
   }
   if ($ready) {
     if ($OpenClaw) {
+      if (-not (Wait-OpenClawReady 45)) {
+        Write-Host "OpenClaw Gateway 端口已响应，但连通性检查还没有通过，所以暂时不自动打开浏览器。" -ForegroundColor Yellow
+        Write-Host "可查看 WSL 内日志：" -ForegroundColor Yellow
+        Write-Host "  /tmp/openclaw-desktop-restart.log" -ForegroundColor Yellow
+        Write-Host "  /tmp/openclaw-desktop-status.log" -ForegroundColor Yellow
+        return
+      }
       Start-Process (Get-OpenClawDashboardUrl $Port)
     } else {
       Start-Process ("http://127.0.0.1:{0}/" -f $Port)
@@ -1746,7 +1776,22 @@ for candidate in candidates:
     }
   }
   if ($token) {
-    return ("{0}#token={1}" -f $url, [Uri]::EscapeDataString($token.Trim()))
+    $targetUrl = $url
+    if ($dashboardUrl) {
+      $targetUrl = $dashboardUrl
+    }
+    $encodedToken = [Uri]::EscapeDataString($token.Trim())
+    if ($targetUrl -match '(^|[#?&])token=') {
+      return $targetUrl
+    }
+    if ($targetUrl -match '#') {
+      $parts = $targetUrl -split '#', 2
+      if ($parts[1]) {
+        return ("{0}#token={1}&{2}" -f $parts[0], $encodedToken, $parts[1])
+      }
+      return ("{0}#token={1}" -f $parts[0], $encodedToken)
+    }
+    return ("{0}#token={1}" -f $targetUrl, $encodedToken)
   }
   if ($dashboardUrl) {
     return $dashboardUrl
@@ -1778,13 +1823,21 @@ function Wait-Port {
   return $false
 }
 
-$cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
+function Wait-OpenClawReady {
+  param([int]$Seconds = 45)
+
+  $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; for i in $(seq 1 __SECONDS__); do openclaw gateway status >/tmp/openclaw-desktop-status.log 2>&1 || true; if grep -Eiq "Connectivity probe[:= ]+(ok|passed)|connectivity.*ok|probe.*ok" /tmp/openclaw-desktop-status.log; then exit 0; fi; sleep 1; done; exit 1'
+  $cmd = $cmd.Replace("__SECONDS__", [string]$Seconds)
+  return (Invoke-WslBash $cmd)
+}
+
+$cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || true; openclaw gateway start >/tmp/openclaw-desktop-start.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
 [void](Invoke-WslBash $cmd)
-if (Wait-Port $script:OpenClawPort 60) {
+if ((Wait-Port $script:OpenClawPort 60) -and (Wait-OpenClawReady 45)) {
   Start-Process (Get-OpenClawDashboardUrl $script:OpenClawPort)
 } else {
   $shell = New-Object -ComObject WScript.Shell
-  [void]$shell.Popup("OpenClaw 端口暂未响应。请稍后再双击这个入口，或打开 Miloco 控制台选择 3 重启整套服务。", 12, "Miloco / OpenClaw", 48)
+  [void]$shell.Popup("OpenClaw Gateway 暂未就绪。请稍后再双击这个入口，或打开 Miloco 控制台选择 3 重启整套服务。", 12, "Miloco / OpenClaw", 48)
 }
 '@
   $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$script:MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
