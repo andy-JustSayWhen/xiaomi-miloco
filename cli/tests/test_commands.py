@@ -1668,6 +1668,27 @@ def test_account_authorize_submits_payload(runner):
     mock.assert_called_once_with("/api/miot/authorize", {"code": "ABC", "state": "XYZ"})
 
 
+def test_account_authorize_submits_callback_url(runner):
+    with patch("miloco_cli.client.api_post") as mock:
+        mock.return_value = {"code": 0, "data": None}
+        result = runner.invoke(
+            cli,
+            [
+                "account",
+                "authorize",
+                "https://127.0.0.1/?code=C3_59AB9BDB8A355E098DD178B3D00DC5AF&state=06af4c9d9cffffb329b50aa9401fa57eb4a11bc9",
+            ],
+        )
+    assert result.exit_code == 0
+    mock.assert_called_once_with(
+        "/api/miot/authorize",
+        {
+            "code": "C3_59AB9BDB8A355E098DD178B3D00DC5AF",
+            "state": "06af4c9d9cffffb329b50aa9401fa57eb4a11bc9",
+        },
+    )
+
+
 def test_account_authorize_rejects_bad_payload(runner):
     result = runner.invoke(cli, ["account", "authorize", "not-a-valid-payload"])
     assert result.exit_code != 0

@@ -1356,8 +1356,28 @@ function Invoke-WslBash {
   return $true
 }
 
-function Open-WhenReady {
+function Get-OpenClawDashboardUrl {
   param([int]$Port)
+
+  $url = "http://127.0.0.1:{0}/" -f $Port
+  $token = ""
+  try {
+    $py = 'import json; from pathlib import Path; p=Path.home()/".openclaw"/"miloco"/"config.json"; d=json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}; print(((d.get("agent") or {}).get("auth_bearer") or "").strip())'
+    $token = (& $script:WslExe -d $script:Distro -- python3 -c $py 2>$null | Select-Object -First 1)
+  } catch {
+    $token = ""
+  }
+  if ($token) {
+    return ("{0}#token={1}" -f $url, [Uri]::EscapeDataString($token.Trim()))
+  }
+  return $url
+}
+
+function Open-WhenReady {
+  param(
+    [int]$Port,
+    [switch]$OpenClaw
+  )
 
   $deadline = (Get-Date).AddSeconds(60)
   $ready = $false
@@ -1377,7 +1397,11 @@ function Open-WhenReady {
     Start-Sleep -Seconds 1
   }
   if ($ready) {
-    Start-Process ("http://127.0.0.1:{0}/" -f $Port)
+    if ($OpenClaw) {
+      Start-Process (Get-OpenClawDashboardUrl $Port)
+    } else {
+      Start-Process ("http://127.0.0.1:{0}/" -f $Port)
+    }
     return
   }
 
@@ -1412,7 +1436,7 @@ function Restart-OpenClaw {
   Write-Host "正在重启 OpenClaw 面板..."
   $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
   if (Invoke-WslBash $cmd) {
-    Open-WhenReady $script:OpenClawPort
+    Open-WhenReady $script:OpenClawPort -OpenClaw
   }
 }
 
@@ -1433,7 +1457,7 @@ function Restart-All {
   $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; ' + $configCmd + ' || exit 44; supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-desktop-supervisor-stop.log 2>&1 || true; pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; sleep 1; pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; nohup miloco-cli service start >/tmp/miloco-desktop-start.log 2>&1 & openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
   if (Invoke-WslBash $cmd) {
     Open-WhenReady $script:MilocoPort
-    Open-WhenReady $script:OpenClawPort
+    Open-WhenReady $script:OpenClawPort -OpenClaw
   }
 }
 

@@ -4,6 +4,7 @@ import base64
 import binascii
 import json
 import sys
+from urllib.parse import parse_qs, urlparse
 
 import click
 
@@ -26,12 +27,26 @@ def account_status(pretty):
 
 
 def _parse_auth_payload(payload: str) -> tuple[str, str]:
-    """解析回调页面给出的 base64 授权码（内含 JSON），返回 (code, state)。"""
+    """解析回调 URL、JSON 或 base64(JSON)，返回 (code, state)。"""
     payload = payload.strip()
     if not payload:
         raise click.ClickException("授权信息为空。")
+
+    parsed_url = urlparse(payload)
+    if parsed_url.scheme and parsed_url.netloc:
+        qs = parse_qs(parsed_url.query)
+        code = (qs.get("code") or [""])[0].strip()
+        state = (qs.get("state") or [""])[0].strip()
+        if code and state:
+            return code, state
+        raise click.ClickException("授权信息中 code 或 state 为空。")
+
     try:
-        decoded = base64.b64decode(payload).decode("utf-8")
+        if payload.startswith("{"):
+            decoded = payload
+        else:
+            padded = payload + "=" * ((4 - (len(payload) % 4)) % 4)
+            decoded = base64.urlsafe_b64decode(padded).decode("utf-8")
         data = json.loads(decoded)
         code = data["code"].strip()
         state = data["state"].strip()

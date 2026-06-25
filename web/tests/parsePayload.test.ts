@@ -1,10 +1,9 @@
 /**
- * 米家 OAuth 回调页给的 base64 payload 解析单测。
+ * 米家 OAuth 回调页给的授权信息解析单测。
  *
- * 用户从 mico.api.mijia.tech/login_redirect 复制的字符串本质是
- * `base64(JSON.stringify({code, state}))`。Python cli 端有相同逻辑
- * （cli/src/miloco_cli/commands/account.py::_parse_auth_payload），
- * 这里覆盖前端版本的边界 case。
+ * 用户可能复制 mico.api.mijia.tech/login_redirect 的 base64 payload，也可能
+ * 复制浏览器地址栏里的 https://127.0.0.1/?code=...&state=...。
+ * Python cli 端有相同逻辑，这里覆盖前端版本的边界 case。
  */
 
 import { describe, it, expect } from "vitest";
@@ -25,6 +24,21 @@ describe("parsePayload — 米家 OAuth base64 payload 解析", () => {
     const raw = makePayload({ code: "abc", state: "xyz" });
     const out = parsePayload(`  \n${raw}\n  `);
     expect(out).toEqual({ code: "abc", state: "xyz" });
+  });
+
+  it("完整回调 URL → 返 {code, state}", () => {
+    const out = parsePayload(
+      "https://127.0.0.1/?code=C3_59AB9BDB8A355E098DD178B3D00DC5AF&state=06af4c9d9cffffb329b50aa9401fa57eb4a11bc9",
+    );
+    expect(out).toEqual({
+      code: "C3_59AB9BDB8A355E098DD178B3D00DC5AF",
+      state: "06af4c9d9cffffb329b50aa9401fa57eb4a11bc9",
+    });
+  });
+
+  it("JSON 明文 → 返 {code, state}", () => {
+    const out = parsePayload('{"code":"ABC","state":"XYZ"}');
+    expect(out).toEqual({ code: "ABC", state: "XYZ" });
   });
 
   it("空字符串 → 错误「授权码为空」", () => {

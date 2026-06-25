@@ -1,15 +1,14 @@
 /**
  * 米家账号绑定向导（§5 居中 Dialog）。
  *
- * 流程跟 cli/.../commands/account.py 同源——backend `redirect_uri` 写死在
- * `https://mico.api.mijia.tech/login_redirect`（manager.py:64，小米 OAuth
- * whitelist 限制不能改非小米域名），webUI 拿不到回调 query，必须靠用户
- * 手动复制小米回调页给的 base64 payload 粘进来。
+ * 流程跟 cli/.../commands/account.py 同源。小米 OAuth 有时会跳回
+ * `https://127.0.0.1/?code=...&state=...` 并显示浏览器连接失败页；此时用户
+ * 复制地址栏完整 URL 也应当能完成绑定。旧的 base64(JSON) payload 仍兼容。
  *
  * 三步状态机：
  *   ① 调 POST /api/miot/bind 拿 oauth_url → window.open 新标签授权
- *   ② 用户从「授权成功」页复制 payload 粘到 textarea
- *   ③ 前端 base64 解码 → POST /api/miot/authorize {code, state}
+ *   ② 用户复制回调 URL 或 payload 粘到 textarea
+ *   ③ 前端解析 → POST /api/miot/authorize {code, state}
  *
  * 视觉规格严格按 §5 Dialog（居中 max-w-md bg-bg-secondary border rounded-2xl
  * shadow-lg p-6） + §2 按钮族（Primary CTA / Secondary / 错误 inline warn caption）。
@@ -36,11 +35,53 @@ interface ParsedPayload {
   state: string;
 }
 
-// 跟 cli/.../account.py::_parse_auth_payload 同款：base64 → JSON → 取 code/state
+function readCodeState(data: unknown): ParsedPayload | { error: string } {
+  if (
+    !data ||
+    typeof data !== "object" ||
+    typeof (data as { code?: unknown }).code !== "string" ||
+    typeof (data as { state?: unknown }).state !== "string"
+  ) {
+    return { error: i18n.t("account.payloadMissingFields") };
+  }
+  const { code, state } = data as ParsedPayload;
+  if (!code.trim() || !state.trim()) {
+    return { error: i18n.t("account.payloadEmptyFields") };
+  }
+  return { code: code.trim(), state: state.trim() };
+}
+
+function parseCallbackUrl(raw: string): ParsedPayload | { error: string } | null {
+  try {
+    const url = new URL(raw);
+    const code = url.searchParams.get("code");
+    const state = url.searchParams.get("state");
+    if (code !== null || state !== null) {
+      return readCodeState({ code: code ?? "", state: state ?? "" });
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+// 跟 cli/.../account.py::_parse_auth_payload 同款：回调 URL / JSON / base64(JSON) → code/state
 // 导出供 vitest 测各种边界 case
 export function parsePayload(raw: string): ParsedPayload | { error: string } {
   const trimmed = raw.trim();
   if (!trimmed) return { error: i18n.t("account.payloadEmpty") };
+
+  const urlPayload = parseCallbackUrl(trimmed);
+  if (urlPayload) return urlPayload;
+
+  if (trimmed.startsWith("{")) {
+    try {
+      return readCodeState(JSON.parse(trimmed));
+    } catch {
+      return { error: i18n.t("account.payloadParseFail") };
+    }
+  }
+
   let decoded: string;
   try {
     // cli/.../account.py::_parse_auth_payload 走 base64.urlsafe_b64decode 兼容
@@ -59,19 +100,7 @@ export function parsePayload(raw: string): ParsedPayload | { error: string } {
   } catch {
     return { error: i18n.t("account.payloadParseFail") };
   }
-  if (
-    !data ||
-    typeof data !== "object" ||
-    typeof (data as { code?: unknown }).code !== "string" ||
-    typeof (data as { state?: unknown }).state !== "string"
-  ) {
-    return { error: i18n.t("account.payloadMissingFields") };
-  }
-  const { code, state } = data as ParsedPayload;
-  if (!code.trim() || !state.trim()) {
-    return { error: i18n.t("account.payloadEmptyFields") };
-  }
-  return { code: code.trim(), state: state.trim() };
+  return readCodeState(data);
 }
 
 export function MiotBindDialog({ open, onClose, onDone }: Props) {
