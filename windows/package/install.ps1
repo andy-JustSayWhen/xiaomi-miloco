@@ -1359,10 +1359,41 @@ function Invoke-WslBash {
   return $true
 }
 
+function Invoke-WslText {
+  param([string]$Command)
+
+  if (-not (Test-Distro)) {
+    return @()
+  }
+
+  $normalized = $Command -replace "`r`n", "`n"
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
+  return @(& $script:WslExe -d $script:Distro -- bash -lc "printf '%s' '$encoded' | base64 -d | bash" 2>$null)
+}
+
 function Get-OpenClawDashboardUrl {
   param([int]$Port)
 
   $url = "http://127.0.0.1:{0}/" -f $Port
+  $dashboardUrl = ""
+  try {
+    $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; openclaw dashboard --no-open 2>/tmp/openclaw-dashboard-url.err || true'
+    foreach ($line in (Invoke-WslText $cmd)) {
+      $match = [regex]::Match([string]$line, 'https?://[^\s"''<>]+')
+      if ($match.Success) {
+        $candidate = $match.Value.Trim()
+        if ($candidate -match '(^|[#?&])token=') {
+          return $candidate
+        }
+        if (-not $dashboardUrl) {
+          $dashboardUrl = $candidate
+        }
+      }
+    }
+  } catch {
+    $dashboardUrl = ""
+  }
+
   $token = ""
   try {
     $py = @"
@@ -1403,6 +1434,9 @@ for candidate in candidates:
   }
   if ($token) {
     return ("{0}#token={1}" -f $url, [Uri]::EscapeDataString($token.Trim()))
+  }
+  if ($dashboardUrl) {
+    return $dashboardUrl
   }
   return $url
 }
@@ -1576,10 +1610,37 @@ function Invoke-WslBash {
   return ($LASTEXITCODE -eq 0)
 }
 
+function Invoke-WslText {
+  param([string]$Command)
+
+  $normalized = $Command -replace "`r`n", "`n"
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($normalized))
+  return @(& $script:WslExe -d $script:Distro -- bash -lc "printf '%s' '$encoded' | base64 -d | bash" 2>$null)
+}
+
 function Get-OpenClawDashboardUrl {
   param([int]$Port)
 
   $url = "http://127.0.0.1:{0}/" -f $Port
+  $dashboardUrl = ""
+  try {
+    $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; openclaw dashboard --no-open 2>/tmp/openclaw-dashboard-url.err || true'
+    foreach ($line in (Invoke-WslText $cmd)) {
+      $match = [regex]::Match([string]$line, 'https?://[^\s"''<>]+')
+      if ($match.Success) {
+        $candidate = $match.Value.Trim()
+        if ($candidate -match '(^|[#?&])token=') {
+          return $candidate
+        }
+        if (-not $dashboardUrl) {
+          $dashboardUrl = $candidate
+        }
+      }
+    }
+  } catch {
+    $dashboardUrl = ""
+  }
+
   $token = ""
   try {
     $py = @"
@@ -1620,6 +1681,9 @@ for candidate in candidates:
   }
   if ($token) {
     return ("{0}#token={1}" -f $url, [Uri]::EscapeDataString($token.Trim()))
+  }
+  if ($dashboardUrl) {
+    return $dashboardUrl
   }
   return $url
 }

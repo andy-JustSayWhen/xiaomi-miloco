@@ -251,3 +251,26 @@ FULL_READY=yes
 
 - 先记录本轮证据，再迭代入口脚本的 token 读取/兜底逻辑。
 - 修复后重新打包替换 GitHub Release，并直接在远程 Windows 上下载运行新 release 复测，不再额外等待“运行”确认。
+
+### 2026-06-25 23:55 复测补充
+
+第二轮 release 包重新下载为 `easy-miloco-v0.2-windows (8).zip`，解压后运行 `install.bat`。
+
+本轮通过项：
+
+- 安装器完成旧版检测、恢复包导出、旧版卸载、新版安装。
+- `[9/12]` OpenClaw CLI / Gateway / `miloco-openclaw-plugin` 自检通过。
+- `[10/12]` 桌面 `Miloco 控制台.bat`、`miloco-console.ps1`、`OpenClaw 对话入口.lnk` 创建成功。
+- Miloco WebUI 可打开，模型 API 连通性测试成功，约 `6.4s` 返回。
+- 模型 `mimo-v2.5` 已保存并启用。
+- 小米账号 OAuth 回调 URL 可被 WebUI 接收，家庭选择可完成。
+- 概览顶部最终显示 `andy的家`、`mtdjb`、`127`，说明账号、家庭和设备总量已落盘。
+
+本轮问题：
+
+- 家庭选择后概览/设备页长时间停在“正在读取”，约 1 分钟后才恢复到绑定状态；记录为体验问题，暂未判定为安装阻断。
+- `OpenClaw 对话入口` 仍打开到 Gateway 登录页，token 字段为空。说明仅从 `~/.openclaw/miloco/config.json::agent.auth_bearer` 和 `~/.openclaw/openclaw.json::gateway.auth` 读 token 仍不可靠。
+
+本轮迭代：
+
+- `windows/package/install.ps1` 的桌面入口改为优先调用 `openclaw dashboard --no-open`，使用 OpenClaw 官方 CLI 生成当前 dashboard URL；只有 CLI 未返回 token URL 时，才回退到本地配置读取。
