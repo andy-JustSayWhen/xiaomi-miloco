@@ -19,6 +19,20 @@
 
 Azure VM 非视觉部署和验证流程见 [../runbooks/azure-vm-nonvisual-test.md](../runbooks/azure-vm-nonvisual-test.md)。
 
+## Azure VM 长任务固定入口
+
+部署、卸载、release 验收这类超过 60 秒的 VM 任务，默认使用：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\docs\scripts\azure-vm-run-job-and-deallocate.ps1 `
+  -CredentialFile .local-secrets\azure-vm.env `
+  -JobName release-deploy-YYYYMMDD-HHMMSS `
+  -ScriptPath .local-secrets\vm-release-deploy-test.ps1
+```
+
+该入口默认每 20 秒读取一次小 `status.json`，每 3 次轮询才读取 stdout tail；结束或报错都会尝试 deallocate VM。只有排查底层机制时，才拆开使用 `azure-vm-start-user-job.ps1`、`azure-vm-job-status.ps1`、`azure-vm-deallocate.ps1`。
+
 ## 推荐统一入口
 
 在目标 Windows PowerShell 中执行：

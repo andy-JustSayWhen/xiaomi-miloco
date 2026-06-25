@@ -7,8 +7,9 @@
 - Azure `az vm run-command invoke` 是首选控制通道，适合查状态、传脚本、创建计划任务。
 - Run Command 在 Windows VM 内以 `NT AUTHORITY\SYSTEM` 运行。SYSTEM 不能直接跑 WSL，会遇到 `WSL_E_LOCAL_SYSTEM_NOT_SUPPORTED`。
 - 需要跑 WSL / Miloco / OpenClaw 时，用 Run Command 创建一个以真实 Windows 用户运行的计划任务，再读回输出文件。
-- 不要用 Run Command 扛长流程。任何可能超过 60 秒的部署、安装、卸载、验收任务，都必须先启动 VM 内后台 job，再轮询 `status.json` 和日志 tail。
-- 轮询时每 30-60 秒向用户报告当前状态、最近日志和已耗时。不要让用户盯着空白等待。
+- 不要用 Run Command 扛长流程。任何可能超过 60 秒的部署、安装、卸载、验收任务，优先使用 `docs/scripts/azure-vm-run-job-and-deallocate.ps1`。
+- `azure-vm-run-job-and-deallocate.ps1` 会启动 VM、提交用户上下文后台 job、轻量轮询 `status.json`，并在 `finally` 中 deallocate VM。
+- 默认轮询策略：每 20 秒只读小 `status.json`，每 3 次轮询读取一次 stdout tail。用户侧每 30-60 秒必须看到一次状态、最近日志和已耗时。
 - 每次 VM 测试或远程执行结束后，必须及时 deallocate VM，除非用户明确要求保留运行。
 - 复杂命令不要塞进一行远程命令。优先上传脚本文件，再执行脚本。
 - VM 输出可能被 Azure 截断。长日志要写到 `C:\easy-miloco-runcommand\...\output.txt`，再按需读取 tail 或关键段。
@@ -156,11 +157,11 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 -PollSeconds 20 -TailLines 320 -TailEveryPolls 1
 ```
 
-只有在需要调试底层机制时，才拆开使用下面三个脚本：
+常规部署测试不要手工拆 `start/status/deallocate`。只有在需要调试底层机制时，才拆开使用下面三个脚本：
 
 1. 用 `azure-vm-start-user-job.ps1` 启动 VM 内后台 job。
 2. 记录返回的 `job`、`status`、`stdout` 路径。
-3. 每 30-60 秒用 `azure-vm-job-status.ps1` 读取状态和日志 tail。
+3. 用 `azure-vm-job-status.ps1 -TailLines 0` 高频读取小状态，需要看日志时再加 tail。
 4. `state=completed` 且 `exit_code=0` 才算通过。
 5. 结束后用 `azure-vm-deallocate.ps1` 关机释放。
 
@@ -177,7 +178,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
   -File .\docs\scripts\azure-vm-job-status.ps1 `
   -CredentialFile .local-secrets\azure-vm.env `
   -JobName release-prepare-20260625 `
-  -TailLines 120
+  -TailLines 0
 ```
 
 如果上一步是部署测试，最后必须执行：
@@ -189,6 +190,43 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 ```
 
 经验教训：一次 19 秒的远端下载/解压/卸载动作，曾因为阻塞等待 Azure Run Command 回传而让用户等了 16 分钟。以后 Run Command 只做控制面启动/查询，不做长流程承载。
+
+## 2026-06-25 实测耗时基准
+
+以下数据用于判断下次测试是否又在和 VM 机制搏斗：
+
+| Job | 本机总耗时 | VM 内实际部署 | 结果 | 备注 |
+| --- | ---: | ---: | --- | --- |
+| `release-deploy-20260625-142009` | 约 10 分 19 秒 | 约 4 分 03 秒 | PASS | 旧 runner 没有及时释放 VM，后续手工 deallocate |
+| `release-deploy-20260625-143232` | 约 8 分 11 秒 | 约 4 分 03 秒 | PASS | runner 已自动 deallocate |
+| `release-deploy-20260625-181349` | 约 7 分 04 秒 | 约 4 分 05 秒 | PASS | 轻量状态轮询，完成后自动 deallocate |
+
+当前合理预期：
+
+- VM 内下载安装、卸载、Prepare、Validate 约 4 分钟。
+- 额外 3 分钟主要来自 VM 启动、Run Command 提交/查询、deallocate 控制面延迟。
+- 若本机总耗时再次超过 10 分钟，先怀疑远程执行通道或轮询方式，而不是 release 包或安装脚本本身。
+- 下一步大幅优化只能靠 SSH / WinRM 直连状态通道，减少 Azure Run Command 控制面往返。
+
+本轮通过口径：
+
+```text
+UNINSTALL_EXIT=0
+PREPARE_EXIT=0
+VALIDATE_EXIT=0
+BASIC_READY=yes
+FAIL_COUNT=0
+```
+
+`FULL_READY=no` 可接受，表示没有完成视觉/账号/API 的满血验收，不代表基础部署失败。
+
+## 本地清理口径
+
+被忽略的临时文件只保留可复用资产：
+
+- 保留 `.local-secrets/azure-vm.env`、VM 凭据、RDP 文件、`.local-secrets/vm-release-deploy-test.ps1`、最新 runner 日志和 `last-vm-runner.json`。
+- 删除旧 runner 日志、一次性 Azure 登录回显、旧 Run Command 原型脚本、`.local-secrets/tools/`、`.codex/tmp/` 和 `dist/` 里的本地构建产物。
+- `dist/.gitignore` 保留，避免空目录规则丢失。
 
 ## 快速验证 Miloco
 
