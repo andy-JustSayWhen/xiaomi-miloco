@@ -652,3 +652,32 @@ FULL_READY=yes
 - 最终 Miloco backend `restart` 与 `stop/start` 后 `/health` 仍返回 502，但脚本按预期输出降级警告并继续执行 OpenClaw gateway restart 和验证报告。
 - 验证报告显示 `BASIC_READY=yes`、`FULL_READY=no`、`PASS_COUNT=13`、`FAIL_COUNT=0`、`WARN_COUNT=4`，随后安装器输出“账号/API 配置已完成”。
 - 结论：对 home02 这类不在 `andy的家` 设备同一局域网的测试机，API/OpenClaw 配置完成但摄像头/设备/health 降级属于可接受的部署完成态；完整视觉设备验证应回到与设备同 LAN 的机器执行。
+
+### 2026-06-26 远程 release 第十九轮完整云端包复测
+
+第十九轮在 home02 远程 Windows 上走完整普通用户路径：从 GitHub Release 下载 `easy-miloco-v0.2-windows.zip`，保存到桌面，使用 Explorer 全部解压，双击正式 `install.bat`，在 SmartScreen/打开文件提示中取消“总是询问”并点击运行。home02 与 `andy的家` 设备不在同一局域网，因此本轮继续把摄像头、设备 LAN 可达性和 FULL_READY 视觉链路降级视为环境限制。
+
+本轮通过项：
+
+- 云端 release 下载成功，解压出的正式包可直接双击运行。
+- 安装器检测到已有 Miloco，导出 Agent 恢复包到桌面，然后完整卸载旧版。
+- 新版安装继续使用 Ubuntu-24.04，端口从 18860 起分配，Miloco 与 OpenClaw 安装完成。
+- 桌面 `Miloco 控制台.bat`、`miloco-console.ps1`、`OpenClaw 对话入口.lnk` 创建成功。
+- API Key、Base URL `https://token-plan-sgp.xiaomimimo.com/v1` 和模型 `mimo-v2.5` 写入成功；OpenClaw 插件配置与主聊天模型配置写入成功。
+- 最终验证报告显示 `BASIC_READY=yes`、`FULL_READY=no`、`PASS_COUNT=13`、`FAIL_COUNT=0`、`WARN_COUNT=4`，安装器输出“账号/API 配置已完成”。
+
+本轮问题：
+
+- 小米账号授权链接生成仍两次返回 `invalid JSON response: 502`，安装器按预期跳过授权并继续 API 配置。
+- 该问题与 home02/home01 不同局域网无关；它发生在小米授权链接生成或 Miloco 后端授权接口链路，仍需继续排查。
+- UU 远程对回车仍不稳定，Base URL 和模型选择需要使用剪贴板带换行提交。该项属于远程控制方法问题，不判为 easy-miloco bug。
+
+本轮环境判定：
+
+- home02 测试机与米家 `andy的家` 内设备不在同一局域网，因此摄像头本地直连、局域网设备发现、设备 LAN 可达性、依赖同网段的视觉链路和 `FULL_READY=no` 属于合理环境降级。
+- 小米账号授权链接生成、API Key/Base URL/模型写入、OpenClaw 配置、安装器退出码和脚本异常不依赖与设备同 LAN，仍按真实产品问题处理。
+
+本轮迭代：
+
+- `wsl-post-auth-finish.sh --print-bind-url` 保留原有 `miloco-cli account bind --no-wait` 路径；如果后端授权接口返回 502 或非 JSON 导致失败，则读取 Miloco 数据库中的 `DEVICE_UUID_KEY`，按源码同算法本地生成 `https://account.xiaomi.com/oauth2/authorize` 授权 URL。
+- 兜底 URL 使用同一个 `device_id` 与 `state` 计算方式，避免用户授权后粘贴回调时和后续 `miloco-cli account authorize` 不匹配。

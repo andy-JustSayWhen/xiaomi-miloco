@@ -126,6 +126,126 @@ run_checked_json_retry() {
   return 2
 }
 
+print_bind_url() {
+  log "Generating Xiaomi account bind URL"
+  if miloco-cli account bind --no-wait; then
+    return 0
+  fi
+
+  status=$?
+  log "miloco-cli account bind failed with exit code ${status}; generating the URL locally"
+  python3 - <<'PY'
+import hashlib
+import json
+import os
+import sqlite3
+import sys
+import time
+import uuid as uuidlib
+from pathlib import Path
+from urllib.parse import urlencode
+
+PROJECT_CODE = "mico"
+OAUTH2_CLIENT_ID = "2882303761520431603"
+OAUTH2_AUTH_URL = "https://account.xiaomi.com/oauth2/authorize"
+
+def read_json(path):
+    try:
+        if path.is_file():
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                return data
+    except Exception:
+        pass
+    return {}
+
+def section_value(data, section, key, default):
+    value = data.get(section)
+    if isinstance(value, dict):
+        value = value.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return default
+
+miloco_home = Path(os.environ.get("MILOCO_HOME", "~/.openclaw/miloco")).expanduser()
+config = read_json(miloco_home / "config.json")
+
+storage = os.environ.get("MILOCO_DIRECTORIES__STORAGE") or section_value(
+    config, "directories", "storage", "."
+)
+workspace = Path(storage).expanduser()
+if not workspace.is_absolute():
+    workspace = miloco_home if str(workspace) in ("", ".") else miloco_home / workspace
+
+database_path = os.environ.get("MILOCO_DATABASE__PATH") or section_value(
+    config, "database", "path", "miloco.db"
+)
+db_path = Path(database_path).expanduser()
+if not db_path.is_absolute():
+    db_path = workspace / db_path
+
+redirect_uri = os.environ.get("MILOCO_MIOT__OAUTH_REDIRECT_URI") or section_value(
+    config, "miot", "oauth_redirect_uri", "https://127.0.0.1"
+)
+
+try:
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(str(db_path), timeout=10)
+    try:
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS kv (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                key TEXT UNIQUE NOT NULL,
+                value TEXT,
+                created_at INTEGER NOT NULL,
+                updated_at INTEGER NOT NULL
+            )
+            """
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_kv_key ON kv(key)")
+        row = conn.execute(
+            "SELECT value FROM kv WHERE key = ?",
+            ("DEVICE_UUID_KEY",),
+        ).fetchone()
+        device_uuid = row[0] if row and row[0] else None
+        if not device_uuid:
+            device_uuid = uuidlib.uuid4().hex
+            now_ms = int(time.time() * 1000)
+            conn.execute(
+                """
+                INSERT INTO kv (key, value, created_at, updated_at)
+                VALUES (?, ?, ?, ?)
+                ON CONFLICT(key) DO UPDATE SET
+                    value = excluded.value,
+                    updated_at = excluded.updated_at
+                """,
+                ("DEVICE_UUID_KEY", device_uuid, now_ms, now_ms),
+            )
+            conn.commit()
+    finally:
+        conn.close()
+except Exception as exc:
+    print(f"[FAIL] Could not read or create Miloco DEVICE_UUID_KEY: {exc}", file=sys.stderr)
+    raise SystemExit(2)
+
+device_id = f"{PROJECT_CODE}.{device_uuid}"
+state = hashlib.sha1(f"d={device_id}".encode("utf-8")).hexdigest()
+params = {
+    "redirect_uri": redirect_uri,
+    "client_id": OAUTH2_CLIENT_ID,
+    "response_type": "code",
+    "device_id": device_id,
+    "state": state,
+    "skip_confirm": False,
+}
+url = f"{OAUTH2_AUTH_URL}?{urlencode(params)}"
+print("Xiaomi account bind URL (local fallback):")
+print(url)
+print("[OK] Generated Xiaomi account bind URL locally.")
+PY
+}
+
 wait_miloco_health() {
   attempts="${1:-30}"
   i=1
@@ -219,8 +339,7 @@ need_cmd curl
 need_cmd miloco-cli
 
 if [ "$PRINT_BIND_URL" -eq 1 ]; then
-  log "Generating Xiaomi account bind URL"
-  miloco-cli account bind --no-wait
+  print_bind_url
   exit $?
 fi
 
