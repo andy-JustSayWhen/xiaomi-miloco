@@ -398,3 +398,24 @@ FULL_READY=yes
 
 - `windows/package/install.ps1` 的 `Test-ReportAllowsPostAuthSetup` 改为：只要 Miloco 后端可用，且没有 `miloco.health` / `windows.miloco_http` 硬失败，就允许进入 post-auth 配置流程。
 - 即使账号/API 已配置，交互流程也允许用户直接回车跳过；这比误阻断小米账号授权和 API 配置更安全。
+
+### 2026-06-26 远程 release 第八轮复测补充
+
+第八轮继续使用 GitHub Release 当前 `v0.2` 资产，远程机器为 home02。测试前提：home02 与米家 `andy的家` 设备不在同一局域网，因此局域网设备发现、摄像头本地直连、设备本地可达性失败不能直接判为部署 bug；账号授权、API 配置、Miloco/OpenClaw 本机服务可达性仍必须通过。
+
+本轮通过项：
+
+- `install.bat` 可从解压目录直接双击运行，并完成已有安装检测、Agent 恢复包导出、旧版卸载、新版安装。
+- `[8/12]` Miloco 后端启动并通过健康检查，报告中可见 `running: true` 和 `server.url=http://127.0.0.1:18860`。
+- `[9/12]` OpenClaw CLI、Gateway status、`miloco-openclaw-plugin` 检查通过，报告中可见 Gateway runtime running、Connectivity probe ok、插件 loaded。
+- 安装器完成到结束提示，没有因 home02 与设备不在同一局域网而中断。
+
+本轮问题：
+
+- 报告出现唯一硬失败：`[FAIL] openclaw.gateway_http`。结合同一报告里的 `Connectivity probe: ok`、`Listening: 127.0.0.1:18789` 和插件 loaded，该失败更像验收脚本用 `curl -fsS http://127.0.0.1:18789/` 把 OpenClaw token/auth 所需的 401/403 响应误判为网关不可达，而不是 home02 与米家设备不在同一局域网导致。
+- 安装器授权输入为空时会直接返回，不再继续 API 配置。这会把小米账号授权和大模型 API 配置绑死；在远程键盘链路不稳定、用户已有账号只想配置 API、或暂时跳过授权但仍想配置 OpenClaw 主聊天模型时，体验不合理。
+
+本轮迭代：
+
+- OpenClaw HTTP 验收改为判断本机端口是否有 HTTP 响应；`2xx/3xx/4xx` 都证明 Gateway 可达，只有连接失败、超时或 `5xx` 才作为失败。
+- 授权和 API 配置交互解耦：授权码为空时继续进入 API 配置；后端收尾脚本也支持未绑定账号时先写入 Miloco 视觉模型、Miloco OpenClaw 插件和 OpenClaw 主聊天模型。

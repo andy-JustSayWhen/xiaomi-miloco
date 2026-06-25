@@ -242,11 +242,25 @@ PY
 fi
 
 if command -v curl >/dev/null 2>&1; then
-  gateway_http="$(run_capture 8 curl -fsS "http://127.0.0.1:${OPENCLAW_PORT}/")"
-  if [ $? -eq 0 ] && [ -n "$gateway_http" ]; then
-    pass "openclaw.gateway_http" "http://127.0.0.1:${OPENCLAW_PORT}/ responded."
+  gateway_http_code=""
+  gateway_http_body=""
+  gateway_http_err=""
+  for gateway_attempt in $(seq 1 20); do
+    body_file="/tmp/miloco-openclaw-gateway-body.$$"
+    err_file="/tmp/miloco-openclaw-gateway-err.$$"
+    gateway_http_code="$(curl -sS -o "$body_file" -w "%{http_code}" --max-time 3 "http://127.0.0.1:${OPENCLAW_PORT}/" 2>"$err_file" || true)"
+    gateway_http_body="$(head -c 500 "$body_file" 2>/dev/null || true)"
+    gateway_http_err="$(cat "$err_file" 2>/dev/null || true)"
+    rm -f "$body_file" "$err_file" 2>/dev/null || true
+    if printf '%s' "$gateway_http_code" | grep -Eq '^[234][0-9][0-9]$'; then
+      break
+    fi
+    sleep 1
+  done
+  if printf '%s' "$gateway_http_code" | grep -Eq '^[234][0-9][0-9]$'; then
+    pass "openclaw.gateway_http" "http://127.0.0.1:${OPENCLAW_PORT}/ responded with HTTP ${gateway_http_code}."
   else
-    fail "openclaw.gateway_http" "$gateway_http" "Check openclaw gateway status and port."
+    fail "openclaw.gateway_http" "HTTP ${gateway_http_code} ${gateway_http_body} ${gateway_http_err}" "Check openclaw gateway status and port."
   fi
 fi
 

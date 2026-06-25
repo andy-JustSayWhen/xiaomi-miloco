@@ -140,13 +140,33 @@ function Test-Http {
   param(
     [string]$Name,
     [string]$Url,
-    [string]$Expected = ""
+    [string]$Expected = "",
+    [switch]$AnyHttpStatus
   )
 
   $curl = Get-Command curl.exe -ErrorAction SilentlyContinue
   if (-not $curl) {
     Add-Check $Name "WARN" "curl.exe not found." "Install or enable Windows curl.exe for endpoint checks."
     return $false
+  }
+
+  if ($AnyHttpStatus) {
+    $bodyFile = Join-Path ([System.IO.Path]::GetTempPath()) ("miloco-http-body-" + [guid]::NewGuid().ToString("N") + ".txt")
+    try {
+      $result = Run-Text @("curl.exe", "-sS", "-o", $bodyFile, "-w", "%{http_code}", "--max-time", "8", $Url)
+      $lines = @($result.text -split "\r?\n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+      $code = if ($lines.Count -gt 0) { $lines[-1].Trim() } else { "" }
+      $detail = if ($lines.Count -gt 1) { (($lines[0..($lines.Count - 2)]) -join "`n") } else { "" }
+      $body = if (Test-Path -LiteralPath $bodyFile) { Get-Content -Raw -ErrorAction SilentlyContinue -LiteralPath $bodyFile } else { "" }
+      if ($code -match "^[234][0-9][0-9]$") {
+        Add-Check $Name "PASS" ("HTTP response received: {0} ({1} chars)." -f $code, $body.Length)
+        return $true
+      }
+      Add-Check $Name "WARN" ("HTTP status {0}. {1}" -f $code, $detail) "This is expected before services are installed or started."
+      return $false
+    } finally {
+      Remove-Item -Force -LiteralPath $bodyFile -ErrorAction SilentlyContinue
+    }
   }
 
   $result = Run-Text @("curl.exe", "-fsS", "--max-time", "8", $Url)
@@ -243,7 +263,7 @@ if (-not [string]::IsNullOrWhiteSpace($ProxyUrl)) {
 }
 
 $milocoOk = Test-Http -Name "windows.miloco_health" -Url "http://127.0.0.1:$MilocoPort/health" -Expected '"status":"ok"'
-$openclawOk = Test-Http -Name "windows.openclaw_gateway" -Url "http://127.0.0.1:$OpenClawPort/"
+$openclawOk = Test-Http -Name "windows.openclaw_gateway" -Url "http://127.0.0.1:$OpenClawPort/" -AnyHttpStatus
 
 $basicReady = ($milocoOk -and $openclawOk)
 

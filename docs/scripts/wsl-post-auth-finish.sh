@@ -158,15 +158,20 @@ if printf '%s' "$account_before" | grep -Eq '"is_bound"[[:space:]]*:[[:space:]]*
   log "Xiaomi account is already bound; authorization step will be skipped"
 else
   if [ -z "$MILOCO_AUTH_PAYLOAD" ]; then
-    printf 'Missing MILOCO_AUTH_PAYLOAD and account is not bound.\n' >&2
-    printf 'Run: bash wsl-post-auth-finish.sh --print-bind-url\n' >&2
-    exit 2
+    if [ "$AUTHORIZE_ONLY" -eq 1 ]; then
+      printf 'Missing MILOCO_AUTH_PAYLOAD and account is not bound.\n' >&2
+      printf 'Run: bash wsl-post-auth-finish.sh --print-bind-url\n' >&2
+      exit 2
+    fi
+    log "Xiaomi account is not bound and no auth payload was provided; continuing with model/API config only"
   fi
-  log "Authorizing Xiaomi account"
-  if [ "$DRY_RUN" -eq 1 ]; then
-    printf '[DRY_RUN] miloco-cli account authorize <payload>\n'
-  else
-    run_checked_json miloco-cli account authorize "$MILOCO_AUTH_PAYLOAD" </dev/null
+  if [ -n "$MILOCO_AUTH_PAYLOAD" ]; then
+    log "Authorizing Xiaomi account"
+    if [ "$DRY_RUN" -eq 1 ]; then
+      printf '[DRY_RUN] miloco-cli account authorize <payload>\n'
+    else
+      run_checked_json miloco-cli account authorize "$MILOCO_AUTH_PAYLOAD" </dev/null
+    fi
   fi
 fi
 

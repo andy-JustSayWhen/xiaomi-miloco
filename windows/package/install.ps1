@@ -945,7 +945,9 @@ fi
 
 if command -v curl >/dev/null 2>&1; then
   curl -fsS --max-time 2 "http://127.0.0.1:__MILOCO_PORT__/health" >/dev/null 2>&1 && kv MILOCO_HEALTH yes || kv MILOCO_HEALTH no
-  curl -fsS --max-time 2 "http://127.0.0.1:__OPENCLAW_PORT__/" >/dev/null 2>&1 && kv OPENCLAW_HTTP yes || kv OPENCLAW_HTTP no
+  openclaw_code="$(curl -sS -o /tmp/miloco-openclaw-probe-body -w "%{http_code}" --max-time 2 "http://127.0.0.1:__OPENCLAW_PORT__/" 2>/tmp/miloco-openclaw-probe-err || true)"
+  rm -f /tmp/miloco-openclaw-probe-body /tmp/miloco-openclaw-probe-err 2>/dev/null || true
+  printf '%s' "$openclaw_code" | grep -Eq '^[234][0-9][0-9]$' && kv OPENCLAW_HTTP yes || kv OPENCLAW_HTTP no
 else
   kv MILOCO_HEALTH no
   kv OPENCLAW_HTTP no
@@ -2171,35 +2173,34 @@ function Invoke-InteractivePostAuthSetup {
   Write-Host "如果长时间不动，可以直接关闭这个浏览器标签页，回到安装窗口重新生成授权页。" -ForegroundColor Yellow
   Write-Host "如果浏览器跳到 https://127.0.0.1/ 后显示无法访问，这是正常现象。" -ForegroundColor Yellow
   Write-Host "请复制浏览器地址栏里包含 code= 和 state= 的完整地址，粘贴回这里。" -ForegroundColor Yellow
-  $interactiveAuthPayload = (Read-InstallerInput "授权完成后，粘贴授权码或完整回调地址；暂时没有就直接回车跳过").Trim()
+  $interactiveAuthPayload = (Read-InstallerInput "授权完成后，粘贴授权码或完整回调地址；暂时没有就直接回车跳过账号授权，继续配置 API").Trim()
+  $selectedHomeId = ""
   if ([string]::IsNullOrWhiteSpace($interactiveAuthPayload)) {
-    Write-Warn "已跳过小米账号授权收尾。基础服务仍可用，稍后可以重新运行 install.ps1 -Action Finish。"
-    if ($FromFinishAction) {
-      return 1
-    }
-    return 0
-  }
-  $interactiveAuthPayload = ConvertTo-MilocoAuthPayload $interactiveAuthPayload
+    Write-Warn "已跳过小米账号授权收尾。安装器会继续配置 API；账号稍后可以重新运行 install.ps1 -Action Finish 补上。"
+  } else {
+    $interactiveAuthPayload = ConvertTo-MilocoAuthPayload $interactiveAuthPayload
 
-  Write-Host ""
-  Write-Info "正在提交小米账号授权，并获取可选择的家庭列表。"
-  $authorizeResult = Invoke-WorkflowCapture -WorkflowAction "AuthorizeOnly" -CaptureAuthPayload $interactiveAuthPayload
-  if ($authorizeResult.Code -ne 0) {
-    Write-Warn ("小米账号授权没有完成，退出码：{0}。请保留窗口输出继续排查。" -f $authorizeResult.Code)
-    if ($FromFinishAction) {
-      return $authorizeResult.Code
+    Write-Host ""
+    Write-Info "正在提交小米账号授权，并获取可选择的家庭列表。"
+    $authorizeResult = Invoke-WorkflowCapture -WorkflowAction "AuthorizeOnly" -CaptureAuthPayload $interactiveAuthPayload
+    if ($authorizeResult.Code -ne 0) {
+      Write-Warn ("小米账号授权没有完成，退出码：{0}。请保留窗口输出继续排查。" -f $authorizeResult.Code)
+      if ($FromFinishAction) {
+        return $authorizeResult.Code
+      }
+      $interactiveAuthPayload = ""
+    } else {
+      $homes = @(Get-HomeListFromWorkflowOutput -OutputLines $authorizeResult.Lines)
+      if ($homes.Count -eq 0) {
+        Write-Info "授权已提交，正在重新读取家庭列表。"
+        $homeResult = Invoke-WorkflowCapture -WorkflowAction "ListHomes"
+        if ($homeResult.Code -eq 0) {
+          $homes = @(Get-HomeListFromWorkflowOutput -OutputLines $homeResult.Lines)
+        }
+      }
+      $selectedHomeId = Select-MilocoHome -Homes $homes
     }
-    return 0
   }
-  $homes = @(Get-HomeListFromWorkflowOutput -OutputLines $authorizeResult.Lines)
-  if ($homes.Count -eq 0) {
-    Write-Info "授权已提交，正在重新读取家庭列表。"
-    $homeResult = Invoke-WorkflowCapture -WorkflowAction "ListHomes"
-    if ($homeResult.Code -eq 0) {
-      $homes = @(Get-HomeListFromWorkflowOutput -OutputLines $homeResult.Lines)
-    }
-  }
-  $selectedHomeId = Select-MilocoHome -Homes $homes
 
   Write-Host ""
   Write-Host "提示：如果您没有自己的大模型API，可以申请下述任意的免费试用API。" -ForegroundColor Yellow
