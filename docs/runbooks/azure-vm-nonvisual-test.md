@@ -140,6 +140,18 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 
 超过 60 秒的任务不要用 `azure-vm-user-powershell.ps1` 阻塞等待。固定做法：
 
+优先用统一入口，它会自动 start、提交 job、轮询，并在结束或报错时 deallocate VM：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\docs\scripts\azure-vm-run-job-and-deallocate.ps1 `
+  -CredentialFile .local-secrets\azure-vm.env `
+  -JobName release-deploy-20260625 `
+  -ScriptPath .local-secrets\vm-release-deploy-test.ps1
+```
+
+只有在需要调试底层机制时，才拆开使用下面三个脚本：
+
 1. 用 `azure-vm-start-user-job.ps1` 启动 VM 内后台 job。
 2. 记录返回的 `job`、`status`、`stdout` 路径。
 3. 每 30-60 秒用 `azure-vm-job-status.ps1` 读取状态和日志 tail。

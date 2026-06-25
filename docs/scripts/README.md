@@ -14,6 +14,7 @@
 - `azure-vm-start-user-job.ps1`：在 VM 内启动用户上下文后台 job，立即返回 job/status/stdout 路径，适合超过 60 秒的部署任务。
 - `azure-vm-job-status.ps1`：读取 VM 后台 job 的 `status.json` 和 stdout tail，用于 30-60 秒一次的进度轮询。
 - `azure-vm-deallocate.ps1`：测试结束后 deallocate Azure VM，避免测试机长时间运行。
+- `azure-vm-run-job-and-deallocate.ps1`：本机统一入口，负责启动 VM、提交后台 job、轮询状态，并在 `finally` 中释放 VM。做部署测试时优先用它，不要手工串 start/status/deallocate。
 - `publish-github-release-asset.ps1`：维护者发版固定入口，替换 GitHub Release 资产并验证 size/digest。
 
 Azure VM 非视觉部署和验证流程见 [../runbooks/azure-vm-nonvisual-test.md](../runbooks/azure-vm-nonvisual-test.md)。
