@@ -121,7 +121,11 @@ try {
     $tmpOut = Join-Path $env:TEMP ("easy-miloco-status-out-" + [guid]::NewGuid().ToString("N") + ".txt")
     $tmpErr = Join-Path $env:TEMP ("easy-miloco-status-err-" + [guid]::NewGuid().ToString("N") + ".txt")
     $statusCode = 1
+    $oldPythonIoEncoding = $env:PYTHONIOENCODING
+    $oldPythonUtf8 = $env:PYTHONUTF8
     try {
+      $env:PYTHONIOENCODING = "utf-8"
+      $env:PYTHONUTF8 = "1"
       $statusArgs = @(
         "-NoProfile", "-ExecutionPolicy", "Bypass",
         "-File", $jobStatus,
@@ -137,12 +141,14 @@ try {
         $statusCode = 124
         $lastOutput = "status query timed out after ${StatusTimeoutSeconds}s"
       } else {
-        $statusCode = $statusProcess.ExitCode
+        $statusCode = if ($null -eq $statusProcess.ExitCode) { 0 } else { [int]$statusProcess.ExitCode }
         $stdoutText = if (Test-Path -LiteralPath $tmpOut) { Get-Content -LiteralPath $tmpOut -Raw -Encoding UTF8 } else { "" }
         $stderrText = if (Test-Path -LiteralPath $tmpErr) { Get-Content -LiteralPath $tmpErr -Raw -Encoding UTF8 } else { "" }
         $lastOutput = ($stdoutText, $stderrText | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }) -join "`n"
       }
     } finally {
+      $env:PYTHONIOENCODING = $oldPythonIoEncoding
+      $env:PYTHONUTF8 = $oldPythonUtf8
       Remove-Item -LiteralPath $tmpOut, $tmpErr -Force -ErrorAction SilentlyContinue
     }
     Write-Host $lastOutput
@@ -154,7 +160,13 @@ try {
       $exitCode = 1
       break
     }
-    if ($statusCode -ne 0) {
+    $state = ""
+    $match = [regex]::Match($lastOutput, '"state"\s*:\s*"([^"]+)"')
+    if ($match.Success) { $state = $match.Groups[1].Value }
+    $exitMatch = [regex]::Match($lastOutput, '"exit_code"\s*:\s*(-?\d+)')
+    if ($exitMatch.Success) { $exitCode = [int]$exitMatch.Groups[1].Value }
+
+    if ($statusCode -ne 0 -and [string]::IsNullOrWhiteSpace($state)) {
       $statusFailures += 1
       Write-Log ("Status query failed with exit code {0}; consecutive_failures={1}/{2}" -f $statusCode, $statusFailures, $StatusMaxFailures)
       if ($statusFailures -ge $StatusMaxFailures) {
@@ -163,12 +175,6 @@ try {
       continue
     }
     $statusFailures = 0
-
-    $state = ""
-    $match = [regex]::Match($lastOutput, '"state"\s*:\s*"([^"]+)"')
-    if ($match.Success) { $state = $match.Groups[1].Value }
-    $exitMatch = [regex]::Match($lastOutput, '"exit_code"\s*:\s*(-?\d+)')
-    if ($exitMatch.Success) { $exitCode = [int]$exitMatch.Groups[1].Value }
 
     if ($state -eq "completed" -or $state -eq "failed") {
       break
