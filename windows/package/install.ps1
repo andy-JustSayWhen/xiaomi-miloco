@@ -224,6 +224,35 @@ function Get-ReportTroubleshootingLines {
   return $lines.ToArray()
 }
 
+function Test-ReportAllowsPostAuthSetup {
+  param([string]$ReportPath)
+
+  if (-not (Test-Path -LiteralPath $ReportPath)) {
+    return $false
+  }
+
+  $text = Get-Content -Encoding utf8 -LiteralPath $ReportPath -Raw
+  $hasBlockingFailure =
+    ($text -match 'BASIC_READY\s*=\s*no') -or
+    ($text -match 'BASIC_READY_FROM_WINDOWS\s*=\s*no') -or
+    ($text -match '\[FAIL\]\s+miloco\.health') -or
+    ($text -match '\[FAIL\]\s+openclaw\.miloco_plugin') -or
+    ($text -match '\[FAIL\]\s+openclaw\.gateway_http') -or
+    ($text -match '\[FAIL\]\s+windows\.miloco_http') -or
+    ($text -match '\[FAIL\]\s+windows\.openclaw_gateway')
+  if ($hasBlockingFailure) {
+    return $false
+  }
+
+  $hasPostAuthGap =
+    ($text -match 'FULL_READY\s*=\s*no') -or
+    ($text -match 'access token is empty|is_bound"\s*:\s*false') -or
+    ($text -match 'API Key 未配置|miloco\.omni_api_key|api_key.*empty') -or
+    ($text -match 'MiMo API Key') -or
+    ($text -match 'MiMo CA')
+  return $hasPostAuthGap
+}
+
 function Require-File {
   param([string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) {
@@ -2172,9 +2201,15 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action Report -Distro $resolvedDistro -MilocoPort $script:MilocoPort -OpenClawPort $OpenClawPort -ReportPath $reportPath
   $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
 
+  $continueToPostAuth = $false
   if ($code -ne 0) {
-    $diagnosticLines = Get-ReportTroubleshootingLines $reportPath
-    Stop-ForUser "安装命令已经执行完成，但 Miloco/OpenClaw 面板还没有通过自动检查。" $diagnosticLines $code
+    $continueToPostAuth = Test-ReportAllowsPostAuthSetup $reportPath
+    if ($continueToPostAuth) {
+      Write-Warn "基础服务已经完成，但账号授权或 API 配置还没有完成。安装器将继续进入后配置流程。"
+    } else {
+      $diagnosticLines = Get-ReportTroubleshootingLines $reportPath
+      Stop-ForUser "安装命令已经执行完成，但 Miloco/OpenClaw 面板还没有通过自动检查。" $diagnosticLines $code
+    }
   }
 
   Write-Step "安装完成，提示验证和使用入口"
