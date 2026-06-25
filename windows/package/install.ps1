@@ -2008,11 +2008,9 @@ set -euo pipefail
 export MILOCO_HOME="${MILOCO_HOME:-$HOME/.openclaw/miloco}"
 cache="$MILOCO_HOME/.install-cache/__VERSION__"
 mkdir -p "$cache"
-if ! ls "$cache"/miloco-*.whl >/dev/null 2>&1 || ! ls "$cache"/miloco_cli-*.whl >/dev/null 2>&1 || ! ls "$cache"/*.tgz >/dev/null 2>&1; then
-  rm -rf "$cache"
-  mkdir -p "$cache"
-  tar -xzf "__WSL_BUNDLE__" -C "$cache"
-fi
+rm -rf "$cache"
+mkdir -p "$cache"
+tar -xzf "__WSL_BUNDLE__" -C "$cache"
 '@
   $prime = $prime.Replace("__VERSION__", $version).Replace("__WSL_BUNDLE__", $wslBundle)
   Invoke-WslBash $prime

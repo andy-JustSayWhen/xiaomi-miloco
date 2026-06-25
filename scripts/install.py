@@ -669,13 +669,14 @@ class Installer:
             self.ui.fail(f"No miloco-cli wheel found in {src_dir}")
         cli_wheel = cli_wheels[0]
 
-        # release 版本随发版递增，--force 即可；dev 本地构建版本号常不变，需 --reinstall 覆盖。
+        # GitHub Release 资产可能被替换但版本号不变（尤其 Windows 一键包快速迭代）。
+        # release/dev 都强制重装，避免 uv 复用同版本 tool 环境导致前后端代码错配。
         miloco_cmd = [
             "uv", "tool", "install",
             str(miloco_wheel), "--with", str(miot_wheel), "--force",
         ]
         cli_cmd = ["uv", "tool", "install", str(cli_wheel), "--force"]
-        if reinstall:
+        if reinstall or not self.dev:
             miloco_cmd.append("--reinstall")
             cli_cmd.append("--reinstall")
 
