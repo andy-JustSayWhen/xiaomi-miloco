@@ -7,6 +7,9 @@
 - Azure `az vm run-command invoke` 是首选控制通道，适合查状态、传脚本、创建计划任务。
 - Run Command 在 Windows VM 内以 `NT AUTHORITY\SYSTEM` 运行。SYSTEM 不能直接跑 WSL，会遇到 `WSL_E_LOCAL_SYSTEM_NOT_SUPPORTED`。
 - 需要跑 WSL / Miloco / OpenClaw 时，用 Run Command 创建一个以真实 Windows 用户运行的计划任务，再读回输出文件。
+- 不要用 Run Command 扛长流程。任何可能超过 60 秒的部署、安装、卸载、验收任务，都必须先启动 VM 内后台 job，再轮询 `status.json` 和日志 tail。
+- 轮询时每 30-60 秒向用户报告当前状态、最近日志和已耗时。不要让用户盯着空白等待。
+- 每次 VM 测试或远程执行结束后，必须及时 deallocate VM，除非用户明确要求保留运行。
 - 复杂命令不要塞进一行远程命令。优先上传脚本文件，再执行脚本。
 - VM 输出可能被 Azure 截断。长日志要写到 `C:\easy-miloco-runcommand\...\output.txt`，再按需读取 tail 或关键段。
 
@@ -132,6 +135,42 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass `
 ```
 
 期望看到 WSL 用户、HOME 和 `miloco-cli` 路径。
+
+## 长任务规则：后台 job + 轮询
+
+超过 60 秒的任务不要用 `azure-vm-user-powershell.ps1` 阻塞等待。固定做法：
+
+1. 用 `azure-vm-start-user-job.ps1` 启动 VM 内后台 job。
+2. 记录返回的 `job`、`status`、`stdout` 路径。
+3. 每 30-60 秒用 `azure-vm-job-status.ps1` 读取状态和日志 tail。
+4. `state=completed` 且 `exit_code=0` 才算通过。
+5. 结束后用 `azure-vm-deallocate.ps1` 关机释放。
+
+示例：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\docs\scripts\azure-vm-start-user-job.ps1 `
+  -CredentialFile .local-secrets\azure-vm.env `
+  -JobName release-prepare-20260625 `
+  -ScriptPath .local-secrets\vm-release-prepare.ps1
+
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\docs\scripts\azure-vm-job-status.ps1 `
+  -CredentialFile .local-secrets\azure-vm.env `
+  -JobName release-prepare-20260625 `
+  -TailLines 120
+```
+
+如果上一步是部署测试，最后必须执行：
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass `
+  -File .\docs\scripts\azure-vm-deallocate.ps1 `
+  -CredentialFile .local-secrets\azure-vm.env
+```
+
+经验教训：一次 19 秒的远端下载/解压/卸载动作，曾因为阻塞等待 Azure Run Command 回传而让用户等了 16 分钟。以后 Run Command 只做控制面启动/查询，不做长流程承载。
 
 ## 快速验证 Miloco
 
