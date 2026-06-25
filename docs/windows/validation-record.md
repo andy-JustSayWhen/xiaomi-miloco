@@ -1,5 +1,50 @@
 # Windows 部署资料包验收记录
 
+## 2026-06-25 远程 Windows 视觉回归记录
+
+> 验收对象：GitHub Release `v0.2` / `easy-miloco-v0.2-windows.zip`
+> 测试方式：UU 远程模拟普通 Windows 用户下载、解压、双击 `install.bat`。
+
+### 本轮规则调整
+
+部署测试发现问题时，先记录证据并继续跑完原计划步骤；只有硬阻断才暂停。完整一轮结束后再汇总、迭代、重打包、重测。
+
+### 已跑步骤
+
+- 从 GitHub Release 下载 Windows zip，解压后运行 `install.bat`。
+- 安装器检测到旧安装后导出 agent 恢复包、完整卸载旧版，再安装新版。
+- Miloco WebUI 可打开，模型 API 配置完成，测试连接成功。
+- 小米账号授权可复制完整 `https://127.0.0.1/?code=...&state=...` 回调 URL 到 WebUI；WebUI 不再报 base64 格式错误。
+- 家庭选择完成后，设备页能加载家庭设备列表。
+
+### 本轮发现
+
+| 步骤 | 现象 | 是否阻断 | 证据/结论 |
+| --- | --- | --- | --- |
+| OpenClaw 入口 | 用户直接打开 `http://127.0.0.1:18789/` 会停在 OpenClaw Gateway token 登录页 | 阻断 OpenClaw 用户入口验证 | 裸端口需要 Gateway token；安装完成提示给裸地址会误导普通用户 |
+
+### 本轮迭代
+
+- `windows/package/install.ps1` 新增桌面 `OpenClaw 对话入口.lnk`，由隐藏 PowerShell 脚本读取 WSL 内 `agent.auth_bearer`，再以 `http://127.0.0.1:<port>/#token=<token>` 打开 OpenClaw。
+- 安装完成提示改为引导用户使用桌面 OpenClaw 对话入口，不再展示裸 OpenClaw 端口地址。
+- 卸载流程同步删除 `OpenClaw 对话入口.lnk` 和 `miloco-openclaw.ps1`。
+
+### 当前 release 状态
+
+```text
+asset: easy-miloco-v0.2-windows.zip
+size: 68503772
+sha256: b60131c6df9c1bb1e56bfe4168c1a6bed6b632ab2c6972600da55a600d489494
+updated_at: 2026-06-25T14:35:47Z
+```
+
+### 待重测
+
+- 远程 Windows 重新下载最新 release 包，完整卸载旧版后安装。
+- 验证桌面 `OpenClaw 对话入口.lnk` 可直接进入 OpenClaw，而不是 Gateway token 登录页。
+- 验证 Miloco 设备页、模型配置、小米账号、家庭选择仍通过。
+- 测试完成后关闭或释放测试机。
+
 ## 2026-06-24 本机 release 包复测
 
 > 验收对象：`dist/windows/easy-miloco-v0.2-windows.zip`

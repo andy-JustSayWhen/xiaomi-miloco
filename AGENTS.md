@@ -21,6 +21,13 @@
 - Never commit local secrets, credentials, Azure VM passwords, diagnostic reports containing private data, node_modules, build caches, or temporary VM transfer files.
 - `.local-secrets/`, `.codegraph/`, `.codex/`, `dist/`, caches, and generated dependency folders must stay ignored.
 
+## Deployment Test Loop
+
+- During release, VM, or remote Windows deployment tests, do not stop at the first non-blocking issue and immediately patch. Record the issue, evidence, screenshot/log path, and affected step in the relevant validation document first, then continue the remaining planned steps.
+- Stop mid-test only for hard blockers: data loss risk, security/system permission prompt that needs the user, unrecoverable install failure, or a step that makes later checks meaningless.
+- After the test pass finishes, summarize all issues, decide one scoped iteration, patch it, rebuild or republish only when needed, then rerun the affected deployment path. Repeat this record -> complete pass -> iterate -> retest loop until the deployment is fully green.
+- For Windows release validation, write the running notes to `docs/windows/validation-record.md` or the specific runbook/report referenced by the task. Keep private secrets out of public docs.
+
 ## Script Encoding Rules
 
 - Before writing or editing scripts, especially Windows `.bat` / `.ps1` files or any script that prints Chinese text, reference and follow `E:\obsidian repo\default\设备维护\AI 写脚本前的编码规范提示词.md`; do not copy that document into this repository.

@@ -10,6 +10,7 @@
 4. GitHub Release 是唯一版本基准。夸克网盘只作为人工同步的下载副本。
 5. 新增问题、修复路径或成功部署经验后，更新 [faq/known-issues.md](faq/known-issues.md) 或对应 runbook。
 6. 如果 README 指向的脚本或 runbook 不存在，先创建缺失文件或明确报告当前缺口，不要假装已经可用。
+7. 部署测试遇到非阻断问题时，先记录到验证文档，继续走完原计划步骤；跑完整轮后统一汇总、迭代、重测，不要边测边改导致流程状态混乱。
 
 ## 常见指令映射
 
@@ -38,6 +39,14 @@ docs/faq/known-issues.md
 docs/windows/
 docs/runbooks/
 docs/releases/
+```
+
+部署测试记录优先使用：
+
+```text
+docs/windows/validation-record.md
+docs/tests/test-guide.md
+docs/runbooks/azure-vm-nonvisual-test.md
 ```
 
 ## 公开仓库注意事项

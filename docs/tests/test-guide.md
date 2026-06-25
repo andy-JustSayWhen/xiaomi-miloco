@@ -10,6 +10,30 @@
 - OpenClaw 插件：先 TypeScript check，再 vitest，再 build。
 - 安装和发布路径：Linux/macOS 入口至少跑 `bash scripts/install.sh -h`；Windows release 包改动至少跑 `windows/build-release.ps1 -SkipBuild`。
 
+## 部署测试闭环
+
+部署测试按轮次推进，不要遇到第一个非阻断问题就立刻改代码。
+
+每轮测试开始前先写明：
+
+- 测试目标：例如本机非视觉、Azure VM 非视觉、UU 远程用户视觉。
+- 包来源：本地 zip、GitHub Release URL、commit、SHA256。
+- 计划步骤：完整卸载、下载、解压、运行安装、账号授权、API 配置、家庭选择、Miloco 页面、OpenClaw 入口、最终卸载或关机。
+
+测试中遇到问题时：
+
+- 先记录到 `docs/windows/validation-record.md`、对应 runbook，或本轮报告。
+- 记录症状、发生步骤、截图或日志路径、是否阻断后续步骤。
+- 如果不阻断后续步骤，继续把剩余计划步骤跑完。
+- 只有数据破坏风险、权限确认、安装无法继续、服务完全不可用等硬阻断，才暂停测试并说明原因。
+
+每轮测试结束后：
+
+- 汇总全部问题，而不是只看最后一个报错。
+- 选择一个最小可验证迭代，修改代码或文档。
+- 跑本地最小测试，必要时重打包和替换 release。
+- 重新执行受影响的部署路径，直到完整流程通过。
+
 ## 本地测试矩阵
 
 ### 后端和 MIoT
