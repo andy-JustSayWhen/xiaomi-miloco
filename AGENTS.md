@@ -29,6 +29,7 @@
 - During release, VM, or remote Windows deployment tests, do not stop at the first non-blocking issue and immediately patch. Record the issue, evidence, screenshot/log path, and affected step in the relevant validation document first, then continue the remaining planned steps.
 - Stop mid-test only for hard blockers: data loss risk, security/system permission prompt that needs the user, unrecoverable install failure, or a step that makes later checks meaningless.
 - After the test pass finishes, summarize all issues, decide one scoped iteration, patch it, rebuild or republish only when needed, then rerun the affected deployment path. Repeat this record -> complete pass -> iterate -> retest loop until the deployment is fully green.
+- After each local deployment test round finishes, clean up that round's test artifacts, temporary release zip/extracted folders, opened browser tabs/windows, installer consoles, and stale service/process leftovers before starting the next round.
 - For Windows release validation, write the running notes to `docs/windows/validation-record.md` or the specific runbook/report referenced by the task. Keep private secrets out of public docs.
 - On the home02 remote Windows test machine, do not let old browser windows or tabs accumulate. After Xiaomi OAuth, 127.0.0.1 callback pages, GitHub downloads, or other browser-only steps are no longer needed, close stale tabs/windows promptly so Chrome memory does not build up during repeated deployment tests.
 

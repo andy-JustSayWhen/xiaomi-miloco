@@ -191,6 +191,21 @@ build_openclaw() {
         # 想删 node_modules 会因没 TTY 中止；CI=true 让 pnpm 自动跳过确认。
         CI=true pnpm install --frozen-lockfile
         pnpm build
+        # OpenClaw installs local plugin archives with `npm install --omit dev` and
+        # a short timeout. npm still resolves dev/peer metadata, so keep the
+        # packed manifest to runtime dependencies only.
+        node <<'NODE'
+const fs = require("node:fs");
+const path = "package.json";
+const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+delete pkg.devDependencies;
+delete pkg.peerDependencies;
+delete pkg.peerDependenciesMeta;
+if (pkg.dependencies) {
+  delete pkg.dependencies["json-schema-to-ts"];
+}
+fs.writeFileSync(path, `${JSON.stringify(pkg, null, 2)}\n`);
+NODE
         npm pack --pack-destination "$DIST_DIR"
     )
     restore_pkg_json plugins/openclaw/package.json

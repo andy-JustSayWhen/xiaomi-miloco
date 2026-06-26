@@ -1,5 +1,41 @@
 # Windows 部署资料包验收记录
 
+## 2026-06-26 本机 Computer Use release 第二十三轮完整部署测试
+
+> 验收对象：GitHub Release `v0.2` / `easy-miloco-v0.2-windows.zip`
+> 测试方式：本机 Windows 用户视角，优先通过 Computer Use 操作资源管理器、解压目录、安装器和桌面入口。
+
+### 本轮基线
+
+- Release URL: `https://github.com/andy-JustSayWhen/easy-miloco/releases/download/v0.2/easy-miloco-v0.2-windows.zip`
+- Release asset size: `68532311`
+- Release SHA256: `721976105dec6f247fbc21f90c6c95dfbc08a17f8d87d349552b6d19b8655e02`
+- Release updated_at: `2026-06-26T04:03:27Z`
+- 本机开始时间：`2026-06-26 16:44 +08:00`
+
+### 计划步骤
+
+1. 将当前 Release zip 放入用户可见 `Downloads`。
+2. 通过 Computer Use 打开资源管理器，确认 zip 文件存在。
+3. 通过资源管理器普通用户路径解压 zip。
+4. 进入解压目录，确认第一层存在 `install.bat`。
+5. 双击 `install.bat`，按 Windows 安全提示和安装器提示继续。
+6. 完成旧版检测、恢复包导出、卸载、新版安装、OpenClaw 安装、桌面入口生成。
+7. 按安装器提示完成小米 OAuth、API Key、Base URL、模型选择。
+8. 验证 Miloco WebUI、OpenClaw 对话入口、最终报告、基础服务和满血缺口。
+9. 记录所有非阻断问题；完整跑完后再统一判断是否需要修复和复测。
+
+### 执行记录
+
+- 上一轮直接用 Computer Use 启动 Chrome 到 GitHub Release 时，Computer Use 因无法可信识别当前浏览器 URL 而中止；本轮不再把浏览器作为主通道，改为先准备用户可见下载文件，再从资源管理器开始模拟普通用户安装动作。
+- GitHub 直连下载 120 秒超时，Clash 7897 代理下载 180 秒仍超时；本地 `dist/windows/easy-miloco-v0.2-windows.zip` 与当前 Release asset SHA256 完全一致。用户确认本机测试可直接使用本地 release 包。
+- 已将同哈希本地 release 包复制到 `C:\Users\17239\Downloads\easy-miloco-v0.2-windows.zip`，用于后续 Computer Use 资源管理器用户视角操作。
+- Computer Use 打开资源管理器 `Downloads` 后可见 `easy-miloco-v0.2-windows.zip`；搜索后唯一结果可见并高亮。
+- 本机资源管理器对该 zip 的右键菜单、经典菜单、搜索结果双击、Enter 和工具栏更多菜单均未提供稳定可用的“全部解压缩”入口；记录为本机用户视角非阻断问题，后续改用已安装的 7-Zip File Manager 作为可见 UI 解压兜底继续完整安装测试。
+- 7-Zip File Manager 可打开，但工具栏打开/路径栏输入没有稳定载入 zip；继续记录为本机 UI 解压入口问题。为不阻断后续安装验证，使用同一 release zip 解压到 `C:\Users\17239\Downloads\easy-miloco-v0.2-windows`，随后回到 Computer Use 打开解压目录继续用户视角安装。
+- 解压后第一层确认存在 `install.bat`、`install.ps1`、`manifest.json`、`README.md`、`release-notes.md`、`docs/`、`payload/`、`scripts/`。
+- 用户已确认允许通过 Computer Use 运行 `install.bat`；后续从资源管理器解压目录双击 `install.bat` 继续。
+
 ## 2026-06-25 远程 Windows 视觉回归记录
 
 > 验收对象：GitHub Release `v0.2` / `easy-miloco-v0.2-windows.zip`
@@ -768,3 +804,21 @@ FULL_READY=yes
 - 复制 callback 地址后，安装器完成 post-auth finish；控制台显示 `Post-auth finish completed`，并打印 `账号/API 配置已完成`。
 - 最终验证报告显示 `BASIC_READY=yes`、`FULL_READY=no`、`PASS_COUNT=13`、`FAIL_COUNT=0`。`FULL_READY=no` 仍按 home02 与米家设备不在同一局域网的环境限制处理，不判为本轮脚本/授权 bug。
 - 本轮关键结论：`fix: decouple miot auth from post refresh` 发布后，`account authorize` 没有再因为后续家庭/摄像头/感知刷新降级而返回 502；小米账号授权和 API 配置链路在远程 Windows release 包路径下跑通。
+
+### 第二十三轮结果补充
+
+- 修复后重建本地 release zip：`dist/windows/easy-miloco-v0.2-windows.zip`，大小 `68543442`，SHA256 `3210B3F0A0F221A8EEB41431FEF767712FD64F2BC340A7AFD245DCAD5DDBAFCC`。
+- 首轮阻断：第 7 步 OpenClaw 插件安装失败，WSL 日志 `/tmp/openclaw-miloco-plugin-install.log` 显示 `npm install failed`，并附带 `package.json missing openclaw.hooks` 兜底校验错误；根因是 OpenClaw 插件 archive 安装默认 120 秒超时，而发布 tgz 的 `package.json` 带有 dev/peer 元数据，`npm install --omit dev` 仍解析 `@types/node`、`openclaw`、`vite` 等元数据导致超时。
+- 修复：`scripts/build.sh` 在 `npm pack` 前临时裁剪 OpenClaw 插件发布 manifest，删除 `devDependencies`、`peerDependencies`、`peerDependenciesMeta`，并移除仅类型期使用的 `json-schema-to-ts` 运行依赖，pack 后仍还原源码 `package.json`。
+- 修复验证：重新打包插件 tgz 后直接执行 `openclaw plugins install --force` 成功，插件状态 `Status: loaded`、`Version: 2026.6.26`。
+- 重建 Windows zip 后重新安装：安装器检测到上一轮测试留下的 Miloco 痕迹，导出恢复包 `miloco-agent-restore-pack-20260626-172532-69240bcf-compat.zip`，完整卸载旧版后重新安装。
+- 第 9/12 步 OpenClaw 控制台依赖通过；第 10/12 步桌面控制台、`miloco-console.ps1`、OpenClaw 对话入口创建成功；第 11/12 步诊断报告生成成功，报告路径 `C:\Users\17239\Downloads\easy-miloco-v0.2-windows\miloco-deploy-report-20260626-172709.txt`。
+- 小米 OAuth：Chrome 授权页显示 `使用小米账号登录Xiaomi Miloco`，点击 `确认授权` 后跳转到 `https://127.0.0.1/?code=...&state=...`；通过本地 workflow 提交授权成功，输出 `MiOT authorized successfully`，非交互自动启用第一个家庭。
+- 验证脚本结果：`BASIC_READY=yes`，`FULL_READY=no`，`PASS_COUNT=15`，`WARN_COUNT=2`，`FAIL_COUNT=0`。
+- 已确认能力：Miloco 服务运行、健康检查 OK、OpenClaw Gateway connectivity OK、Miloco OpenClaw 插件 loaded、账号已绑定、设备列表可读、摄像头 `主卧 电脑桌上` 可见且 `in_use=true`。
+- 未满血原因：`miloco.omni_api_key` 为空，日志提示 `感知引擎不可用: 多模态大模型 API Key 未配置`。这属于缺少用户 API Key 的配置缺口，不是基础部署失败。
+- 本轮用户体验问题：PowerShell transcript 中部分中文出现重复字渲染，如 `正正在在处处理理`、`失失败败`；安装器预检有时报告 GitHub/加速节点不可达，但本地离线包仍能完成基础部署。
+
+### 下一轮前清理要求
+
+- 按仓库规则，每轮完成后删除本轮 `Downloads` 测试 zip/解压目录、临时 OAuth 回调文件、安装等待窗口、OAuth 浏览器标签和可确认的测试恢复包，再从仓库 `dist/windows` 重新复制 release zip 开始下一轮。
