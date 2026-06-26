@@ -11,6 +11,7 @@ OMNI_BASE_URL="${OMNI_BASE_URL:-https://api.xiaomimimo.com/v1}"
 OPENCLAW_CHAT_MODEL="${OPENCLAW_CHAT_MODEL:-}"
 MILOCO_HOME_ID="${MILOCO_HOME_ID:-}"
 MILOCO_CAMERA_DIDS="${MILOCO_CAMERA_DIDS:-}"
+DETAIL_LOG="${DETAIL_LOG:-/tmp/miloco-post-auth-finish.log}"
 PRINT_BIND_URL=0
 AUTHORIZE_ONLY=0
 LIST_HOMES_JSON=0
@@ -74,6 +75,114 @@ log() {
   printf '[%s] %s\n' "$(date +%H:%M:%S 2>/dev/null || date)" "$*"
 }
 
+append_detail_log() {
+  section="$1"
+  body="$2"
+  {
+    printf '\n[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date)" "$section"
+    printf '%s\n' "$body"
+  } >>"$DETAIL_LOG"
+}
+
+summarize_command_output() {
+  cmd="$1"
+  output="$2"
+  python3 - "$cmd" <<'PY' <<< "$output"
+import json
+import sys
+
+cmd = sys.argv[1]
+text = sys.stdin.read().replace("\r", "").strip()
+
+def short(value, limit=160):
+    value = " ".join(str(value).split())
+    return value if len(value) <= limit else value[: limit - 3] + "..."
+
+def first_line(raw):
+    for line in raw.splitlines():
+        line = line.strip()
+        if line:
+            return short(line)
+    return ""
+
+if not text:
+    raise SystemExit(0)
+
+try:
+    data = json.loads(text)
+except Exception:
+    line = first_line(text)
+    if line:
+        print(line)
+    raise SystemExit(0)
+
+if not isinstance(data, dict):
+    line = first_line(text)
+    if line:
+        print(line)
+    raise SystemExit(0)
+
+if data.get("error"):
+    print(short(f"[需要注意] {data['error']}"))
+    raise SystemExit(0)
+
+message = short(data.get("message", "ok"))
+code = data.get("code")
+prefix = "[OK]" if code in (0, None) else "[需要注意]"
+
+if "miloco-cli service status" in cmd:
+    running = data.get("running")
+    managed = data.get("managed")
+    pid = data.get("pid")
+    url = ((data.get("server") or {}).get("url") or "")
+    print(short(f"{prefix} Miloco service running={running} managed={managed} pid={pid} url={url}"))
+elif "miloco-cli account authorize" in cmd:
+    print(short(f"{prefix} {message}"))
+elif "miloco-cli config set" in cmd:
+    updated = data.get("updated")
+    if isinstance(updated, list):
+        paths = [item.get("path") for item in updated if isinstance(item, dict) and item.get("path")]
+        joined = ",".join(paths[:4])
+        suffix = f" ({joined})" if joined else ""
+        print(short(f"{prefix} Omni config saved{suffix}"))
+    else:
+        print(short(f"{prefix} {message}"))
+elif "miloco-cli scope home switch" in cmd:
+    print(short(f"{prefix} {message}"))
+elif "miloco-cli account status" in cmd:
+    account = data.get("data") if isinstance(data.get("data"), dict) else {}
+    is_bound = account.get("is_bound")
+    nickname = ((account.get("user_info") or {}).get("nickname") or "")
+    extra = f" nickname={nickname}" if nickname else ""
+    print(short(f"{prefix} Xiaomi account bound={is_bound}{extra}"))
+elif "miloco-cli scope home list" in cmd:
+    homes = data.get("data")
+    if isinstance(homes, list):
+        active = [item.get("home_name") for item in homes if isinstance(item, dict) and item.get("in_use")]
+        active_name = active[0] if active else ""
+        extra = f" active={active_name}" if active_name else ""
+        print(short(f"{prefix} Homes total={len(homes)}{extra}"))
+    else:
+        print(short(f"{prefix} {message}"))
+elif "miloco-cli device list" in cmd:
+    rows = data.get("data")
+    if isinstance(rows, list):
+        print(short(f"{prefix} Devices total={len(rows)}"))
+    else:
+        print(short(f"{prefix} {message}"))
+elif "miloco-cli scope camera list" in cmd:
+    rows = data.get("data")
+    if isinstance(rows, list):
+        online = sum(1 for item in rows if isinstance(item, dict) and item.get("is_online"))
+        enabled = sum(1 for item in rows if isinstance(item, dict) and item.get("in_use"))
+        print(short(f"{prefix} Cameras total={len(rows)} online={online} enabled={enabled}"))
+    else:
+        print(short(f"{prefix} {message}"))
+else:
+    print(short(f"{prefix} {message}"))
+PY
+}
+
 need_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     printf 'Missing command: %s\n' "$1" >&2
@@ -96,7 +205,12 @@ run_checked_json() {
   fi
   output="$("$@" 2>&1)"
   status=$?
-  printf '%s\n' "$output"
+  output="$(printf '%s' "$output" | tr -d '\r')"
+  append_detail_log "COMMAND $*" "$output"
+  summary="$(summarize_command_output "$*" "$output")"
+  if [ -n "$summary" ]; then
+    printf '%s\n' "$summary"
+  fi
   if [ "$status" -ne 0 ]; then
     return "$status"
   fi
@@ -289,7 +403,7 @@ recover_miloco_service() {
 }
 
 write_miloco_model_config() {
-  log "Writing Omni model config: model=${OMNI_MODEL}, base_url=${OMNI_BASE_URL}, api_key_length=${#MIMO_API_KEY}"
+  log "Writing Omni model config"
   if run_checked_json_retry 3 miloco-cli config set \
       model.omni.model "$OMNI_MODEL" \
       model.omni.base_url "$OMNI_BASE_URL" \
@@ -347,7 +461,12 @@ need_cmd openclaw
 
 log "Pre-checking Miloco service"
 service_status="$(miloco-cli service status 2>&1 || true)"
-printf '%s\n' "$service_status"
+service_status="$(printf '%s' "$service_status" | tr -d '\r')"
+append_detail_log "COMMAND miloco-cli service status" "$service_status"
+summary="$(summarize_command_output "miloco-cli service status" "$service_status")"
+if [ -n "$summary" ]; then
+  printf '%s\n' "$summary"
+fi
 if ! printf '%s' "$service_status" | grep -Eq '"running"[[:space:]]*:[[:space:]]*true'; then
   if ! recover_miloco_service "Miloco service is not running; trying restart/stop/start"; then
     exit 2
@@ -388,7 +507,7 @@ fi
 
 account_before="$(miloco-cli account status 2>&1 || true)"
 if printf '%s' "$account_before" | grep -Eq '"is_bound"[[:space:]]*:[[:space:]]*true'; then
-  log "Xiaomi account is already bound; authorization step will be skipped"
+  log "Xiaomi account already bound; skipping authorization"
 else
   if [ -z "$MILOCO_AUTH_PAYLOAD" ]; then
     if [ "$AUTHORIZE_ONLY" -eq 1 ]; then
@@ -427,7 +546,7 @@ if ! write_miloco_model_config; then
   exit 2
 fi
 
-log "Writing OpenClaw Miloco plugin and main chat model config"
+log "Updating OpenClaw plugin and chat model config"
 if [ "$DRY_RUN" -eq 1 ]; then
   printf '[DRY_RUN] update ~/.openclaw/openclaw.json plugin miloco-openclaw-plugin omni_* and OpenClaw main chat model config\n'
 else
@@ -558,7 +677,7 @@ backup_note = str(backup) if backup is not None else "created-new-config"
 print(f"[OK] OpenClaw plugin and main chat model config updated; primary={chat_ref}; backup={backup_note}")
 PY
 fi
-log "OpenClaw main chat LLM now uses the same API credentials unless OPENCLAW_CHAT_MODEL overrides the model."
+log "OpenClaw chat model config updated"
 
 if [ -n "$MILOCO_HOME_ID" ]; then
   log "Switching Miloco home: ${MILOCO_HOME_ID}"
@@ -576,17 +695,11 @@ run_cmd openclaw gateway restart
 log "Waiting for Miloco backend after gateway restart"
 wait_miloco_health 30 || true
 
-log "Account status"
-miloco-cli account status || true
-
-log "Current homes"
-miloco-cli scope home list --pretty || true
-
-log "Device list"
-miloco-cli device list || true
-
-log "Camera scope"
-miloco-cli scope camera list --pretty || true
+log "Refreshing account and scope summaries"
+run_checked_json miloco-cli account status || true
+run_checked_json miloco-cli scope home list --pretty || true
+run_checked_json miloco-cli device list || true
+run_checked_json miloco-cli scope camera list --pretty || true
 
 if [ -n "$MILOCO_CAMERA_DIDS" ]; then
   log "Enabling camera dids: ${MILOCO_CAMERA_DIDS}"
