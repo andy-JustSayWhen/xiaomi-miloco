@@ -1269,18 +1269,18 @@ function Get-PowerShellExe {
 function Install-DesktopLauncher {
   $resolvedDistro = Get-ResolvedDistro
   $desktop = [Environment]::GetFolderPath("Desktop")
-  if ([string]::IsNullOrWhiteSpace($desktop) -or -not (Test-Path -LiteralPath $desktop)) {
-    Write-Warn "没有找到桌面文件夹，已跳过创建桌面控制台。"
-    return
-  }
+  $desktopAvailable = -not ([string]::IsNullOrWhiteSpace($desktop) -or -not (Test-Path -LiteralPath $desktop))
+  $fallbackLauncherName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
+  $fallbackLauncher = Join-Path $PackageRoot $fallbackLauncherName
+  $fallbackPsLauncher = Join-Path $PackageRoot "miloco-console.ps1"
 
   $launcherName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
-  $launcher = Join-Path $desktop $launcherName
-  $psLauncher = Join-Path $desktop "miloco-console.ps1"
+  $launcher = if ($desktopAvailable) { Join-Path $desktop $launcherName } else { $fallbackLauncher }
+  $psLauncher = if ($desktopAvailable) { Join-Path $desktop "miloco-console.ps1" } else { $fallbackPsLauncher }
   $openClawShortcutName = "OpenClaw " + [string][char]0x5BF9 + [string][char]0x8BDD + [string][char]0x5165 + [string][char]0x53E3 + ".lnk"
-  $openClawShortcut = Join-Path $desktop $openClawShortcutName
-  $openClawPsLauncher = Join-Path $desktop "miloco-openclaw.ps1"
-  $openClawInfoPath = Join-Path $desktop "OpenClaw-login-info.txt"
+  $openClawShortcut = if ($desktopAvailable) { Join-Path $desktop $openClawShortcutName } else { "" }
+  $openClawPsLauncher = if ($desktopAvailable) { Join-Path $desktop "miloco-openclaw.ps1" } else { Join-Path $PackageRoot "miloco-openclaw.ps1" }
+  $openClawInfoPath = if ($desktopAvailable) { Join-Path $desktop "OpenClaw-login-info.txt" } else { Join-Path $PackageRoot "OpenClaw-login-info.txt" }
   $bat = @'
 @echo off
 setlocal
@@ -1990,21 +1990,31 @@ if ($ready -and (Wait-OpenClawReady 45)) {
   $openClawPs1 = $openClawPs1.Replace("__DISTRO__", $resolvedDistro).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort).Replace("__OPENCLAW_INFO_PATH__", $openClawInfoPath)
   [System.IO.File]::WriteAllText($launcher, $bat, [System.Text.UTF8Encoding]::new($false))
   [System.IO.File]::WriteAllText($psLauncher, $ps1, [System.Text.UTF8Encoding]::new($true))
+  [System.IO.File]::WriteAllText($fallbackLauncher, $bat, [System.Text.UTF8Encoding]::new($false))
+  [System.IO.File]::WriteAllText($fallbackPsLauncher, $ps1, [System.Text.UTF8Encoding]::new($true))
   [System.IO.File]::WriteAllText($openClawPsLauncher, $openClawPs1, [System.Text.UTF8Encoding]::new($true))
-  try {
-    $shell = New-Object -ComObject WScript.Shell
-    $shortcut = $shell.CreateShortcut($openClawShortcut)
-    $shortcut.TargetPath = Get-PowerShellExe
-    $shortcut.Arguments = ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $openClawPsLauncher)
-    $shortcut.WorkingDirectory = $desktop
-    $shortcut.IconLocation = "shell32.dll,220"
-    $shortcut.Save()
-  } catch {
-    Write-Warn ("创建 OpenClaw 对话入口快捷方式失败：{0}" -f $_.Exception.Message)
+  if ($desktopAvailable) {
+    try {
+      $shell = New-Object -ComObject WScript.Shell
+      $shortcut = $shell.CreateShortcut($openClawShortcut)
+      $shortcut.TargetPath = Get-PowerShellExe
+      $shortcut.Arguments = ('-NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "{0}"' -f $openClawPsLauncher)
+      $shortcut.WorkingDirectory = $desktop
+      $shortcut.IconLocation = "shell32.dll,220"
+      $shortcut.Save()
+    } catch {
+      Write-Warn ("创建 OpenClaw 对话入口快捷方式失败：{0}" -f $_.Exception.Message)
+    }
+  } else {
+    Write-Warn "没有找到当前用户桌面文件夹；已把控制台入口写到安装目录。"
   }
-  Write-Host "桌面控制台入口已创建：$launcher"
-  Write-Host "桌面控制台脚本已创建：$psLauncher"
-  Write-Host "OpenClaw 对话入口已创建：$openClawShortcut"
+  Write-Host ("安装目录控制台入口已创建：{0}" -f $fallbackLauncher)
+  Write-Host ("安装目录控制台脚本已创建：{0}" -f $fallbackPsLauncher)
+  if ($desktopAvailable) {
+    Write-Host ("桌面控制台入口已创建：{0}" -f $launcher)
+    Write-Host ("桌面控制台脚本已创建：{0}" -f $psLauncher)
+    Write-Host ("OpenClaw 对话入口已创建：{0}" -f $openClawShortcut)
+  }
 }
 
 function Start-UserUrl {
@@ -2586,7 +2596,6 @@ tar -xzf "__WSL_BUNDLE__" -C "$cache"
 set -euo pipefail
 export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"
 export GITHUB_PROXY_PREFIX="__GITHUB_PROXY_PREFIX__"
-printf '[正在处理] 正在安装 Miloco 主程序和命令行工具，这一步可能需要几分钟...\n'
 if ! bash "__WSL_INSTALL_SH__" --agent-prepare >/tmp/miloco-agent-prepare.log 2>&1; then
   printf '[失败] Miloco 主程序安装失败。\n' >&2
   printf '详细日志在 WSL 内：/tmp/miloco-agent-prepare.log\n' >&2
@@ -2598,7 +2607,6 @@ if ! command -v miloco-cli >/dev/null 2>&1; then
   printf '详细日志在 WSL 内：/tmp/miloco-agent-prepare.log\n' >&2
   exit 42
 fi
-printf '[正在处理] 正在把 Miloco 服务地址设置为 http://127.0.0.1:__MILOCO_PORT__ ...\n'
 supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-windows-supervisor-stop.log 2>&1 || true
 pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true
 sleep 2
@@ -2699,6 +2707,8 @@ printf '详细日志在 WSL 内：/tmp/miloco-windows-service-start.log 和 ~/.o
 exit 47
 '@
   $install = $install.Replace("__GITHUB_PROXY_PREFIX__", [string]$global:GITHUB_PROXY_PREFIX).Replace("__WSL_INSTALL_SH__", $wslInstallSh).Replace("__MILOCO_PORT__", [string]$script:MilocoPort)
+  Write-Info "正在安装 Miloco 主程序和命令行工具，这一步可能需要几分钟。"
+  Write-Info ("正在把 Miloco 服务地址设置为 http://127.0.0.1:{0} 。" -f $script:MilocoPort)
   Invoke-WslBash $install
   Write-Ok "Miloco 基础安装命令已执行完成。"
 
@@ -2712,7 +2722,6 @@ if ! command -v openclaw >/dev/null 2>&1; then
     printf '[失败] 需要安装 OpenClaw，但 WSL 内没有 curl。\n' >&2
     exit 51
   fi
-  printf '[正在处理] 未检测到 openclaw，正在安装 OpenClaw CLI...\n'
   if ! curl -fsSL https://openclaw.ai/install-cli.sh -o /tmp/openclaw-install-cli.sh; then
     printf '[失败] 下载 OpenClaw 安装脚本失败。\n' >&2
     printf '请检查网络是否能访问 https://openclaw.ai/install-cli.sh，或换网络/代理后重新双击 install.bat。\n' >&2
@@ -2750,6 +2759,7 @@ openclaw gateway --dev --bind loopback --port "__OPENCLAW_PORT__" install --port
 openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gateway start >/tmp/openclaw-windows-start.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-windows-systemd-restart.log 2>&1 || true
 '@
   $openclaw = $openclaw.Replace("__OPENCLAW_PORT__", [string]$OpenClawPort).Replace("__VERSION__", $version)
+  Write-Info "正在检查 OpenClaw CLI、Miloco 插件和 Gateway。"
   Invoke-WslBash $openclaw
   Write-Ok "OpenClaw CLI 已可用，Gateway 启动命令已执行。"
 
@@ -2778,6 +2788,7 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   Write-Step "安装完成，提示验证和使用入口"
   Write-Host ""
   $desktopConsoleName = "Miloco " + [string][char]0x63A7 + [string][char]0x5236 + [string][char]0x53F0 + ".bat"
+  $packageConsole = Join-Path $PackageRoot $desktopConsoleName
   $desktopConsole = Join-Path ([Environment]::GetFolderPath("Desktop")) $desktopConsoleName
   $openClawShortcutName = "OpenClaw " + [string][char]0x5BF9 + [string][char]0x8BDD + [string][char]0x5165 + [string][char]0x53E3 + ".lnk"
   $openClawShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) $openClawShortcutName
@@ -2785,6 +2796,7 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   Write-Host "[OK] easy-miloco 基础安装已经完成。" -ForegroundColor Green
   Write-Host ""
   Write-Host "从现在开始，你可以用下面这些桌面入口验证和使用 Miloco：" -ForegroundColor Cyan
+  Write-Host ("  {0}" -f $packageConsole) -ForegroundColor White
   Write-Host ("  {0}" -f $desktopConsole) -ForegroundColor White
   Write-Host ("  {0}" -f $openClawShortcut) -ForegroundColor White
   Write-Host ("  {0}" -f $openClawInfoPath) -ForegroundColor White
