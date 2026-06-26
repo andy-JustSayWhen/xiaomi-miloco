@@ -744,3 +744,4 @@ FULL_READY=yes
 - `MiotProxy.get_miot_auth_info()` 增加 `refresh=False` 路径；Windows 后授权调用只做 OAuth code 换 token 与持久化，不再同步触发全量 MIoT 刷新。
 - `MiotService.authorize_with_code()` 只把 token 交换失败视为授权失败；家庭列表兜底、摄像头刷新、camera adapter 同步和 perception engine 重启改为后台 best-effort，失败只记 warning，不撤销已绑定 token。
 - 本地验证：`uv run pytest miloco/tests/test_miot_filter_and_cameras.py -k "authorize_with_code" -q` 通过 2 项；`uv run pytest miloco/tests/test_miot_filter_and_cameras.py -q` 通过 64 项；`uv run ruff check miloco/src/miloco/miot/client.py miloco/src/miloco/miot/service.py miloco/tests/test_miot_filter_and_cameras.py` 通过。
+- 已重建 Linux runtime bundle 并替换 GitHub Release `v0.2` 的 `easy-miloco-v0.2-windows.zip`；发布脚本校验远端大小 `68532311`，远端 SHA256 `721976105dec6f247fbc21f90c6c95dfbc08a17f8d87d349552b6d19b8655e02`，`updated_at=2026-06-26T04:03:27Z`。发布过程第一次上传 300 秒超时，固定脚本自动重试后成功。
