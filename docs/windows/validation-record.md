@@ -875,3 +875,31 @@ FULL_READY=yes
 - 重新执行 `windows/build-release.ps1 -Version v0.2 -ArtifactVersion 2026.6.26 -SkipBuild` 打包通过。
 - 新本地包：`dist/windows/easy-miloco-v0.2-windows.zip`
 - 新包 SHA256：`2BBA42757F3500FBB802D83645768142B3D24C0131ADFE3A11B4BDB9C691D38D`
+
+### 2026-06-26 本地迭代补充：控制台第 3 项重启顺序与假失败提示
+
+根据用户贴出的控制台输出继续排查，发现这次不是单纯等待时间太短，而是“第 3 项逻辑顺序错误 + Windows 宿主访问链路可能异常”叠加。
+
+本轮新增证据：
+
+- WSL 日志显示 `Restart Miloco + OpenClaw` 先执行 `miloco-cli service restart`，随后执行 `openclaw gateway restart`。
+- 但 OpenClaw 已安装的 Miloco 插件仍注册了 `miloco-backend` service；gateway 在重启关停阶段会调用插件 stop，导致刚刚拉起的 `miloco-backend` 被立刻 SIGTERM 停掉。
+- 现场日志可见 backend 已输出 `Server is ready` / `Uvicorn running on http://127.0.0.1:18860`，随即马上进入 `Shutting down`，与用户看到的“等满 60 秒后失败返回菜单”一致。
+- 另外，在本机 `C:\Users\17239\.wslconfig` 为 `networkingMode=Mirrored`、Hyper-V firewall `DefaultInboundAction=Allow` 的前提下，仍复现了“WSL 内服务健康、Windows 侧 `http://127.0.0.1:<port>` 完全打不通”的情况。说明控制台不能再把这类情况误报为“服务还没起来”。
+
+本轮补充迭代：
+
+- `plugins/openclaw/src/services/backend.ts` 改为 no-op：保留 `miloco-backend` service 名义注册，但 start/stop 只记日志，不再直接调用 `miloco-cli service restart/stop`。
+- `windows/package/install.ps1` 里桌面控制台的第 3 项改为先重启 OpenClaw，再重启 Miloco，避免 gateway restart 在尾部把刚拉起的 backend 再次停掉。
+- 控制台等待超时后新增 WSL 内二次核实：
+  - Miloco 用 WSL 内 `curl http://127.0.0.1:<port>/health`
+  - OpenClaw 用 WSL 内 `openclaw gateway status`
+- 若 WSL 内已健康、只是 Windows 当前访问不到 `127.0.0.1:<port>`，前台提示改为明确说明“服务已在 WSL 内启动，问题更像 WSL 回环转发 / mirrored / Hyper-V / 本机防火墙访问链路异常”，不再笼统显示“还没有准备好”。
+
+本地验证：
+
+- `windows/package/install.ps1` PowerShell 语法解析通过。
+- 手工按“先 `openclaw gateway restart`，后 `miloco-cli service restart`”顺序执行时，WSL 内可同时看到：
+  - `openclaw gateway status` 为 `Connectivity probe: ok`
+  - `miloco-cli service status --pretty` 为 `running: true`
+- 本轮为了隔离验证，临时修改过本机 WSL 的 `~/.openclaw/openclaw.json` 与 `~/.openclaw/miloco/config.json`；验证后已恢复原文件并停止测试服务，未保留现场改动。

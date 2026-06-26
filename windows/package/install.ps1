@@ -1435,6 +1435,14 @@ function Test-MilocoHealthReady {
   return $false
 }
 
+function Test-WslMilocoHealthReady {
+  param([int]$Port)
+
+  $cmd = 'curl -fsS --max-time 3 "http://127.0.0.1:__PORT__/health" 2>/dev/null | grep -q "\"status\"[[:space:]]*:[[:space:]]*\"ok\""'
+  $cmd = $cmd.Replace("__PORT__", [string]$Port)
+  return (Invoke-WslBash $cmd)
+}
+
 function Get-ClipboardOpenClawUrl {
   param([int]$Port)
 
@@ -1649,8 +1657,15 @@ function Open-WhenReady {
     $info = Get-OpenClawLaunchInfo $Port
     Write-OpenClawInfoFile $info
   }
-  Write-Host ("{0} 在 60 秒内还没有准备好，所以暂时没有自动打开浏览器。" -f $label) -ForegroundColor Yellow
-  Write-Host "这通常表示服务还在启动、启动失败，或端口被占用。" -ForegroundColor Yellow
+  $wslReady = if ($OpenClaw) { Wait-OpenClawReady 5 } else { Test-WslMilocoHealthReady $Port }
+  if ($wslReady) {
+    Write-Host ("{0} 已在 WSL 内启动，但 Windows 当前访问不到 http://127.0.0.1:{1} 。" -f $label, $Port) -ForegroundColor Yellow
+    Write-Host "这次不是服务没起来，更像是 WSL 回环转发、mirrored 网络或 Hyper-V/本机防火墙拦截。" -ForegroundColor Yellow
+    Write-Host "可先在 WSL 内确认服务状态，再检查 Windows 到 WSL 的访问链路。" -ForegroundColor Yellow
+  } else {
+    Write-Host ("{0} 在 60 秒内还没有准备好，所以暂时没有自动打开浏览器。" -f $label) -ForegroundColor Yellow
+    Write-Host "这通常表示服务还在启动、启动失败，或端口被占用。" -ForegroundColor Yellow
+  }
   Write-Host "可查看 WSL 内日志：" -ForegroundColor Yellow
   Write-Host "  /tmp/miloco-desktop-start.log" -ForegroundColor Yellow
   Write-Host "  /tmp/miloco-desktop-restart.log" -ForegroundColor Yellow
@@ -1705,10 +1720,10 @@ function Restart-All {
   Write-Host ""
   Write-Status "正在重启 Miloco + OpenClaw..."
   $configCmd = Get-MilocoPortConfigCommand
-  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; ' + $configCmd + ' || exit 44; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || { miloco-cli service stop >/tmp/miloco-desktop-stop.log 2>&1 || true; miloco-cli service start >/tmp/miloco-desktop-start.log 2>&1; }; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
+  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; ' + $configCmd + ' || exit 44; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || { miloco-cli service stop >/tmp/miloco-desktop-stop.log 2>&1 || true; miloco-cli service start >/tmp/miloco-desktop-start.log 2>&1; }'
   if (Invoke-WslBash $cmd) {
-    $milocoOk = Open-WhenReady $script:MilocoPort
     $openClawOk = Open-WhenReady $script:OpenClawPort -OpenClaw
+    $milocoOk = Open-WhenReady $script:MilocoPort
     return ($milocoOk -and $openClawOk)
   }
   Pause-ReturnToMenu
@@ -2007,7 +2022,12 @@ if ($ready -and (Wait-OpenClawReady 45)) {
   Start-Process $info.LaunchUrl
 } else {
   $shell = New-Object -ComObject WScript.Shell
-  [void]$shell.Popup(("OpenClaw 暂未就绪。请先双击桌面的 Miloco 控制台选择 3，或查看：{0}" -f $script:OpenClawInfoPath), 12, "Miloco / OpenClaw", 48)
+  $message = if (Wait-OpenClawReady 5) {
+    "OpenClaw 已在 WSL 内启动，但 Windows 当前访问不到 127.0.0.1:" + $script:OpenClawPort + "。请先双击桌面的 Miloco 控制台查看提示，或检查 WSL / Hyper-V 访问链路。"
+  } else {
+    "OpenClaw 暂未就绪。请先双击桌面的 Miloco 控制台选择 3，或查看：" + $script:OpenClawInfoPath
+  }
+  [void]$shell.Popup($message, 12, "Miloco / OpenClaw", 48)
 }
 '@
   $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$script:MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort).Replace("__OPENCLAW_INFO_PATH__", $openClawInfoPath)
