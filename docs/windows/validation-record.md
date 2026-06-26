@@ -706,3 +706,9 @@ FULL_READY=yes
 - 授权阶段不能只因为 `/health` 502 就跳过账号授权。只要 `miloco-cli service status` 显示 backend 正在运行，应先尝试 `miloco-cli account authorize`；如果授权接口本身失败，再按真实授权失败处理。
 - `/health` 仍可作为重启恢复和最终状态证据，但不应成为 OAuth code 换 token 的唯一前置条件。
 - 远程测试时，Xiaomi OAuth、127.0.0.1 回调页、GitHub 下载页用完后要及时关闭，避免 home02 Chrome 旧窗口/旧标签积累占满内存。
+
+本轮迭代已落地：
+
+- `wsl-post-auth-finish.sh` 已调整为：授权阶段仍先尝试 `restart` 与 `stop/start` 恢复 `/health`，但如果服务进程仍在运行且健康检查没有恢复，会继续调用 `miloco-cli account authorize`，不再提前丢弃用户刚粘贴的 OAuth callback。
+- `miloco-cli account authorize` 现在使用带重试的 `run_checked_json_retry 2`，如果授权接口本身失败，会明确以退出码 2 失败并提示授权 payload 未完成。
+- 已重打并替换 GitHub Release `v0.2` 的 `easy-miloco-v0.2-windows.zip`；发布脚本校验远端大小 `68530911`，远端 SHA256 `d822a9b3e57554a393e5edb668ca912eb9028949af52f00a4fe19a121bc0847f`，`updated_at=2026-06-26T02:42:30Z`。
