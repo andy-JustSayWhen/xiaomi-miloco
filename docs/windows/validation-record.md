@@ -822,3 +822,28 @@ FULL_READY=yes
 ### 下一轮前清理要求
 
 - 按仓库规则，每轮完成后删除本轮 `Downloads` 测试 zip/解压目录、临时 OAuth 回调文件、安装等待窗口、OAuth 浏览器标签和可确认的测试恢复包，再从仓库 `dist/windows` 重新复制 release zip 开始下一轮。
+
+### 2026-06-26 本地迭代：控制台启动反馈与 OpenClaw 傻瓜登录信息
+
+本轮依据用户手测反馈，集中处理桌面控制台和 OpenClaw 入口的人机交互问题，不混入后端功能改动。
+
+本轮问题汇总：
+
+- `Miloco 控制台` 菜单项执行后，前台常出现较长时间无反馈，随后才弹出 `按回车返回菜单`；用户很难判断到底是在启动、失败，还是卡住。
+- 旧控制台只要检测到端口可连，就会认为面板可打开；这会把 `Miloco 端口活着但 /health 还没恢复`、`OpenClaw Gateway 端口已监听但 connectivity probe 未通过` 误当成功。
+- `OpenClaw 对话入口` 虽然会尝试自动拼 token，但缺少一份桌面可见、可复制、可手工兜底的登录信息文件；用户不知道 WebSocket URL、token、推荐直达地址各是什么，也不知道出问题时最短路径怎么处理。
+
+本轮迭代：
+
+- `windows/package/install.ps1` 生成的 `miloco-console.ps1` 改为使用即时前台提示：菜单选择使用 `[Console]::Write()` 直接输出提示，不再依赖 `Read-Host` 的迟到显示。
+- 控制台重启 Miloco 时，不再只看端口；改为同时等待 `http://127.0.0.1:<port>/health` 返回 `status=ok` 后才自动打开浏览器。
+- 控制台重启 OpenClaw 时，端口就绪后继续等待 `openclaw gateway status` 的 connectivity probe 通过；未通过则明确提示日志路径，不再误导用户点进坏链接。
+- 控制台成功路径取消了每次都弹 `按回车返回菜单` 的强制停顿；仅在失败或仍未就绪时暂停，让用户看清错误和日志路径。
+- Miloco 重启命令从手工 `pkill + nohup service start` 改为优先 `miloco-cli service restart`，失败再自动 `stop/start`，并分别写入 `/tmp/miloco-desktop-restart.log`、`/tmp/miloco-desktop-stop.log`、`/tmp/miloco-desktop-start.log`。
+- `OpenClaw 对话入口` 改为每次启动时刷新桌面 `OpenClaw-login-info.txt`，写入推荐直达地址、dashboard 地址、WebSocket URL、Gateway token 以及最短的用户操作说明。
+- 安装完成提示和卸载/旧版清理逻辑同步纳入 `OpenClaw-login-info.txt`，避免桌面残留过期登录信息文件。
+
+本地验证：
+
+- `windows/package/install.ps1` PowerShell 语法解析通过。
+- `windows/build-release.ps1 -Version v0.2 -ArtifactVersion 2026.6.26 -SkipBuild` 打包通过，新的本地 release zip 已生成到 `dist/windows/easy-miloco-v0.2-windows.zip`。

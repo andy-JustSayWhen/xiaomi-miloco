@@ -1181,6 +1181,7 @@ function Remove-ExistingMilocoInstall {
   foreach ($path in @(
     (Join-Path $desktop $desktopConsoleName),
     (Join-Path $desktop "miloco-console.ps1"),
+    (Join-Path $desktop "OpenClaw-login-info.txt"),
     (Join-Path $desktop "miloco-xiaomi-oauth.url"),
     (Join-Path $desktop "miloco-xiaomi-oauth.txt")
   )) {
@@ -1279,6 +1280,7 @@ function Install-DesktopLauncher {
   $openClawShortcutName = "OpenClaw " + [string][char]0x5BF9 + [string][char]0x8BDD + [string][char]0x5165 + [string][char]0x53E3 + ".lnk"
   $openClawShortcut = Join-Path $desktop $openClawShortcutName
   $openClawPsLauncher = Join-Path $desktop "miloco-openclaw.ps1"
+  $openClawInfoPath = Join-Path $desktop "OpenClaw-login-info.txt"
   $bat = @'
 @echo off
 setlocal
@@ -1324,6 +1326,7 @@ $ErrorActionPreference = "Continue"
 $script:Distro = "__DISTRO__"
 $script:MilocoPort = __MILOCO_PORT__
 $script:OpenClawPort = __OPENCLAW_PORT__
+$script:OpenClawInfoPath = "__OPENCLAW_INFO_PATH__"
 $script:WslExe = Join-Path $env:WINDIR "System32\wsl.exe"
 if (-not (Test-Path -LiteralPath $script:WslExe)) {
   $script:WslExe = "wsl.exe"
@@ -1371,10 +1374,72 @@ function Invoke-WslText {
   return @(& $script:WslExe -d $script:Distro -- bash -lc "printf '%s' '$encoded' | base64 -d | bash" 2>$null)
 }
 
-function Get-OpenClawDashboardUrl {
+function Write-Status {
+  param([string]$Message)
+
+  Write-Host ("[{0:HH:mm:ss}] {1}" -f (Get-Date), $Message) -ForegroundColor Cyan
+}
+
+function Write-ActionOk {
+  param([string]$Message)
+
+  Write-Host ("[OK] {0}" -f $Message) -ForegroundColor Green
+}
+
+function Prompt-Line {
+  param([string]$Prompt)
+
+  [Console]::Write($Prompt)
+  return [Console]::ReadLine()
+}
+
+function Pause-ReturnToMenu {
+  param(
+    [string[]]$Lines = @("按回车返回菜单...")
+  )
+
+  Write-Host ""
+  foreach ($line in $Lines) {
+    Write-Host $line -ForegroundColor Yellow
+  }
+  [void](Prompt-Line "")
+}
+
+function Test-TcpPort {
   param([int]$Port)
 
-  $url = "http://127.0.0.1:{0}/" -f $Port
+  $tcp = New-Object Net.Sockets.TcpClient
+  try {
+    $iar = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
+    if ($iar.AsyncWaitHandle.WaitOne(1000)) {
+      $tcp.EndConnect($iar)
+      return $true
+    }
+  } catch {
+  } finally {
+    $tcp.Close()
+  }
+  return $false
+}
+
+function Test-MilocoHealthReady {
+  param([int]$Port)
+
+  try {
+    $resp = Invoke-RestMethod -Uri ("http://127.0.0.1:{0}/health" -f $Port) -Method Get -TimeoutSec 3
+    if ($resp -and $resp.status -eq "ok") {
+      return $true
+    }
+  } catch {
+  }
+  return $false
+}
+
+function Get-OpenClawLaunchInfo {
+  param([int]$Port)
+
+  $baseUrl = "http://127.0.0.1:{0}" -f $Port
+  $dashboardFallback = "{0}/" -f $baseUrl
   $dashboardUrl = ""
   try {
     $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; openclaw dashboard --no-open 2>/tmp/openclaw-dashboard-url.err || true'
@@ -1383,7 +1448,14 @@ function Get-OpenClawDashboardUrl {
       if ($match.Success) {
         $candidate = $match.Value.Trim()
         if ($candidate -match '(^|[#?&])token=') {
-          return $candidate
+          return [pscustomobject]@{
+            LaunchUrl     = $candidate
+            DashboardUrl  = $candidate
+            Token         = ""
+            WsUrl         = ("ws://127.0.0.1:{0}" -f $Port)
+            BaseUrl       = $dashboardFallback
+            ChatUrl       = ("{0}/chat?session=main" -f $baseUrl)
+          }
         }
         if (-not $dashboardUrl) {
           $dashboardUrl = $candidate
@@ -1465,28 +1537,50 @@ for candidate in candidates:
       $token = ""
     }
   }
+  $chatUrl = "{0}/chat?session=main" -f $baseUrl
+  $launchUrl = if ($dashboardUrl) { $dashboardUrl } else { $chatUrl }
   if ($token) {
-    $targetUrl = $url
-    if ($dashboardUrl) {
-      $targetUrl = $dashboardUrl
-    }
     $encodedToken = [Uri]::EscapeDataString($token.Trim())
-    if ($targetUrl -match '(^|[#?&])token=') {
-      return $targetUrl
-    }
-    if ($targetUrl -match '#') {
-      $parts = $targetUrl -split '#', 2
-      if ($parts[1]) {
-        return ("{0}#token={1}&{2}" -f $parts[0], $encodedToken, $parts[1])
-      }
-      return ("{0}#token={1}" -f $parts[0], $encodedToken)
-    }
-    return ("{0}#token={1}" -f $targetUrl, $encodedToken)
+    $launchUrl = "{0}#token={1}" -f $chatUrl, $encodedToken
   }
-  if ($dashboardUrl) {
-    return $dashboardUrl
+  return [pscustomobject]@{
+    LaunchUrl     = $launchUrl
+    DashboardUrl  = $(if ($dashboardUrl) { $dashboardUrl } else { $dashboardFallback })
+    Token         = $token.Trim()
+    WsUrl         = ("ws://127.0.0.1:{0}" -f $Port)
+    BaseUrl       = $dashboardFallback
+    ChatUrl       = $chatUrl
   }
-  return $url
+}
+
+function Write-OpenClawInfoFile {
+  param([object]$Info)
+
+  if ([string]::IsNullOrWhiteSpace($script:OpenClawInfoPath)) {
+    return
+  }
+
+  $tokenValue = if ($Info -and $Info.Token) { $Info.Token } else { "(empty)" }
+  $launchValue = if ($Info -and $Info.LaunchUrl) { $Info.LaunchUrl } else { ("http://127.0.0.1:{0}/chat?session=main" -f $script:OpenClawPort) }
+  $dashboardValue = if ($Info -and $Info.DashboardUrl) { $Info.DashboardUrl } else { ("http://127.0.0.1:{0}/" -f $script:OpenClawPort) }
+  $wsValue = if ($Info -and $Info.WsUrl) { $Info.WsUrl } else { ("ws://127.0.0.1:{0}" -f $script:OpenClawPort) }
+  $lines = @(
+    "OpenClaw 登录信息",
+    "",
+    ("推荐直接打开: {0}" -f $launchValue),
+    ("仪表板地址: {0}" -f $dashboardValue),
+    ("WebSocket URL: {0}" -f $wsValue),
+    ("Gateway Token: {0}" -f $tokenValue),
+    "",
+    "最省事的用法：",
+    "1. 直接双击桌面的 OpenClaw 对话入口。",
+    "2. 如果页面仍提示未连接，先双击桌面的 Miloco 控制台，选 3 等待自动拉起。",
+    "3. 还不行，就把上面的 推荐直接打开 地址 整段复制到浏览器地址栏。",
+    "4. 如果页面里 token 仍为空，就把上面的 Gateway Token 整段粘贴进去。",
+    "",
+    "这份文件会在每次打开 OpenClaw 入口时自动刷新。"
+  )
+  [System.IO.File]::WriteAllText($script:OpenClawInfoPath, ($lines -join "`r`n"), [System.Text.UTF8Encoding]::new($true))
 }
 
 function Wait-OpenClawReady {
@@ -1503,44 +1597,54 @@ function Open-WhenReady {
     [switch]$OpenClaw
   )
 
+  $label = if ($OpenClaw) { "OpenClaw" } else { "Miloco" }
   $deadline = (Get-Date).AddSeconds(60)
-  $ready = $false
+  $nextProgress = (Get-Date)
   while ((Get-Date) -lt $deadline) {
-    $tcp = New-Object Net.Sockets.TcpClient
-    try {
-      $iar = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
-      if ($iar.AsyncWaitHandle.WaitOne(1000)) {
-        $tcp.EndConnect($iar)
-        $ready = $true
-        break
-      }
-    } catch {
-    } finally {
-      $tcp.Close()
-    }
-    Start-Sleep -Seconds 1
-  }
-  if ($ready) {
     if ($OpenClaw) {
-      if (-not (Wait-OpenClawReady 45)) {
-        Write-Host "OpenClaw Gateway 端口已响应，但连通性检查还没有通过，所以暂时不自动打开浏览器。" -ForegroundColor Yellow
+      if (Test-TcpPort $Port) {
+        Write-Status "OpenClaw 端口已响应，继续等待 Gateway 连通性。"
+        if (Wait-OpenClawReady 45) {
+          $info = Get-OpenClawLaunchInfo $Port
+          Write-OpenClawInfoFile $info
+          Start-Process $info.LaunchUrl
+          Write-ActionOk "OpenClaw 已打开，登录信息也已写到桌面的 OpenClaw-login-info.txt。"
+          return $true
+        }
+        Write-Host "OpenClaw 端口已响应，但 Gateway 连通性还没有通过。" -ForegroundColor Yellow
         Write-Host "可查看 WSL 内日志：" -ForegroundColor Yellow
         Write-Host "  /tmp/openclaw-desktop-restart.log" -ForegroundColor Yellow
         Write-Host "  /tmp/openclaw-desktop-status.log" -ForegroundColor Yellow
-        return
+        Pause-ReturnToMenu
+        return $false
       }
-      Start-Process (Get-OpenClawDashboardUrl $Port)
     } else {
-      Start-Process ("http://127.0.0.1:{0}/" -f $Port)
+      if ((Test-TcpPort $Port) -and (Test-MilocoHealthReady $Port)) {
+        Start-Process ("http://127.0.0.1:{0}/" -f $Port)
+        Write-ActionOk "Miloco 面板已打开。"
+        return $true
+      }
     }
-    return
+
+    if ((Get-Date) -ge $nextProgress) {
+      Write-Status ("正在等待 {0} 就绪..." -f $label)
+      $nextProgress = (Get-Date).AddSeconds(10)
+    }
+    Start-Sleep -Seconds 1
   }
 
-  Write-Host ("端口 {0} 在 60 秒内还没有响应，所以暂时没有自动打开浏览器。" -f $Port) -ForegroundColor Yellow
+  if ($OpenClaw) {
+    $info = Get-OpenClawLaunchInfo $Port
+    Write-OpenClawInfoFile $info
+  }
+  Write-Host ("{0} 在 60 秒内还没有准备好，所以暂时没有自动打开浏览器。" -f $label) -ForegroundColor Yellow
   Write-Host "这通常表示服务还在启动、启动失败，或端口被占用。" -ForegroundColor Yellow
   Write-Host "可查看 WSL 内日志：" -ForegroundColor Yellow
   Write-Host "  /tmp/miloco-desktop-start.log" -ForegroundColor Yellow
+  Write-Host "  /tmp/miloco-desktop-restart.log" -ForegroundColor Yellow
   Write-Host "  /tmp/openclaw-desktop-restart.log" -ForegroundColor Yellow
+  Pause-ReturnToMenu
+  return $false
 }
 
 function Get-MilocoPortConfigCommand {
@@ -1564,32 +1668,39 @@ tmp.replace(path)
 
 function Restart-OpenClaw {
   Write-Host ""
-  Write-Host "正在重启 OpenClaw 面板..."
+  Write-Status "正在重启 OpenClaw 面板..."
   $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
   if (Invoke-WslBash $cmd) {
-    Open-WhenReady $script:OpenClawPort -OpenClaw
+    return (Open-WhenReady $script:OpenClawPort -OpenClaw)
   }
+  Pause-ReturnToMenu
+  return $false
 }
 
 function Restart-Miloco {
   Write-Host ""
-  Write-Host "正在重启 Miloco 面板..."
+  Write-Status "正在重启 Miloco 面板..."
   $configCmd = Get-MilocoPortConfigCommand
-  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; ' + $configCmd + ' || exit 44; supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-desktop-supervisor-stop.log 2>&1 || true; pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; sleep 1; pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; nohup miloco-cli service start >/tmp/miloco-desktop-start.log 2>&1 &'
+  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; ' + $configCmd + ' || exit 44; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || { miloco-cli service stop >/tmp/miloco-desktop-stop.log 2>&1 || true; miloco-cli service start >/tmp/miloco-desktop-start.log 2>&1; }'
   if (Invoke-WslBash $cmd) {
-    Open-WhenReady $script:MilocoPort
+    return (Open-WhenReady $script:MilocoPort)
   }
+  Pause-ReturnToMenu
+  return $false
 }
 
 function Restart-All {
   Write-Host ""
-  Write-Host "正在重启 Miloco + OpenClaw..."
+  Write-Status "正在重启 Miloco + OpenClaw..."
   $configCmd = Get-MilocoPortConfigCommand
-  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; ' + $configCmd + ' || exit 44; supervisorctl -c "$HOME/.openclaw/miloco/supervisord.conf" shutdown >/tmp/miloco-desktop-supervisor-stop.log 2>&1 || true; pkill -TERM -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; sleep 1; pkill -KILL -f "/home/.*/.local/share/uv/tools/miloco/bin/[p]ython -m miloco.main" 2>/dev/null || true; nohup miloco-cli service start >/tmp/miloco-desktop-start.log 2>&1 & openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
+  $cmd = 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; ' + $configCmd + ' || exit 44; miloco-cli service restart >/tmp/miloco-desktop-restart.log 2>&1 || { miloco-cli service stop >/tmp/miloco-desktop-stop.log 2>&1 || true; miloco-cli service start >/tmp/miloco-desktop-start.log 2>&1; }; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
   if (Invoke-WslBash $cmd) {
-    Open-WhenReady $script:MilocoPort
-    Open-WhenReady $script:OpenClawPort -OpenClaw
+    $milocoOk = Open-WhenReady $script:MilocoPort
+    $openClawOk = Open-WhenReady $script:OpenClawPort -OpenClaw
+    return ($milocoOk -and $openClawOk)
   }
+  Pause-ReturnToMenu
+  return $false
 }
 
 function Stop-Services {
@@ -1621,7 +1732,7 @@ function Show-Menu {
   Write-Host "  0. 退出"
   Write-Host ""
   Write-Host "说明："
-  Write-Host "  1. 打开或刷新 OpenClaw 对话入口。适合日常和 Agent 对话、验证 Miloco 插件是否生效。"
+  Write-Host "  1. 打开或刷新 OpenClaw 对话入口，并刷新桌面的 OpenClaw-login-info.txt。"
   Write-Host "  2. 打开或刷新 Miloco 管理面板。适合日常查看设备、摄像头、账号、模型和家庭配置。"
   Write-Host "  3. 一次性拉起整套服务，并打开两个面板。首次安装后、电脑重启后，优先选这个。"
   Write-Host "  4. 停止两个服务，但保留 WSL。适合今天不用了、想释放后台资源，或准备重新启动服务。"
@@ -1634,17 +1745,17 @@ while ($true) {
   Show-Menu
   if (-not (Test-Distro)) {
     Write-Host ""
-    Read-Host "按回车返回菜单"
+    Pause-ReturnToMenu
     continue
   }
 
-  $choice = (Read-Host "请选择 [1/2/3/4/5/0]").Trim()
+  $choice = (Prompt-Line "请选择 [1/2/3/4/5/0]: ").Trim()
   switch ($choice) {
-    "1" { Restart-OpenClaw; Read-Host "按回车返回菜单" | Out-Null }
-    "2" { Restart-Miloco; Read-Host "按回车返回菜单" | Out-Null }
-    "3" { Restart-All; Read-Host "按回车返回菜单" | Out-Null }
-    "4" { Stop-Services; Read-Host "按回车返回菜单" | Out-Null }
-    "5" { Stop-Wsl; Read-Host "按回车返回菜单" | Out-Null }
+    "1" { [void](Restart-OpenClaw) }
+    "2" { [void](Restart-Miloco) }
+    "3" { [void](Restart-All) }
+    "4" { Stop-Services }
+    "5" { Stop-Wsl }
     "0" { exit 0 }
     default {
       Write-Host "请输入 1、2、3、4、5 或 0。" -ForegroundColor Yellow
@@ -1659,6 +1770,7 @@ $ErrorActionPreference = "Continue"
 
 $script:Distro = "__DISTRO__"
 $script:OpenClawPort = __OPENCLAW_PORT__
+$script:OpenClawInfoPath = "__OPENCLAW_INFO_PATH__"
 $script:WslExe = Join-Path $env:WINDIR "System32\wsl.exe"
 if (-not (Test-Path -LiteralPath $script:WslExe)) {
   $script:WslExe = "wsl.exe"
@@ -1681,10 +1793,28 @@ function Invoke-WslText {
   return @(& $script:WslExe -d $script:Distro -- bash -lc "printf '%s' '$encoded' | base64 -d | bash" 2>$null)
 }
 
-function Get-OpenClawDashboardUrl {
+function Test-TcpPort {
   param([int]$Port)
 
-  $url = "http://127.0.0.1:{0}/" -f $Port
+  $tcp = New-Object Net.Sockets.TcpClient
+  try {
+    $iar = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
+    if ($iar.AsyncWaitHandle.WaitOne(1000)) {
+      $tcp.EndConnect($iar)
+      return $true
+    }
+  } catch {
+  } finally {
+    $tcp.Close()
+  }
+  return $false
+}
+
+function Get-OpenClawLaunchInfo {
+  param([int]$Port)
+
+  $baseUrl = "http://127.0.0.1:{0}" -f $Port
+  $dashboardFallback = "{0}/" -f $baseUrl
   $dashboardUrl = ""
   try {
     $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; openclaw dashboard --no-open 2>/tmp/openclaw-dashboard-url.err || true'
@@ -1693,7 +1823,14 @@ function Get-OpenClawDashboardUrl {
       if ($match.Success) {
         $candidate = $match.Value.Trim()
         if ($candidate -match '(^|[#?&])token=') {
-          return $candidate
+          return [pscustomobject]@{
+            LaunchUrl     = $candidate
+            DashboardUrl  = $candidate
+            Token         = ""
+            WsUrl         = ("ws://127.0.0.1:{0}" -f $Port)
+            BaseUrl       = $dashboardFallback
+            ChatUrl       = ("{0}/chat?session=main" -f $baseUrl)
+          }
         }
         if (-not $dashboardUrl) {
           $dashboardUrl = $candidate
@@ -1775,52 +1912,50 @@ for candidate in candidates:
       $token = ""
     }
   }
+  $chatUrl = "{0}/chat?session=main" -f $baseUrl
+  $launchUrl = if ($dashboardUrl) { $dashboardUrl } else { $chatUrl }
   if ($token) {
-    $targetUrl = $url
-    if ($dashboardUrl) {
-      $targetUrl = $dashboardUrl
-    }
     $encodedToken = [Uri]::EscapeDataString($token.Trim())
-    if ($targetUrl -match '(^|[#?&])token=') {
-      return $targetUrl
-    }
-    if ($targetUrl -match '#') {
-      $parts = $targetUrl -split '#', 2
-      if ($parts[1]) {
-        return ("{0}#token={1}&{2}" -f $parts[0], $encodedToken, $parts[1])
-      }
-      return ("{0}#token={1}" -f $parts[0], $encodedToken)
-    }
-    return ("{0}#token={1}" -f $targetUrl, $encodedToken)
+    $launchUrl = "{0}#token={1}" -f $chatUrl, $encodedToken
   }
-  if ($dashboardUrl) {
-    return $dashboardUrl
+  return [pscustomobject]@{
+    LaunchUrl     = $launchUrl
+    DashboardUrl  = $(if ($dashboardUrl) { $dashboardUrl } else { $dashboardFallback })
+    Token         = $token.Trim()
+    WsUrl         = ("ws://127.0.0.1:{0}" -f $Port)
+    BaseUrl       = $dashboardFallback
+    ChatUrl       = $chatUrl
   }
-  return $url
 }
 
-function Wait-Port {
-  param(
-    [int]$Port,
-    [int]$Seconds = 60
-  )
+function Write-OpenClawInfoFile {
+  param([object]$Info)
 
-  $deadline = (Get-Date).AddSeconds($Seconds)
-  while ((Get-Date) -lt $deadline) {
-    $tcp = New-Object Net.Sockets.TcpClient
-    try {
-      $iar = $tcp.BeginConnect("127.0.0.1", $Port, $null, $null)
-      if ($iar.AsyncWaitHandle.WaitOne(1000)) {
-        $tcp.EndConnect($iar)
-        return $true
-      }
-    } catch {
-    } finally {
-      $tcp.Close()
-    }
-    Start-Sleep -Seconds 1
+  if ([string]::IsNullOrWhiteSpace($script:OpenClawInfoPath)) {
+    return
   }
-  return $false
+
+  $tokenValue = if ($Info -and $Info.Token) { $Info.Token } else { "(empty)" }
+  $launchValue = if ($Info -and $Info.LaunchUrl) { $Info.LaunchUrl } else { ("http://127.0.0.1:{0}/chat?session=main" -f $script:OpenClawPort) }
+  $dashboardValue = if ($Info -and $Info.DashboardUrl) { $Info.DashboardUrl } else { ("http://127.0.0.1:{0}/" -f $script:OpenClawPort) }
+  $wsValue = if ($Info -and $Info.WsUrl) { $Info.WsUrl } else { ("ws://127.0.0.1:{0}" -f $script:OpenClawPort) }
+  $lines = @(
+    "OpenClaw 登录信息",
+    "",
+    ("推荐直接打开: {0}" -f $launchValue),
+    ("仪表板地址: {0}" -f $dashboardValue),
+    ("WebSocket URL: {0}" -f $wsValue),
+    ("Gateway Token: {0}" -f $tokenValue),
+    "",
+    "最省事的用法：",
+    "1. 直接双击桌面的 OpenClaw 对话入口。",
+    "2. 如果页面仍提示未连接，先双击桌面的 Miloco 控制台，选 3 等待自动拉起。",
+    "3. 还不行，就把上面的 推荐直接打开 地址 整段复制到浏览器地址栏。",
+    "4. 如果页面里 token 仍为空，就把上面的 Gateway Token 整段粘贴进去。",
+    "",
+    "这份文件会在每次打开 OpenClaw 入口时自动刷新。"
+  )
+  [System.IO.File]::WriteAllText($script:OpenClawInfoPath, ($lines -join "`r`n"), [System.Text.UTF8Encoding]::new($true))
 }
 
 function Wait-OpenClawReady {
@@ -1833,15 +1968,26 @@ function Wait-OpenClawReady {
 
 $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; systemctl --user unmask openclaw-gateway.service >/dev/null 2>&1 || true; systemctl --user enable openclaw-gateway.service >/dev/null 2>&1 || true; openclaw gateway restart >/tmp/openclaw-desktop-restart.log 2>&1 || true; openclaw gateway start >/tmp/openclaw-desktop-start.log 2>&1 || systemctl --user restart openclaw-gateway.service >/tmp/openclaw-desktop-restart-systemd.log 2>&1 || true'
 [void](Invoke-WslBash $cmd)
-if ((Wait-Port $script:OpenClawPort 60) -and (Wait-OpenClawReady 45)) {
-  Start-Process (Get-OpenClawDashboardUrl $script:OpenClawPort)
+$ready = $false
+$deadline = (Get-Date).AddSeconds(60)
+while ((Get-Date) -lt $deadline) {
+  if (Test-TcpPort $script:OpenClawPort) {
+    $ready = $true
+    break
+  }
+  Start-Sleep -Seconds 1
+}
+$info = Get-OpenClawLaunchInfo $script:OpenClawPort
+Write-OpenClawInfoFile $info
+if ($ready -and (Wait-OpenClawReady 45)) {
+  Start-Process $info.LaunchUrl
 } else {
   $shell = New-Object -ComObject WScript.Shell
-  [void]$shell.Popup("OpenClaw Gateway 暂未就绪。请稍后再双击这个入口，或打开 Miloco 控制台选择 3 重启整套服务。", 12, "Miloco / OpenClaw", 48)
+  [void]$shell.Popup(("OpenClaw 暂未就绪。请先双击桌面的 Miloco 控制台选择 3，或查看：{0}" -f $script:OpenClawInfoPath), 12, "Miloco / OpenClaw", 48)
 }
 '@
-  $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$script:MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
-  $openClawPs1 = $openClawPs1.Replace("__DISTRO__", $resolvedDistro).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort)
+  $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$script:MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort).Replace("__OPENCLAW_INFO_PATH__", $openClawInfoPath)
+  $openClawPs1 = $openClawPs1.Replace("__DISTRO__", $resolvedDistro).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort).Replace("__OPENCLAW_INFO_PATH__", $openClawInfoPath)
   [System.IO.File]::WriteAllText($launcher, $bat, [System.Text.UTF8Encoding]::new($false))
   [System.IO.File]::WriteAllText($psLauncher, $ps1, [System.Text.UTF8Encoding]::new($true))
   [System.IO.File]::WriteAllText($openClawPsLauncher, $openClawPs1, [System.Text.UTF8Encoding]::new($true))
@@ -2635,11 +2781,13 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   $desktopConsole = Join-Path ([Environment]::GetFolderPath("Desktop")) $desktopConsoleName
   $openClawShortcutName = "OpenClaw " + [string][char]0x5BF9 + [string][char]0x8BDD + [string][char]0x5165 + [string][char]0x53E3 + ".lnk"
   $openClawShortcut = Join-Path ([Environment]::GetFolderPath("Desktop")) $openClawShortcutName
+  $openClawInfoPath = Join-Path ([Environment]::GetFolderPath("Desktop")) "OpenClaw-login-info.txt"
   Write-Host "[OK] easy-miloco 基础安装已经完成。" -ForegroundColor Green
   Write-Host ""
   Write-Host "从现在开始，你可以用下面这些桌面入口验证和使用 Miloco：" -ForegroundColor Cyan
   Write-Host ("  {0}" -f $desktopConsole) -ForegroundColor White
   Write-Host ("  {0}" -f $openClawShortcut) -ForegroundColor White
+  Write-Host ("  {0}" -f $openClawInfoPath) -ForegroundColor White
   Write-Host ""
   Write-Host "建议先双击 Miloco 控制台，然后选择："
   Write-Host "  3. 重启 Miloco + OpenClaw    一次性拉起整套服务"
@@ -2648,6 +2796,7 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   Write-Host ""
   Write-Host ("Miloco 面板地址：   http://127.0.0.1:{0}/" -f $script:MilocoPort)
   Write-Host "OpenClaw 入口：     请用桌面的 OpenClaw 对话入口；不要直接打开裸端口地址。"
+  Write-Host "OpenClaw 登录信息： 每次打开入口都会刷新桌面的 OpenClaw-login-info.txt。"
   Write-Host ("本次诊断报告：      {0}" -f $reportPath)
   if (-not [string]::IsNullOrWhiteSpace($script:ExistingRestorePackPath)) {
     Write-Host ""
@@ -2688,6 +2837,7 @@ function Invoke-Uninstall {
     (Join-Path $desktop "miloco-console.ps1"),
     (Join-Path $desktop $openClawShortcutName),
     (Join-Path $desktop "miloco-openclaw.ps1"),
+    (Join-Path $desktop "OpenClaw-login-info.txt"),
     (Join-Path $desktop "miloco-xiaomi-oauth.url"),
     (Join-Path $desktop "miloco-xiaomi-oauth.txt")
   )) {
