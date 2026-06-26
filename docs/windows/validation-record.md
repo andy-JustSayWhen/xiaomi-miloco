@@ -761,3 +761,10 @@ FULL_READY=yes
 
 - home02 当前已有 Chrome 资料 `Acc`、`Dinath`、`emikoktognogxas8`、`lijsaf` 均未保留小米登录态，也未弹出小米账号密码自动填充。
 - 已把授权页切到扫码登录并等待 60 秒，页面仍停留在二维码；后续需要用户扫码或提供可用小米登录会话后，才能继续点击授权、复制 `127.0.0.1` callback、回填安装器并验证账号/API 全链路。
+
+用户扫码并点击确认授权后继续执行：
+
+- 浏览器跳转到 `https://127.0.0.1/?code=...&state=...`，页面显示 `ERR_CONNECTION_REFUSED`，这是 OAuth callback 人工复制模式下的正常现象。
+- 复制 callback 地址后，安装器完成 post-auth finish；控制台显示 `Post-auth finish completed`，并打印 `账号/API 配置已完成`。
+- 最终验证报告显示 `BASIC_READY=yes`、`FULL_READY=no`、`PASS_COUNT=13`、`FAIL_COUNT=0`。`FULL_READY=no` 仍按 home02 与米家设备不在同一局域网的环境限制处理，不判为本轮脚本/授权 bug。
+- 本轮关键结论：`fix: decouple miot auth from post refresh` 发布后，`account authorize` 没有再因为后续家庭/摄像头/感知刷新降级而返回 502；小米账号授权和 API 配置链路在远程 Windows release 包路径下跑通。
