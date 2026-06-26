@@ -847,3 +847,31 @@ FULL_READY=yes
 
 - `windows/package/install.ps1` PowerShell 语法解析通过。
 - `windows/build-release.ps1 -Version v0.2 -ArtifactVersion 2026.6.26 -SkipBuild` 打包通过，新的本地 release zip 已生成到 `dist/windows/easy-miloco-v0.2-windows.zip`。
+
+### 2026-06-26 本地迭代补充：OpenClaw WebUI 预填入口与信息管理说明
+
+根据本轮用户反馈继续收口 OpenClaw 登录体验，重点修复“入口虽然存在，但仍打开到未预填完整信息的登录页”这一问题。
+
+本轮补充问题：
+
+- `OpenClaw 对话入口` 在已有 token 的情况下，仍可能打开到需要手工再填 token 的页面。
+- 原因不是只有信息文件缺失；更关键的是入口 URL 拼接用了 `.../chat?session=main#token=...`，和 OpenClaw 官方推荐的根地址 token 引导方式不一致。
+- `OpenClaw-login-info.txt` 虽然已经生成，但对“小白用户怎么刷新、怎么单独拿 token、怎么改配置”说明仍不够直给。
+
+本轮补充迭代：
+
+- `windows/package/install.ps1` 里桌面 `OpenClaw 对话入口` 的直达 URL 改为优先使用 `http://127.0.0.1:<port>/#token=...` 这种根地址 token 形式；只有确实拿不到 token 时，才退回非 token 的 dashboard 地址。
+- 同步保留 `dashboard --no-open --yes` 与剪贴板兜底逻辑，继续优先复用 OpenClaw 官方 CLI 生成的当前入口信息。
+- `OpenClaw-login-info.txt` 扩写为三段式说明：最省事的打开方式、如何获取/刷新这些信息、如何管理/修改 token，并明确给出：
+  - `openclaw dashboard --no-open --yes`
+  - `openclaw config get gateway.auth.token`
+  - `~/.openclaw/openclaw.json`
+  - `gateway.auth.token`
+
+本地验证：
+
+- `windows/package/install.ps1` PowerShell 语法解析通过。
+- WSL 内 `openclaw config get gateway.auth.token` 可正常返回当前 token。
+- 重新执行 `windows/build-release.ps1 -Version v0.2 -ArtifactVersion 2026.6.26 -SkipBuild` 打包通过。
+- 新本地包：`dist/windows/easy-miloco-v0.2-windows.zip`
+- 新包 SHA256：`2BBA42757F3500FBB802D83645768142B3D24C0131ADFE3A11B4BDB9C691D38D`

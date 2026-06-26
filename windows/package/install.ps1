@@ -1435,23 +1435,47 @@ function Test-MilocoHealthReady {
   return $false
 }
 
+function Get-ClipboardOpenClawUrl {
+  param([int]$Port)
+
+  try {
+    $clip = Get-Clipboard -Raw
+    if (-not [string]::IsNullOrWhiteSpace($clip)) {
+      foreach ($line in ($clip -split "`r?`n")) {
+        $match = [regex]::Match([string]$line, ('https?://127\.0\.0\.1:{0}[^\s"''<>]*' -f $Port))
+        if ($match.Success) {
+          return $match.Value.Trim()
+        }
+      }
+    }
+  } catch {
+  }
+  return ""
+}
+
 function Get-OpenClawLaunchInfo {
   param([int]$Port)
 
   $baseUrl = "http://127.0.0.1:{0}" -f $Port
   $dashboardFallback = "{0}/" -f $baseUrl
   $dashboardUrl = ""
+  $clipboardUrl = ""
   try {
-    $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; openclaw dashboard --no-open 2>/tmp/openclaw-dashboard-url.err || true'
+    $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; openclaw dashboard --no-open --yes 2>/tmp/openclaw-dashboard-url.err || true'
     foreach ($line in (Invoke-WslText $cmd)) {
       $match = [regex]::Match([string]$line, 'https?://[^\s"''<>]+')
       if ($match.Success) {
         $candidate = $match.Value.Trim()
         if ($candidate -match '(^|[#?&])token=') {
+          $tokenFromUrl = ""
+          $tokenMatch = [regex]::Match($candidate, '(?i)(?:[#?&]token=)([^&]+)')
+          if ($tokenMatch.Success) {
+            try { $tokenFromUrl = [Uri]::UnescapeDataString($tokenMatch.Groups[1].Value) } catch { $tokenFromUrl = $tokenMatch.Groups[1].Value }
+          }
           return [pscustomobject]@{
             LaunchUrl     = $candidate
             DashboardUrl  = $candidate
-            Token         = ""
+            Token         = $tokenFromUrl
             WsUrl         = ("ws://127.0.0.1:{0}" -f $Port)
             BaseUrl       = $dashboardFallback
             ChatUrl       = ("{0}/chat?session=main" -f $baseUrl)
@@ -1465,6 +1489,7 @@ function Get-OpenClawLaunchInfo {
   } catch {
     $dashboardUrl = ""
   }
+  $clipboardUrl = Get-ClipboardOpenClawUrl $Port
 
   $token = ""
   try {
@@ -1504,44 +1529,22 @@ for candidate in candidates:
   } catch {
     $token = ""
   }
-  if (-not $token) {
-    try {
-      $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; token_output="$(openclaw doctor generate-token 2>/tmp/openclaw-doctor-generate-token.err || true)"; printf "%s\n" "$token_output" > /tmp/openclaw-doctor-generate-token.log; printf "%s\n" "$token_output"; openclaw gateway restart >/tmp/openclaw-dashboard-token-restart.log 2>&1 || true; openclaw dashboard --no-open 2>/tmp/openclaw-dashboard-url-after-token.err || true'
-      foreach ($line in (Invoke-WslText $cmd)) {
-        $lineText = [string]$line
-        $match = [regex]::Match($lineText, 'https?://[^\s"''<>]+')
-        if ($match.Success) {
-          $candidate = $match.Value.Trim()
-          if ($candidate -match '(^|[#?&])token=') {
-            return $candidate
-          }
-          if (-not $dashboardUrl) {
-            $dashboardUrl = $candidate
-          }
-        }
-        $tokenMatch = [regex]::Match($lineText, '(?i)(?:token|password|bearer)[^A-Za-z0-9._~+\-]{0,20}([A-Za-z0-9._~+\-]{16,})')
-        if ($tokenMatch.Success) {
-          $token = $tokenMatch.Groups[1].Value
-          break
-        }
-        $bareTokenMatch = [regex]::Match($lineText.Trim(), '^[A-Za-z0-9._~+\-]{24,}$')
-        if ($bareTokenMatch.Success) {
-          $token = $bareTokenMatch.Value
-          break
-        }
+  if ($clipboardUrl) {
+    if (-not $dashboardUrl) {
+      $dashboardUrl = $clipboardUrl
+    }
+    if (-not $token) {
+      $tokenMatch = [regex]::Match($clipboardUrl, '(?i)(?:[#?&]token=)([^&]+)')
+      if ($tokenMatch.Success) {
+        try { $token = [Uri]::UnescapeDataString($tokenMatch.Groups[1].Value) } catch { $token = $tokenMatch.Groups[1].Value }
       }
-      if (-not $token) {
-        $token = (& $script:WslExe -d $script:Distro -- python3 -c $py 2>$null | Select-Object -First 1)
-      }
-    } catch {
-      $token = ""
     }
   }
   $chatUrl = "{0}/chat?session=main" -f $baseUrl
-  $launchUrl = if ($dashboardUrl) { $dashboardUrl } else { $chatUrl }
+  $launchUrl = if ($clipboardUrl) { $clipboardUrl } elseif ($dashboardUrl) { $dashboardUrl } else { $dashboardFallback }
   if ($token) {
     $encodedToken = [Uri]::EscapeDataString($token.Trim())
-    $launchUrl = "{0}#token={1}" -f $chatUrl, $encodedToken
+    $launchUrl = "{0}#token={1}" -f $dashboardFallback.TrimEnd('/'), $encodedToken
   }
   return [pscustomobject]@{
     LaunchUrl     = $launchUrl
@@ -1573,10 +1576,19 @@ function Write-OpenClawInfoFile {
     ("Gateway Token: {0}" -f $tokenValue),
     "",
     "最省事的用法：",
-    "1. 直接双击桌面的 OpenClaw 对话入口。",
-    "2. 如果页面仍提示未连接，先双击桌面的 Miloco 控制台，选 3 等待自动拉起。",
+    "1. 直接双击桌面的 OpenClaw 对话入口；它会优先用带 token 的直达地址打开。",
+    "2. 如果页面仍提示未连接，先双击桌面的 Miloco 控制台，选 3，等到服务完全拉起后再试。",
     "3. 还不行，就把上面的 推荐直接打开 地址 整段复制到浏览器地址栏。",
     "4. 如果页面里 token 仍为空，就把上面的 Gateway Token 整段粘贴进去。",
+    "",
+    "如何获取 / 刷新这些信息：",
+    "5. 重新双击 OpenClaw 对话入口，或在 WSL 里运行：openclaw dashboard --no-open --yes",
+    "6. 只想看 token，可在 WSL 里运行：openclaw config get gateway.auth.token",
+    "",
+    "如何管理 / 修改：",
+    "7. 当前配置文件：~/.openclaw/openclaw.json",
+    "8. 重点字段：gateway.auth.token",
+    "9. 改完后重开 OpenClaw 对话入口，或重新运行上面的 dashboard 命令刷新。",
     "",
     "这份文件会在每次打开 OpenClaw 入口时自动刷新。"
   )
@@ -1810,23 +1822,47 @@ function Test-TcpPort {
   return $false
 }
 
+function Get-ClipboardOpenClawUrl {
+  param([int]$Port)
+
+  try {
+    $clip = Get-Clipboard -Raw
+    if (-not [string]::IsNullOrWhiteSpace($clip)) {
+      foreach ($line in ($clip -split "`r?`n")) {
+        $match = [regex]::Match([string]$line, ('https?://127\.0\.0\.1:{0}[^\s"''<>]*' -f $Port))
+        if ($match.Success) {
+          return $match.Value.Trim()
+        }
+      }
+    }
+  } catch {
+  }
+  return ""
+}
+
 function Get-OpenClawLaunchInfo {
   param([int]$Port)
 
   $baseUrl = "http://127.0.0.1:{0}" -f $Port
   $dashboardFallback = "{0}/" -f $baseUrl
   $dashboardUrl = ""
+  $clipboardUrl = ""
   try {
-    $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; openclaw dashboard --no-open 2>/tmp/openclaw-dashboard-url.err || true'
+    $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; openclaw dashboard --no-open --yes 2>/tmp/openclaw-dashboard-url.err || true'
     foreach ($line in (Invoke-WslText $cmd)) {
       $match = [regex]::Match([string]$line, 'https?://[^\s"''<>]+')
       if ($match.Success) {
         $candidate = $match.Value.Trim()
         if ($candidate -match '(^|[#?&])token=') {
+          $tokenFromUrl = ""
+          $tokenMatch = [regex]::Match($candidate, '(?i)(?:[#?&]token=)([^&]+)')
+          if ($tokenMatch.Success) {
+            try { $tokenFromUrl = [Uri]::UnescapeDataString($tokenMatch.Groups[1].Value) } catch { $tokenFromUrl = $tokenMatch.Groups[1].Value }
+          }
           return [pscustomobject]@{
             LaunchUrl     = $candidate
             DashboardUrl  = $candidate
-            Token         = ""
+            Token         = $tokenFromUrl
             WsUrl         = ("ws://127.0.0.1:{0}" -f $Port)
             BaseUrl       = $dashboardFallback
             ChatUrl       = ("{0}/chat?session=main" -f $baseUrl)
@@ -1840,6 +1876,7 @@ function Get-OpenClawLaunchInfo {
   } catch {
     $dashboardUrl = ""
   }
+  $clipboardUrl = Get-ClipboardOpenClawUrl $Port
 
   $token = ""
   try {
@@ -1879,44 +1916,22 @@ for candidate in candidates:
   } catch {
     $token = ""
   }
-  if (-not $token) {
-    try {
-      $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; token_output="$(openclaw doctor generate-token 2>/tmp/openclaw-doctor-generate-token.err || true)"; printf "%s\n" "$token_output" > /tmp/openclaw-doctor-generate-token.log; printf "%s\n" "$token_output"; openclaw gateway restart >/tmp/openclaw-dashboard-token-restart.log 2>&1 || true; openclaw dashboard --no-open 2>/tmp/openclaw-dashboard-url-after-token.err || true'
-      foreach ($line in (Invoke-WslText $cmd)) {
-        $lineText = [string]$line
-        $match = [regex]::Match($lineText, 'https?://[^\s"''<>]+')
-        if ($match.Success) {
-          $candidate = $match.Value.Trim()
-          if ($candidate -match '(^|[#?&])token=') {
-            return $candidate
-          }
-          if (-not $dashboardUrl) {
-            $dashboardUrl = $candidate
-          }
-        }
-        $tokenMatch = [regex]::Match($lineText, '(?i)(?:token|password|bearer)[^A-Za-z0-9._~+\-]{0,20}([A-Za-z0-9._~+\-]{16,})')
-        if ($tokenMatch.Success) {
-          $token = $tokenMatch.Groups[1].Value
-          break
-        }
-        $bareTokenMatch = [regex]::Match($lineText.Trim(), '^[A-Za-z0-9._~+\-]{24,}$')
-        if ($bareTokenMatch.Success) {
-          $token = $bareTokenMatch.Value
-          break
-        }
+  if ($clipboardUrl) {
+    if (-not $dashboardUrl) {
+      $dashboardUrl = $clipboardUrl
+    }
+    if (-not $token) {
+      $tokenMatch = [regex]::Match($clipboardUrl, '(?i)(?:[#?&]token=)([^&]+)')
+      if ($tokenMatch.Success) {
+        try { $token = [Uri]::UnescapeDataString($tokenMatch.Groups[1].Value) } catch { $token = $tokenMatch.Groups[1].Value }
       }
-      if (-not $token) {
-        $token = (& $script:WslExe -d $script:Distro -- python3 -c $py 2>$null | Select-Object -First 1)
-      }
-    } catch {
-      $token = ""
     }
   }
   $chatUrl = "{0}/chat?session=main" -f $baseUrl
-  $launchUrl = if ($dashboardUrl) { $dashboardUrl } else { $chatUrl }
+  $launchUrl = if ($clipboardUrl) { $clipboardUrl } elseif ($dashboardUrl) { $dashboardUrl } else { $dashboardFallback }
   if ($token) {
     $encodedToken = [Uri]::EscapeDataString($token.Trim())
-    $launchUrl = "{0}#token={1}" -f $chatUrl, $encodedToken
+    $launchUrl = "{0}#token={1}" -f $dashboardFallback.TrimEnd('/'), $encodedToken
   }
   return [pscustomobject]@{
     LaunchUrl     = $launchUrl
@@ -1948,10 +1963,19 @@ function Write-OpenClawInfoFile {
     ("Gateway Token: {0}" -f $tokenValue),
     "",
     "最省事的用法：",
-    "1. 直接双击桌面的 OpenClaw 对话入口。",
-    "2. 如果页面仍提示未连接，先双击桌面的 Miloco 控制台，选 3 等待自动拉起。",
+    "1. 直接双击桌面的 OpenClaw 对话入口；它会优先用带 token 的直达地址打开。",
+    "2. 如果页面仍提示未连接，先双击桌面的 Miloco 控制台，选 3，等到服务完全拉起后再试。",
     "3. 还不行，就把上面的 推荐直接打开 地址 整段复制到浏览器地址栏。",
     "4. 如果页面里 token 仍为空，就把上面的 Gateway Token 整段粘贴进去。",
+    "",
+    "如何获取 / 刷新这些信息：",
+    "5. 重新双击 OpenClaw 对话入口，或在 WSL 里运行：openclaw dashboard --no-open --yes",
+    "6. 只想看 token，可在 WSL 里运行：openclaw config get gateway.auth.token",
+    "",
+    "如何管理 / 修改：",
+    "7. 当前配置文件：~/.openclaw/openclaw.json",
+    "8. 重点字段：gateway.auth.token",
+    "9. 改完后重开 OpenClaw 对话入口，或重新运行上面的 dashboard 命令刷新。",
     "",
     "这份文件会在每次打开 OpenClaw 入口时自动刷新。"
   )
