@@ -745,3 +745,19 @@ FULL_READY=yes
 - `MiotService.authorize_with_code()` 只把 token 交换失败视为授权失败；家庭列表兜底、摄像头刷新、camera adapter 同步和 perception engine 重启改为后台 best-effort，失败只记 warning，不撤销已绑定 token。
 - 本地验证：`uv run pytest miloco/tests/test_miot_filter_and_cameras.py -k "authorize_with_code" -q` 通过 2 项；`uv run pytest miloco/tests/test_miot_filter_and_cameras.py -q` 通过 64 项；`uv run ruff check miloco/src/miloco/miot/client.py miloco/src/miloco/miot/service.py miloco/tests/test_miot_filter_and_cameras.py` 通过。
 - 已重建 Linux runtime bundle 并替换 GitHub Release `v0.2` 的 `easy-miloco-v0.2-windows.zip`；发布脚本校验远端大小 `68532311`，远端 SHA256 `721976105dec6f247fbc21f90c6c95dfbc08a17f8d87d349552b6d19b8655e02`，`updated_at=2026-06-26T04:03:27Z`。发布过程第一次上传 300 秒超时，固定脚本自动重试后成功。
+
+### 2026-06-26 远程 release 第二十二轮完整云端包复测（账号登录阻塞中）
+
+第二十二轮继续在 home02 远程 Windows 上用 GitHub Release 最新包验证。Chrome 下载得到 `easy-miloco-v0.2-windows (1).zip`，解压到 `C:\Users\17239\Downloads\easy-miloco-v0.2-windows (1)`；解压目录内文件时间为 `2026-06-26 12:07`，确认是本轮新 release。运行 `install.bat` 时取消“打开此文件前总是询问”后点击运行，安装器正常提权启动。
+
+本轮已通过项：
+
+- 安装器检测到旧 Miloco，导出 Agent 恢复包到桌面，然后完整卸载旧版并重新安装新版。
+- Miloco 基础服务重新部署成功，端口仍为 `18860`；安装阶段出现短暂 `/health` 502，但最终健康验证通过并进入后续步骤。
+- OpenClaw 安装/检测通过，桌面控制台、Miloco 控制台和 OpenClaw 对话入口生成成功。
+- 安装器自动打开小米 OAuth 页面。
+
+本轮阻塞：
+
+- home02 当前已有 Chrome 资料 `Acc`、`Dinath`、`emikoktognogxas8`、`lijsaf` 均未保留小米登录态，也未弹出小米账号密码自动填充。
+- 已把授权页切到扫码登录并等待 60 秒，页面仍停留在二维码；后续需要用户扫码或提供可用小米登录会话后，才能继续点击授权、复制 `127.0.0.1` callback、回填安装器并验证账号/API 全链路。
