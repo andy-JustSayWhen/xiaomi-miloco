@@ -6,6 +6,7 @@
 - If the conversation was resumed, compacted, interrupted, or the task feels blurry, read this file again before continuing.
 - Treat this file as the local project contract. If it conflicts with a direct newer user instruction, follow the newer user instruction and update this file when the new rule should persist.
 - Before code edits, read the `README.md` `### 目录树` section; do not add new top-level directories unless clearly necessary.
+- When the user says to remember something, or the Agent says it will remember something for this repository, persist that durable rule or workflow note in this file instead of leaving it only in chat.
 
 ## Git Rules
 
@@ -29,6 +30,7 @@
 - Stop mid-test only for hard blockers: data loss risk, security/system permission prompt that needs the user, unrecoverable install failure, or a step that makes later checks meaningless.
 - After the test pass finishes, summarize all issues, decide one scoped iteration, patch it, rebuild or republish only when needed, then rerun the affected deployment path. Repeat this record -> complete pass -> iterate -> retest loop until the deployment is fully green.
 - For Windows release validation, write the running notes to `docs/windows/validation-record.md` or the specific runbook/report referenced by the task. Keep private secrets out of public docs.
+- On the home02 remote Windows test machine, do not let old browser windows or tabs accumulate. After Xiaomi OAuth, 127.0.0.1 callback pages, GitHub downloads, or other browser-only steps are no longer needed, close stale tabs/windows promptly so Chrome memory does not build up during repeated deployment tests.
 
 ## Script Encoding Rules
 
