@@ -151,34 +151,51 @@ class MiotService:
     async def authorize_with_code(self, code: str, state: str):
         """
         Exchange the OAuth authorization code (provided by user after redirect)
-        for an access token, then refresh runtime state.
+        for an access token, then refresh runtime state in the background.
         """
         try:
             logger.info("authorize_with_code state=%s code=%s…", state, code[:8])
-
             self._clear_account_scope_state()
-            await self._miot_proxy.get_miot_auth_info(code=code, state=state)
-
-            # 登录后 list_homes 兜底会自动选第一个家庭（如果启用集为空）。
-            await self.list_homes()
-            # list_homes 已确保 HOME_WHITE_LIST_KEY 非空（空集时自动选首个家庭）；
-            # get_miot_auth_info 内部的初次 refresh_cameras 在白名单还是空集时运行，
-            # is_home_allowed 对空集返回 False → 所有摄像头被 continue 跳过 →
-            # _camera_img_managers 为空。这里补一次确保 managers 正确创建。
-            await self._miot_proxy.refresh_cameras()
-            # _sync_camera_adapter 的结果会被下面 restart 里的 sync_all_devices 覆盖,
-            # 保留是为了在 perception engine 未运行时也能让感知订阅状态收敛。
-            await self._sync_camera_adapter()
-
-            # Restart perception engine so camera adapters can re-register
-            # frame callbacks now that camera_img_managers exist.
-            await self._restart_perception_engine()
-
+            await self._miot_proxy.get_miot_auth_info(
+                code=code, state=state, refresh=False
+            )
         except Exception as e:
             logger.error("Failed to process Xiaomi MiOT authorization code: %s", e)
             raise MiotServiceException(
                 f"Failed to process Xiaomi MiOT authorization code: {str(e)}"
             ) from e
+
+        self._schedule_post_authorize_refresh()
+
+    def _schedule_post_authorize_refresh(self) -> None:
+        task = asyncio.create_task(self._post_authorize_refresh())
+        task.add_done_callback(self._log_post_authorize_refresh_result)
+
+    def _log_post_authorize_refresh_result(self, task: asyncio.Task) -> None:
+        try:
+            task.result()
+        except asyncio.CancelledError:
+            logger.warning("Post-auth MiOT refresh task was cancelled")
+        except Exception as e:
+            logger.warning("Post-auth MiOT refresh task failed: %s", e)
+
+    async def _post_authorize_refresh(self) -> None:
+        async def _best_effort(name: str, action) -> None:
+            try:
+                await action()
+            except Exception as e:
+                logger.warning(
+                    "Post-auth %s failed; Xiaomi account token remains bound: %s",
+                    name,
+                    e,
+                )
+
+        # list_homes auto-selects the first home when scope is empty. Camera and
+        # perception refreshes are follow-up readiness work, not part of OAuth.
+        await _best_effort("list_homes", self.list_homes)
+        await _best_effort("refresh_cameras", self._miot_proxy.refresh_cameras)
+        await _best_effort("sync_camera_adapter", self._sync_camera_adapter)
+        await _best_effort("restart_perception_engine", self._restart_perception_engine)
 
     async def _restart_perception_engine(self):
         """Restart perception engine after auth to pick up newly available cameras."""

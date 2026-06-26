@@ -1254,14 +1254,17 @@ class MiotProxy:
             logger.error("Failed to get miot app notify id: %s", e)
             return None
 
-    async def get_miot_auth_info(self, code: str, state: str) -> MIoTOauthInfo:
+    async def get_miot_auth_info(
+        self, code: str, state: str, *, refresh: bool = True
+    ) -> MIoTOauthInfo:
         try:
             oauth_info = await self._miot_client.get_access_token_async(
                 code=code, state=state
             )
             logger.info("Retrieved MIoT auth info, code: %s, state: %s", code, state)
             self.reset_miot_token_info(oauth_info)
-            await self.refresh_miot_info()
+            if refresh:
+                await self.refresh_miot_info()
             return oauth_info
         except Exception as e:
             logger.error("Failed to get Xiaomi home token info, %s", e)

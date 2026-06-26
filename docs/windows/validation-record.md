@@ -712,3 +712,35 @@ FULL_READY=yes
 - `wsl-post-auth-finish.sh` 已调整为：授权阶段仍先尝试 `restart` 与 `stop/start` 恢复 `/health`，但如果服务进程仍在运行且健康检查没有恢复，会继续调用 `miloco-cli account authorize`，不再提前丢弃用户刚粘贴的 OAuth callback。
 - `miloco-cli account authorize` 现在使用带重试的 `run_checked_json_retry 2`，如果授权接口本身失败，会明确以退出码 2 失败并提示授权 payload 未完成。
 - 已重打并替换 GitHub Release `v0.2` 的 `easy-miloco-v0.2-windows.zip`；发布脚本校验远端大小 `68530911`，远端 SHA256 `d822a9b3e57554a393e5edb668ca912eb9028949af52f00a4fe19a121bc0847f`，`updated_at=2026-06-26T02:42:30Z`。
+
+### 2026-06-26 远程 release 第二十一轮完整云端包复测
+
+第二十一轮继续在 home02 远程 Windows 上用 GitHub Release 最新 `easy-miloco-v0.2-windows.zip` 走普通用户路径。浏览器下载得到 `easy-miloco-v0.2-windows (16).zip`，解压到 `C:\Users\17239\Documents\easy-miloco-v0.2-windows (16)`，运行正式 `install.bat`。安装器按预期检测已有安装、导出 Agent 恢复包、完整卸载旧版，再重新安装新版。home02 仍不在米家 `andy的家` 设备同一局域网，因此 `FULL_READY=no` 和摄像头/局域网链路降级仍按环境限制处理。
+
+本轮通过项：
+
+- 第十九轮的小米授权 URL 本地兜底仍有效：`miloco-cli account bind --no-wait` 返回 502/invalid JSON 后，脚本本地生成 OAuth URL 并自动打开小米授权页。
+- 小米授权页可登录并点击确认授权；浏览器跳转到 `https://127.0.0.1/?code=...&state=...` 后，复制 callback 粘贴回安装器。
+- 第二十轮的脚本修复生效：即使 `/health` 仍返回 502，脚本没有在授权前直接退出，而是继续调用 `miloco-cli account authorize`。
+- 授权失败后，安装器没有卡死，继续进入 API 配置；模型列表从 `https://token-plan-sgp.xiaomimimo.com/v1/models` 拉取成功，并选择 `mimo-v2.5`。
+- Miloco Omni API 配置写入成功，OpenClaw 插件配置和 OpenClaw 主聊天模型配置写入成功。
+- 最终安装器输出“账号/API 配置已完成”，验证报告显示 `BASIC_READY=yes`、`FULL_READY=no`、`PASS_COUNT=12`、`FAIL_COUNT=0`、`WARN_COUNT=5`。
+
+本轮问题：
+
+- `miloco-cli account authorize` 真实执行后返回 `invalid JSON response: 502`，重试一次后仍失败；安装器提示“小米账号授权没有完成”。
+- 这说明前一轮“没有机会调用 authorize”的脚本问题已修复，剩余问题转移到 Miloco backend 授权接口：在 backend 进程 running 但 `/health` 502 的 degraded 状态下，`account authorize` API 本身仍返回 502。
+- 该授权接口 502 不依赖 home02 与米家设备是否同一局域网；它发生在 OAuth code 换 token/写账号绑定配置阶段，仍判为真实产品 bug。
+- 安装器最终的 `BASIC_READY=yes` 是可接受降级完成态，但不能代表小米账号绑定完成；后续必须修复授权接口 502 后再复测账号绑定、家庭选择和 API 配置全链路。
+
+本轮迭代方向：
+
+- 排查 CLI `account authorize` 调用链和 backend `/api/miot/authorize`，确认 502 是否由健康检查/监控依赖、MIoT 初始化、未绑定账号、或异常响应包装导致。
+- 授权接口应能在 backend running 但摄像头/设备/健康降级时完成 OAuth code 换 token；设备发现和摄像头链路可以后置降级，不应阻断账号绑定。
+- 远程测试继续执行浏览器清理规则：OAuth 回调页、下载面板和旧 GitHub 下载页用完后及时关闭，避免 home02 Chrome 内存累积。
+
+本轮代码迭代：
+
+- `MiotProxy.get_miot_auth_info()` 增加 `refresh=False` 路径；Windows 后授权调用只做 OAuth code 换 token 与持久化，不再同步触发全量 MIoT 刷新。
+- `MiotService.authorize_with_code()` 只把 token 交换失败视为授权失败；家庭列表兜底、摄像头刷新、camera adapter 同步和 perception engine 重启改为后台 best-effort，失败只记 warning，不撤销已绑定 token。
+- 本地验证：`uv run pytest miloco/tests/test_miot_filter_and_cameras.py -k "authorize_with_code" -q` 通过 2 项；`uv run pytest miloco/tests/test_miot_filter_and_cameras.py -q` 通过 64 项；`uv run ruff check miloco/src/miloco/miot/client.py miloco/src/miloco/miot/service.py miloco/tests/test_miot_filter_and_cameras.py` 通过。

@@ -643,6 +643,7 @@ async def test_authorize_with_code_clears_scope_before_token_exchange():
     svc._sync_camera_adapter = AsyncMock()  # type: ignore[assignment]
     svc._connected_camera_dids = lambda: set()  # type: ignore[assignment]
     svc._restart_perception_engine = AsyncMock()  # type: ignore[assignment]
+    svc._schedule_post_authorize_refresh = MagicMock()  # type: ignore[assignment]
 
     await svc.authorize_with_code(code="test_code", state="test_state")
 
@@ -659,7 +660,10 @@ async def test_authorize_with_code_clears_scope_before_token_exchange():
     assert any("DELETE" in str(c).upper() for c in lru_calls), (
         f"authorize_with_code must DELETE FROM device_lru, got: {lru_calls}"
     )
-    proxy.get_miot_auth_info.assert_awaited_once()
+    proxy.get_miot_auth_info.assert_awaited_once_with(
+        code="test_code", state="test_state", refresh=False
+    )
+    svc._schedule_post_authorize_refresh.assert_called_once()
     # 无可用家庭（devices/cameras 为空）→ 兜底逻辑无目标，启用集仍为空
     assert miot_filter.allowed_home_ids(kv) == set()
 
@@ -1296,10 +1300,16 @@ async def test_authorize_with_code_auto_selects_first_home():
     svc._sync_camera_adapter = AsyncMock()  # type: ignore[assignment]
     svc._connected_camera_dids = lambda: set()  # type: ignore[assignment]
     svc._restart_perception_engine = AsyncMock()  # type: ignore[assignment]
+    svc._schedule_post_authorize_refresh = MagicMock()  # type: ignore[assignment]
 
     await svc.authorize_with_code(code="c", state="s")
+    await svc._post_authorize_refresh()
 
-    # 登录后自动选第一个家庭
+    proxy.get_miot_auth_info.assert_awaited_once_with(
+        code="c", state="s", refresh=False
+    )
+    svc._schedule_post_authorize_refresh.assert_called_once()
+    # 登录后的后台刷新会自动选第一个家庭
     assert miot_filter.allowed_home_ids(kv) == {"H1"}
 
 
