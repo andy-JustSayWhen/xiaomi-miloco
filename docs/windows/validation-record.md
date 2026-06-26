@@ -681,3 +681,28 @@ FULL_READY=yes
 
 - `wsl-post-auth-finish.sh --print-bind-url` 保留原有 `miloco-cli account bind --no-wait` 路径；如果后端授权接口返回 502 或非 JSON 导致失败，则读取 Miloco 数据库中的 `DEVICE_UUID_KEY`，按源码同算法本地生成 `https://account.xiaomi.com/oauth2/authorize` 授权 URL。
 - 兜底 URL 使用同一个 `device_id` 与 `state` 计算方式，避免用户授权后粘贴回调时和后续 `miloco-cli account authorize` 不匹配。
+
+### 2026-06-26 远程 release 第二十轮完整云端包复测
+
+第二十轮继续在 home02 远程 Windows 上走完整普通用户路径：从 GitHub Release 下载最新 `easy-miloco-v0.2-windows.zip`，解压到桌面，运行正式 `install.bat`，检测已有安装后导出 Agent 恢复包，完整卸载旧版，再执行新版安装。home02 与米家 `andy的家` 设备仍不在同一局域网，因此设备 LAN、摄像头直连和 `FULL_READY=no` 继续按环境限制处理。
+
+本轮通过项：
+
+- 云端 release 下载、解压和 `install.bat` 提权运行成功。
+- 安装器检测到已有 Miloco 后，成功导出 Agent 恢复包到桌面，并完整停止/删除旧版 Miloco。
+- 第十九轮新增的小米授权 URL 本地兜底已生效：`miloco-cli account bind --no-wait` 仍返回 502/invalid JSON，但脚本随后本地生成 Xiaomi OAuth URL，并自动打开浏览器。
+- 小米授权页面可以打开，用户点击确认授权后，浏览器跳转到 `https://127.0.0.1/?code=...&state=...`；复制该回调 URL 粘贴回安装器后，安装器继续执行。
+- API Key、Base URL `https://token-plan-sgp.xiaomimimo.com/v1` 和模型 `mimo-v2.5` 写入成功；OpenClaw 插件配置与 OpenClaw 主聊天模型配置写入成功。
+- 最终验证报告显示 `BASIC_READY=yes`、`FULL_READY=no`、`PASS_COUNT=13`、`FAIL_COUNT=0`，安装器输出“账号/API 配置已完成”。
+
+本轮问题：
+
+- 小米授权 code 已成功取得并粘贴回安装器，但 `--authorize-only` 收尾在真正执行账号授权前，因 `/health` 连续返回 `curl: (22) The requested URL returned error: 502` 而退出，提示“小米账号授权未完成”。
+- 该失败发生在 WSL 本机 Miloco backend 的健康检查前置门槛，不依赖 home02 是否与米家设备同 LAN；因此它是脚本流程问题，不是合理环境降级。
+- 当前脚本把账号授权前的 `/health` 502 当作硬阻断，导致即使用户已经完成网页登录授权，也无法把 OAuth code 交给 Miloco 尝试换 token。
+
+本轮迭代方向：
+
+- 授权阶段不能只因为 `/health` 502 就跳过账号授权。只要 `miloco-cli service status` 显示 backend 正在运行，应先尝试 `miloco-cli account authorize`；如果授权接口本身失败，再按真实授权失败处理。
+- `/health` 仍可作为重启恢复和最终状态证据，但不应成为 OAuth code 换 token 的唯一前置条件。
+- 远程测试时，Xiaomi OAuth、127.0.0.1 回调页、GitHub 下载页用完后要及时关闭，避免 home02 Chrome 旧窗口/旧标签积累占满内存。

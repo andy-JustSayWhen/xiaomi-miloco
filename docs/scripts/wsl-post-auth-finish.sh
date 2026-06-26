@@ -355,9 +355,13 @@ if ! printf '%s' "$service_status" | grep -Eq '"running"[[:space:]]*:[[:space:]]
 fi
 
 if ! wait_miloco_health 10; then
-  if [ -n "$MILOCO_AUTH_PAYLOAD" ] || [ "$AUTHORIZE_ONLY" -eq 1 ] || [ "$LIST_HOMES_JSON" -eq 1 ]; then
+  if [ "$LIST_HOMES_JSON" -eq 1 ]; then
     if ! recover_miloco_service "Miloco service is running but health is not ok; trying restart/stop/start"; then
       exit 2
+    fi
+  elif [ -n "$MILOCO_AUTH_PAYLOAD" ] || [ "$AUTHORIZE_ONLY" -eq 1 ]; then
+    if ! recover_miloco_service "Miloco service is running but health is not ok before Xiaomi authorization; trying restart/stop/start"; then
+      log "Miloco health is still not ok, but service status is running; trying Xiaomi authorization anyway so the OAuth code is not discarded."
     fi
   else
     log "Miloco health is not ok before model/API config; continuing so config can be written and backend can recover after restart"
@@ -377,7 +381,7 @@ fi
 if [ "$AUTHORIZE_ONLY" -eq 1 ] || [ -n "$MILOCO_AUTH_PAYLOAD" ]; then
   if ! wait_miloco_health 10; then
     if ! recover_miloco_service "Miloco service is not healthy before Xiaomi authorization; trying restart/stop/start"; then
-      exit 2
+      log "Miloco health is still not ok before Xiaomi authorization; continuing to call account authorize because the backend process is running."
     fi
   fi
 fi
@@ -399,7 +403,10 @@ else
     if [ "$DRY_RUN" -eq 1 ]; then
       printf '[DRY_RUN] miloco-cli account authorize <payload>\n'
     else
-      run_checked_json miloco-cli account authorize "$MILOCO_AUTH_PAYLOAD" </dev/null
+      if ! run_checked_json_retry 2 miloco-cli account authorize "$MILOCO_AUTH_PAYLOAD" </dev/null; then
+        printf 'Failed to authorize Xiaomi account with the provided OAuth callback payload.\n' >&2
+        exit 2
+      fi
     fi
   fi
 fi
