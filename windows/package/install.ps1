@@ -2195,6 +2195,7 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   Write-Host "  3. 重启 Miloco + OpenClaw    一次性拉起整套服务"
   Write-Host "  2. 重启 Miloco 面板          打开 Miloco 面板"
   Write-Host "  1. 重启 OpenClaw 面板        打开 OpenClaw 面板"
+  Write-Host "  6. 接入消息渠道（飞书、微信等）"
   Write-Host ""
   Write-Host ("Miloco 面板地址：   http://127.0.0.1:{0}/" -f $script:MilocoPort)
   Write-Host "OpenClaw 入口：     请用桌面的 OpenClaw 对话入口；不要直接打开裸端口地址。"
