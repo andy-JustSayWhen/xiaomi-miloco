@@ -420,8 +420,12 @@ function Stop-Services {
 
 function Stop-Wsl {
   Stop-Services
-  Write-Host ("正在关闭 WSL：{0}" -f $script:Distro)
-  & $script:WslExe --terminate $script:Distro
+  Write-Host ("正在关闭 WSL 发行版：{0}" -f $script:Distro)
+  & $script:WslExe --terminate $script:Distro *> $null
+  Start-Sleep -Seconds 2
+  Write-Host "正在关闭 WSL 虚拟机..."
+  & $script:WslExe --shutdown
+  Write-Host "WSL 关闭命令已发送。"
 }
 
 function Open-MessageChannelSetup {
