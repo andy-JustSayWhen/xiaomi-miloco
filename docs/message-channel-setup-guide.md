@@ -1,9 +1,9 @@
 # OpenClaw 消息渠道接入步骤
 
-Agent 一句话：
+引用本文：
 
 ```text
-按 https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/message-channel/docs/message-channel-manual-guide.md 接入 <渠道名> OpenClaw 消息渠道。
+https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/message-channel/docs/message-channel-setup-guide.md
 ```
 
 ## 1. 检查 WSL 发行版
