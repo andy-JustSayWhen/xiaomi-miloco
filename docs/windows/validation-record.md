@@ -903,3 +903,26 @@ FULL_READY=yes
   - `openclaw gateway status` 为 `Connectivity probe: ok`
   - `miloco-cli service status --pretty` 为 `running: true`
 - 本轮为了隔离验证，临时修改过本机 WSL 的 `~/.openclaw/openclaw.json` 与 `~/.openclaw/miloco/config.json`；验证后已恢复原文件并停止测试服务，未保留现场改动。
+
+### 2026-06-27 本地迭代补充：安装器第 3 步 WSL 探测阶段直接退出
+
+本轮根据用户提供的本地安装日志，继续排查“`install.bat` 双击后窗口很快关闭”的问题。
+
+本轮新增证据：
+
+- 现场日志 `dist/windows/easy-miloco-v0.2-windows/miloco-install-console-20260627-090457.txt` 显示，安装器稳定停在第 3 步 `检查和准备 WSL2 / Ubuntu`。
+- 报错固定落在 `windows/package/install.ps1` 的 `Invoke-DistroProbe`：`wsl.exe : /bin/sh: bash: not found`。
+- 同机手工执行 `wsl.exe -d Ubuntu-24.04 -- bash -lc 'echo hi'` 与 `command -v bash` 均正常，说明不是 Ubuntu 缺少 bash，而是探测函数自己拼装的 `bash -lc "cp ... && bash ...; ..."` 调用链存在兼容问题。
+
+本轮补充迭代：
+
+- `windows/package/install.ps1`
+  - `Invoke-DistroProbe` 改为与主安装流程一致：先把探测脚本复制到 WSL `/tmp`，再直接用 `sh` 执行，避免继续依赖一整串嵌套 `bash -lc` 拼接。
+  - 探测脚本中的 `BASH_OK` 改为真实检测 `command -v bash`，避免把“脚本能跑”误记成“bash 一定存在”。
+  - 清理逻辑改为无论探测成功与否都主动删除 `/tmp/miloco-distro-probe-*.sh`，减少 WSL 残留。
+
+本地验证：
+
+- `windows/package/install.ps1` PowerShell 语法解析通过。
+- 手工调用与 `Invoke-DistroProbe` 等价的新链路，`Ubuntu-24.04` 可正常返回 `ID=ubuntu`、`VERSION_ID=24.04`、`GLIBC_VERSION` 等探测字段。
+- 后续需基于新打包产物重新执行完整安装链路，确认安装器可越过第 3 步继续走到后续安装阶段。

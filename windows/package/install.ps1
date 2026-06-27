@@ -359,7 +359,7 @@ read_os_value() {
   fi
 }
 
-printf 'BASH_OK=yes\n'
+command -v bash >/dev/null 2>&1 && printf 'BASH_OK=yes\n' || printf 'BASH_OK=no\n'
 printf 'ID=%s\n' "$(read_os_value ID)"
 printf 'VERSION_ID=%s\n' "$(read_os_value VERSION_ID)"
 printf 'PRETTY_NAME=%s\n' "$(read_os_value PRETTY_NAME)"
@@ -392,15 +392,29 @@ fi
     throw "没有找到 wsl.exe。"
   }
   try {
-    $output = & $wslExe -d $Name -- bash -lc "cp '${wslMnt}' '${wslTmp}' && bash '${wslTmp}'; rc=`$?; rm -f '${wslTmp}'; exit `$rc" 2>&1 | ForEach-Object {
+    $copyOutput = & $wslExe -d $Name -- cp $wslMnt $wslTmp 2>&1 | ForEach-Object {
       if ($_ -is [System.Management.Automation.ErrorRecord]) {
         $_.Exception.Message
       } else {
         $_.ToString()
       }
     }
-    $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    $copyCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    if ($copyCode -ne 0) {
+      $output = $copyOutput
+      $code = $copyCode
+    } else {
+      $output = & $wslExe -d $Name -- sh $wslTmp 2>&1 | ForEach-Object {
+        if ($_ -is [System.Management.Automation.ErrorRecord]) {
+          $_.Exception.Message
+        } else {
+          $_.ToString()
+        }
+      }
+      $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    }
   } finally {
+    & $wslExe -d $Name -- rm -f $wslTmp *> $null
     Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
   }
   $values = @{}
