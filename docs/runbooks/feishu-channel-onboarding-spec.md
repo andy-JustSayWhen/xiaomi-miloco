@@ -52,16 +52,6 @@
 
 ## 推荐入口
 
-### 0. Agent 一句话入口
-
-任意 Agent 只需要在 Miloco 所在 WSL 里运行：
-
-```bash
-bash docs/scripts/message-channel-router.sh feishu --interactive --install --auth --bind --validate
-```
-
-该入口只走消息渠道路由。控制台、文档、远程排障都复用同一个路由，不把 Feishu 逻辑散落到 Miloco 核心代码里。
-
 ### 1. 安装后可选引导
 
 在 `scripts/install.py` 的基础安装完成后, 检测:

@@ -5,7 +5,6 @@ $script:Distro = "__DISTRO__"
 $script:MilocoPort = __MILOCO_PORT__
 $script:OpenClawPort = __OPENCLAW_PORT__
 $script:OpenClawInfoPath = "__OPENCLAW_INFO_PATH__"
-$script:PackageRoot = "__PACKAGE_ROOT__"
 $script:WslExe = Join-Path $env:WINDIR "System32\wsl.exe"
 if (-not (Test-Path -LiteralPath $script:WslExe)) {
   $script:WslExe = "wsl.exe"
@@ -424,60 +423,6 @@ function Stop-Wsl {
   & $script:WslExe --terminate $script:Distro
 }
 
-function ConvertTo-WslPath {
-  param([string]$WindowsPath)
-
-  $full = [System.IO.Path]::GetFullPath($WindowsPath)
-  if ($full -match "^([A-Za-z]):\\(.*)$") {
-    $drive = $Matches[1].ToLowerInvariant()
-    $rest = $Matches[2].Replace("\", "/")
-    return "/mnt/$drive/$rest"
-  }
-  return ""
-}
-
-function Get-MessageChannelRouterPath {
-  $candidates = @()
-  if (-not [string]::IsNullOrWhiteSpace($script:PackageRoot)) {
-    $candidates += (Join-Path $script:PackageRoot "scripts\windows\message-channel-router.sh")
-    $candidates += (Join-Path $script:PackageRoot "docs\scripts\message-channel-router.sh")
-  }
-  $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-  if (-not [string]::IsNullOrWhiteSpace($scriptDir)) {
-    $candidates += (Join-Path $scriptDir "scripts\windows\message-channel-router.sh")
-    $candidates += (Join-Path $scriptDir "docs\scripts\message-channel-router.sh")
-  }
-  foreach ($candidate in $candidates) {
-    if (Test-Path -LiteralPath $candidate) {
-      return $candidate
-    }
-  }
-  return ""
-}
-
-function Start-FeishuChannelOnboarding {
-  Write-Host ""
-  Write-Status "正在进入飞书消息渠道接入流程..."
-  $router = Get-MessageChannelRouterPath
-  if ([string]::IsNullOrWhiteSpace($router)) {
-    Write-Host "没有找到消息渠道路由脚本。" -ForegroundColor Yellow
-    Write-Host "请确认安装包内存在 scripts\windows\message-channel-router.sh 或 docs\scripts\message-channel-router.sh。" -ForegroundColor Yellow
-    Pause-ReturnToMenu
-    return $false
-  }
-  $wslRouter = ConvertTo-WslPath $router
-  if ([string]::IsNullOrWhiteSpace($wslRouter)) {
-    Write-Host ("无法转换脚本路径到 WSL：{0}" -f $router) -ForegroundColor Yellow
-    Pause-ReturnToMenu
-    return $false
-  }
-  $cmd = 'export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"; bash "__ROUTER__" feishu --interactive --install --auth --bind --validate'
-  $cmd = $cmd.Replace("__ROUTER__", $wslRouter.Replace('"', '\"'))
-  $ok = Invoke-WslBash $cmd
-  Pause-ReturnToMenu @("飞书接入流程已结束。请检查上方输出；如提示需要在飞书里给 bot 发消息，完成后可再次选择本菜单项。", "按回车返回菜单...")
-  return $ok
-}
-
 function Show-Menu {
   Clear-Host
   Write-Host "========================================"
@@ -489,7 +434,6 @@ function Show-Menu {
   Write-Host "  3. 重启 Miloco + OpenClaw"
   Write-Host "  4. 关闭 OpenClaw + Miloco"
   Write-Host "  5. 关闭 WSL"
-  Write-Host "  6. 接入飞书消息渠道"
   Write-Host "  0. 退出"
   Write-Host ""
   Write-Host "说明："
@@ -498,7 +442,6 @@ function Show-Menu {
   Write-Host "  3. 一次性拉起整套服务，并打开两个面板。首次安装后、电脑重启后，优先选这个。"
   Write-Host "  4. 停止两个服务，但保留 WSL。适合今天不用了、想释放后台资源，或准备重新启动服务。"
   Write-Host "  5. 停止服务并关闭本次安装使用的 WSL。适合彻底退出、电脑卡顿、网络或端口异常时重置环境。"
-  Write-Host "  6. 安装、授权、绑定并验证 OpenClaw 飞书消息渠道。"
   Write-Host "  0. 只关闭当前脚本，不影响已经运行的 Miloco 和 OpenClaw 服务。"
   Write-Host ""
 }
@@ -511,17 +454,16 @@ while ($true) {
     continue
   }
 
-  $choice = (Prompt-Line "请选择 [1/2/3/4/5/6/0]: ").Trim()
+  $choice = (Prompt-Line "请选择 [1/2/3/4/5/0]: ").Trim()
   switch ($choice) {
     "1" { [void](Restart-OpenClaw) }
     "2" { [void](Restart-Miloco) }
     "3" { [void](Restart-All) }
     "4" { Stop-Services }
     "5" { Stop-Wsl }
-    "6" { [void](Start-FeishuChannelOnboarding) }
     "0" { exit 0 }
     default {
-      Write-Host "请输入 1、2、3、4、5、6 或 0。" -ForegroundColor Yellow
+      Write-Host "请输入 1、2、3、4、5 或 0。" -ForegroundColor Yellow
       Start-Sleep -Seconds 1
     }
   }

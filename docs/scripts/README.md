@@ -7,8 +7,6 @@
 - `windows-preflight.ps1`：在目标 Windows 上运行，检查 WSL、发行版、`.wslconfig`、Windows 端口保留、Hyper-V 防火墙、SSH、代理端口、Miloco/OpenClaw 本机 HTTP 可达性。
 - `wsl-miloco-validate.sh`：在目标 WSL Ubuntu 内运行，检查 Miloco 服务、health、OpenClaw Gateway、OpenClaw 插件、小米账号绑定、MiMo/Omni API Key、设备列表和摄像头 scope。
 - `wsl-post-auth-finish.sh`：拿到小米 OAuth payload 和 MiMo API Key 后，一次性完成账号授权、模型配置、服务重启、设备/摄像头检查和最终验收。
-- `message-channel-router.sh`：消息渠道统一路由入口，当前支持 `feishu`。
-- `wsl-feishu-channel-onboard.sh`：在目标 WSL Ubuntu 内安装、授权、绑定和验证 OpenClaw Feishu channel。
 - `win-miloco-workflow.ps1`：Windows 统一入口，按 `-Action` 编排宿主预检、WSL 验收、生成授权链接和后授权收尾。
 - `windows-release-validate.ps1`：维护者验证 release 包的统一入口，覆盖包结构自检、安装烟测，以及本机运行态 / OpenClaw 会话探针。
 - `azure-vm-run-command.ps1`：通过 Azure CLI Run Command 在 Windows VM 内运行控制面 PowerShell。
@@ -61,12 +59,6 @@ powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action B
 
 # 收到授权 payload 和 MiMo Key 后一键收尾
 powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action Finish -AuthPayload '<小米 OAuth payload>' -MimoApiKey '<MiMo API Key>' -OmniModel '<Omni model>' -OmniBaseUrl '<Omni Base URL>'
-
-# 接入飞书消息渠道
-powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action Feishu
-
-# 查看飞书消息渠道状态
-powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action FeishuStatus
 ```
 
 `OmniModel` / `OmniBaseUrl` 可省略，省略时使用官方默认 `xiaomi/mimo-v2.5` / `https://api.xiaomimimo.com/v1`。如果用户提供的 Base URL 在 `/v1/models` 中只列出 `mimo-v2.5`，则显式传 `-OmniModel mimo-v2.5`。

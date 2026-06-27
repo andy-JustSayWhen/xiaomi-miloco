@@ -228,14 +228,6 @@ function Copy-RequiredArtifacts {
   $finishDst = Join-Path $PackageRoot "scripts\windows\wsl-post-auth-finish.sh"
   Copy-Utf8NoBomLfFile -Source $finishSrc -Destination $finishDst
 
-  $channelRouterSrc = Join-Path $RepoRoot "docs\scripts\message-channel-router.sh"
-  $channelRouterDst = Join-Path $PackageRoot "scripts\windows\message-channel-router.sh"
-  Copy-Utf8NoBomLfFile -Source $channelRouterSrc -Destination $channelRouterDst
-
-  $feishuOnboardSrc = Join-Path $RepoRoot "docs\scripts\wsl-feishu-channel-onboard.sh"
-  $feishuOnboardDst = Join-Path $PackageRoot "scripts\windows\wsl-feishu-channel-onboard.sh"
-  Copy-Utf8NoBomLfFile -Source $feishuOnboardSrc -Destination $feishuOnboardDst
-
   Copy-Item -Recurse -LiteralPath (Join-Path $RepoRoot "docs") -Destination (Join-Path $PackageRoot "docs") -Force
   Normalize-ShellScripts -Root $PackageRoot
 
@@ -332,8 +324,6 @@ function Test-Package {
     Require-File (Join-Path $root "scripts\windows\templates\install-launcher.bat.tpl")
     Require-File (Join-Path $root "scripts\windows\templates\miloco-console.ps1.tpl")
     Require-File (Join-Path $root "scripts\windows\templates\openclaw-launcher.ps1.tpl")
-    Require-File (Join-Path $root "scripts\windows\message-channel-router.sh")
-    Require-File (Join-Path $root "scripts\windows\wsl-feishu-channel-onboard.sh")
     $null = [scriptblock]::Create((Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "install.ps1") -Raw))
     $null = [scriptblock]::Create((Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "scripts\windows\win-miloco-workflow.ps1") -Raw))
 
@@ -348,7 +338,7 @@ function Test-Package {
     }
 
     $consolePs1 = Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "scripts\windows\templates\miloco-console.ps1.tpl") -Raw
-    $consolePs1 = $consolePs1.Replace("__DISTRO__", "Ubuntu-24.04").Replace("__MILOCO_PORT__", "18860").Replace("__OPENCLAW_PORT__", "18789").Replace("__OPENCLAW_INFO_PATH__", "C:\OpenClaw-login-info.txt").Replace("__PACKAGE_ROOT__", "C:\easy-miloco")
+    $consolePs1 = $consolePs1.Replace("__DISTRO__", "Ubuntu-24.04").Replace("__MILOCO_PORT__", "18860").Replace("__OPENCLAW_PORT__", "18789").Replace("__OPENCLAW_INFO_PATH__", "C:\OpenClaw-login-info.txt")
     $null = [scriptblock]::Create($consolePs1)
 
     $openClawPs1 = Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "scripts\windows\templates\openclaw-launcher.ps1.tpl") -Raw
