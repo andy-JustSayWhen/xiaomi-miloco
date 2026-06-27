@@ -132,17 +132,40 @@ fi
   )
 }
 
-if ($Model.Count -eq 0 -and $Did.Count -eq 0) {
-  Stop-ForUser "Missing fix target" @(
-    "Pass at least one -Model or -Did.",
-    "Example: -Model chuangmi.camera.021a04 -RestartService -Verify",
-    "Example: -Did 1039007350 -RestartService -Enable -Verify"
-  )
-}
-
 Write-Section "Miloco camera denylist quick fix"
 Write-Host "This tool only removes confirmed false-blocked runtime denylist entries."
 Write-Host "Before using it, an Agent should confirm the model can produce frames with a direct SDK probe."
+
+if ($Model.Count -eq 0 -and $Did.Count -eq 0) {
+  Write-Section "Interactive mode"
+  Write-Host "Enter a camera did or model. Examples:"
+  Write-Host "  1039007350"
+  Write-Host "  chuangmi.camera.021a04"
+  Write-Host "Interactive mode defaults to: restart service, enable did when provided, and verify status."
+  $target = (Read-Host "Camera did or model").Trim()
+  if ([string]::IsNullOrWhiteSpace($target)) {
+    Stop-ForUser "Cancelled" @(
+      "No camera did or model was entered.",
+      "Run the tool again when you have the target camera did or model."
+    )
+  }
+
+  if ($target -match '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\..+') {
+    $Model = @($target)
+  } else {
+    $Did = @($target)
+  }
+
+  if (-not $PSBoundParameters.ContainsKey("RestartService")) {
+    $RestartService = $true
+  }
+  if (-not $PSBoundParameters.ContainsKey("Enable")) {
+    $Enable = $true
+  }
+  if (-not $PSBoundParameters.ContainsKey("Verify")) {
+    $Verify = $true
+  }
+}
 
 $resolvedDistro = Resolve-Distro -Requested $Distro
 Write-Host ("Using WSL distro: {0}" -f $resolvedDistro)

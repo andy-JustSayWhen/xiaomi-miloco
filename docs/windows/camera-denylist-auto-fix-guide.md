@@ -12,6 +12,25 @@
 
 ## Agent 自动处理流程
 
+### 给普通用户的双击入口
+
+不熟悉命令行的用户，直接双击：
+
+```text
+docs\scripts\fix-camera-denylist.bat
+```
+
+窗口出现后输入摄像头 did 或型号，例如：
+
+```text
+1039007350
+chuangmi.camera.021a04
+```
+
+双击模式会自动执行：定位 WSL 环境、修 runtime denylist、重启 Miloco、启用 did（如果输入的是 did）、输出验证状态。
+
+注意：双击入口只是降低使用门槛，不改变安全边界。仍然必须先确认 direct SDK probe 能出帧，不能把未知型号盲目移出 denylist。
+
 ### 1. 识别疑似误拦截
 
 运行：
@@ -72,6 +91,8 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\docs\scripts\fix-camer
 - 从 `denylist.camera` 删除目标 model。
 - 可选重启 Miloco、启用 did、输出验收状态。
 
+如果用户不会打开 PowerShell，使用上面的 `docs\scripts\fix-camera-denylist.bat` 双击入口。
+
 ### 4. 修源码和测试
 
 runtime 热修只是现场恢复。可复用修复必须同步源码：
@@ -110,4 +131,3 @@ direct SDK probe 证据:
 | `1039007350` | `chuangmi.camera.021a04` | denylist 误拦截，direct SDK probe 约 1.25 秒出首帧 | 移出 denylist 后 `connected=true`，视觉问答能描述画面 |
 | `450305034` | `chuangmi.camera.036a02` | denylist 误拦截，direct SDK probe 约 1.37 秒出首帧 | 移出 denylist 后 `connected=true`，视觉问答能描述画面 |
 | `1146439633` | `chuangmi.camera.061a01` | 不是 denylist 问题，raw/decoded 始终为 0 | 转设备视频数据面排查 |
-

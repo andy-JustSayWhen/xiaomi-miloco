@@ -296,7 +296,7 @@ flowchart LR
 
 同一个家庭里，不同摄像头可能卡在不同层。不要把“有 3 台摄像头”直接等同于“3 台都能感知”，也不要把“米家在线”直接等同于“Miloco 已拿到画面”。固定流程是：先按 did 分组，再按失败层分流。
 
-denylist 误拦截的自动处理流程见 [Camera denylist 误拦截自动修复 Guide](camera-denylist-auto-fix-guide.md)。确认 direct SDK probe 能出帧后，可用 `docs/scripts/fix-camera-denylist.ps1` 快速热修 Windows/WSL runtime。
+denylist 误拦截的自动处理流程见 [Camera denylist 误拦截自动修复 Guide](camera-denylist-auto-fix-guide.md)。确认 direct SDK probe 能出帧后，可用 `docs/scripts/fix-camera-denylist.ps1` 快速热修 Windows/WSL runtime；普通用户可双击 `docs/scripts/fix-camera-denylist.bat` 后输入 did 或型号。
 
 ### 情况 A：摄像头出现在 scope 列表，但名称带“当前机型暂不支持感知”
 
