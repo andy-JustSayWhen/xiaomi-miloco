@@ -31,11 +31,12 @@ $PackageRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 $ManifestPath = Join-Path $PackageRoot "manifest.json"
 $PayloadDir = Join-Path $PackageRoot "payload"
 $WindowsScriptsDir = Join-Path $PackageRoot "scripts\windows"
+$PackageModelsDir = Join-Path $WindowsScriptsDir "models"
 $PackageTemplateDir = Join-Path $WindowsScriptsDir "templates"
 $Workflow = Join-Path $WindowsScriptsDir "win-miloco-workflow.ps1"
 $InstallSh = Join-Path $PayloadDir "install.sh"
 $script:PhaseIndex = 0
-$script:PhaseTotal = 10
+$script:PhaseTotal = 12
 $script:ResolvedDistro = ""
 $script:ResolvedDistroInfo = $null
 $script:MilocoPort = $MilocoPort
@@ -287,6 +288,64 @@ function Require-File {
   param([string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) {
     Fail "安装包缺少必要文件：$Path。请重新下载完整的 zip 包，不要只复制其中一部分文件。"
+  }
+}
+
+function Test-PackageModelFiles {
+  $required = @(
+    "det_4C.onnx",
+    "human_body_reid_v2.onnx"
+  )
+  $optional = @(
+    "bge-small-zh-v1.5-int8.onnx",
+    "bge-small-zh-v1.5-tokenizer.json",
+    "silero_vad.onnx"
+  )
+  $missingRequired = @()
+  $missingOptional = @()
+  foreach ($name in $required) {
+    if (-not (Test-Path -LiteralPath (Join-Path $PackageModelsDir $name))) {
+      $missingRequired += $name
+    }
+  }
+  foreach ($name in $optional) {
+    if (-not (Test-Path -LiteralPath (Join-Path $PackageModelsDir $name))) {
+      $missingOptional += $name
+    }
+  }
+  return [pscustomobject]@{
+    MissingRequired = $missingRequired
+    MissingOptional = $missingOptional
+  }
+}
+
+function Sync-PerceptionModelsToWsl {
+  $modelCheck = Test-PackageModelFiles
+  if ($modelCheck.MissingRequired.Count -gt 0) {
+    Fail ("安装包缺少感知必需模型文件：{0}" -f ($modelCheck.MissingRequired -join ", "))
+  }
+
+  $wslModelsDir = ConvertTo-WslPath $PackageModelsDir
+  $script = @'
+set -euo pipefail
+src="__WSL_MODELS_DIR__"
+dst="$HOME/.openclaw/miloco/models"
+mkdir -p "$dst"
+cp -f "$src"/* "$dst"/
+for name in det_4C.onnx human_body_reid_v2.onnx; do
+  if [ ! -f "$dst/$name" ]; then
+    printf '[失败] 感知模型复制后仍缺少 %s\n' "$name" >&2
+    exit 61
+  fi
+done
+count="$(find "$dst" -maxdepth 1 -type f | wc -l | tr -d ' ')"
+printf '[OK] 感知模型已同步到 %s（共 %s 个文件）。\n' "$dst" "$count"
+'@
+  $script = $script.Replace("__WSL_MODELS_DIR__", $wslModelsDir)
+  Invoke-WslBash $script
+
+  if ($modelCheck.MissingOptional.Count -gt 0) {
+    Write-Warn ("安装包缺少可选感知模型文件：{0}" -f ($modelCheck.MissingOptional -join ", "))
   }
 }
 
@@ -1249,8 +1308,8 @@ function Prepare-ExistingInstallForCleanInstall {
     return $false
   }
 
-  if ($script:PhaseTotal -lt 12) {
-    $script:PhaseTotal = 13
+  if ($script:PhaseTotal -lt 14) {
+    $script:PhaseTotal = 14
   }
 
   Write-Host ""
@@ -1859,7 +1918,11 @@ function Invoke-Prepare {
   Require-File $ManifestPath
   Require-File $InstallSh
   Require-File $Workflow
-  Write-Ok "安装包文件：已找到 install.ps1、manifest.json、payload 和诊断脚本。"
+  $packageModels = Test-PackageModelFiles
+  if ($packageModels.MissingRequired.Count -gt 0) {
+    Fail ("安装包缺少感知必需模型文件：{0}" -f ($packageModels.MissingRequired -join ", "))
+  }
+  Write-Ok "安装包文件：已找到 install.ps1、manifest.json、payload、诊断脚本和感知模型。"
 
   Write-Step "检查 README 中列出的 Windows 环境依赖"
   Check-Prerequisites
@@ -2032,6 +2095,10 @@ exit 47
   Write-Info ("正在把 Miloco 服务地址设置为 http://127.0.0.1:{0} 。" -f $script:MilocoPort)
   Invoke-WslBash $install
   Write-Ok "Miloco 基础安装命令已执行完成。"
+
+  Write-Step "同步感知模型文件"
+  Sync-PerceptionModelsToWsl
+  Write-Ok "感知模型文件已同步到 WSL。"
 
   Write-Step "检查和安装 OpenClaw 控制台依赖"
   $openclaw = @'

@@ -182,6 +182,7 @@ function Copy-RequiredArtifacts {
   New-Item -ItemType Directory -Force -Path $PackageRoot | Out-Null
   New-Item -ItemType Directory -Force -Path (Join-Path $PackageRoot "payload") | Out-Null
   New-Item -ItemType Directory -Force -Path (Join-Path $PackageRoot "scripts\windows") | Out-Null
+  New-Item -ItemType Directory -Force -Path (Join-Path $PackageRoot "scripts\windows\models") | Out-Null
   New-Item -ItemType Directory -Force -Path (Join-Path $PackageRoot "scripts\windows\templates") | Out-Null
 
   $payloadSourceRoot = if ([string]::IsNullOrWhiteSpace($script:ReusePayloadRoot)) { $RepoRoot } else { $script:ReusePayloadRoot }
@@ -212,6 +213,9 @@ function Copy-RequiredArtifacts {
 
   Copy-Utf8BomFile -Source (Join-Path $RepoRoot "docs\scripts\win-miloco-workflow.ps1") -Destination (Join-Path $PackageRoot "scripts\windows\win-miloco-workflow.ps1")
   Copy-Utf8BomFile -Source (Join-Path $RepoRoot "docs\scripts\windows-preflight.ps1") -Destination (Join-Path $PackageRoot "scripts\windows\windows-preflight.ps1")
+  Get-ChildItem -LiteralPath (Join-Path $RepoRoot "backend\miloco\src\miloco\perception\models") -File | ForEach-Object {
+    Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $PackageRoot "scripts\windows\models\$($_.Name)") -Force
+  }
   Copy-Utf8NoBomLfFile -Source (Join-Path $RepoRoot "windows\package\templates\install-launcher.bat.tpl") -Destination (Join-Path $PackageRoot "scripts\windows\templates\install-launcher.bat.tpl")
   Copy-Utf8BomFile -Source (Join-Path $RepoRoot "windows\package\templates\miloco-console.ps1.tpl") -Destination (Join-Path $PackageRoot "scripts\windows\templates\miloco-console.ps1.tpl")
   Copy-Utf8BomFile -Source (Join-Path $RepoRoot "windows\package\templates\openclaw-launcher.ps1.tpl") -Destination (Join-Path $PackageRoot "scripts\windows\templates\openclaw-launcher.ps1.tpl")
@@ -309,6 +313,11 @@ function Test-Package {
     Require-File (Join-Path $root "manifest.json")
     Require-File (Join-Path $root "payload\install.sh")
     Require-File (Join-Path $root "docs\AGENT.md")
+    Require-File (Join-Path $root "scripts\windows\models\det_4C.onnx")
+    Require-File (Join-Path $root "scripts\windows\models\human_body_reid_v2.onnx")
+    Require-File (Join-Path $root "scripts\windows\models\bge-small-zh-v1.5-int8.onnx")
+    Require-File (Join-Path $root "scripts\windows\models\bge-small-zh-v1.5-tokenizer.json")
+    Require-File (Join-Path $root "scripts\windows\models\silero_vad.onnx")
     Require-File (Join-Path $root "scripts\windows\templates\install-launcher.bat.tpl")
     Require-File (Join-Path $root "scripts\windows\templates\miloco-console.ps1.tpl")
     Require-File (Join-Path $root "scripts\windows\templates\openclaw-launcher.ps1.tpl")

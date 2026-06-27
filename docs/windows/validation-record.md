@@ -1064,3 +1064,49 @@ FULL_READY=yes
   - 前台可见 `[OK] sample output`
   - 调用方最终拿到 `FINAL_CODE=0`
 - 重新用 `windows/build-release.ps1 -ReusePayloadZip` 重打 Windows release 包成功。
+
+### 2026-06-27 本地迭代补充：Windows release 安装器漏放感知模型
+
+本轮根据用户反馈继续核查 “Miloco 面板提示：还没准备好 · 2 个模型文件缺失”。
+
+本轮新增证据：
+
+- 现场 WSL 目录 `~/.openclaw/miloco/models/` 为空。
+- 代码校验口径见 `backend/miloco/src/miloco/perception/engine/resource_validator.py`：
+  - 必需模型：
+    - `det_4C.onnx`
+    - `human_body_reid_v2.onnx`
+  - 可选模型：
+    - `bge-small-zh-v1.5-int8.onnx`
+    - `bge-small-zh-v1.5-tokenizer.json`
+    - `silero_vad.onnx`
+- 仓库源码内实际存在上述模型文件，位于 `backend/miloco/src/miloco/perception/models/`，说明不是上游源码缺模型，而是 Windows release 打包 / 安装链路没有把模型带到 WSL 目标目录。
+- 现场 `miloco-cli scope camera list --pretty` 只有 1 台启用中的摄像头，而 `miloco-cli device list` 中确有 3 台在线摄像头；这说明 “3 台在线摄像头” 是设备发现事实，但不等于 “感知应该自动启用 3 台”。模型缺失与摄像头启用数量不是同一个问题。
+
+本轮补充迭代：
+
+- `windows/build-release.ps1`
+  - release 打包阶段新增 `scripts/windows/models/` 目录。
+  - 显式把 `backend/miloco/src/miloco/perception/models/` 下的模型文件复制进 release 包。
+  - self-test 增加对 5 个模型文件的存在性校验，避免再次发出“安装包本身不带模型”的 zip。
+- `windows/package/install.ps1`
+  - 安装包完整性检查新增感知模型检查；缺少必需模型时直接失败，不再把缺陷包继续安装下去。
+  - 新增 `Sync-PerceptionModelsToWsl`，在基础服务安装后、OpenClaw 步骤前，把 release 包内模型同步到 `~/.openclaw/miloco/models/`。
+  - 同步后对 `det_4C.onnx` 与 `human_body_reid_v2.onnx` 做二次存在性确认。
+  - 安装总步数同步更新，避免前台编号与真实步骤不一致。
+
+现场修复与验证：
+
+- 手工把仓库内模型复制到现场 WSL：
+  - `~/.openclaw/miloco/models/`
+- 重启 Miloco 后，后端日志出现：
+  - `EventEmbedder loaded (bge-small-zh-v1.5-int8.onnx)`
+  - `Perception engine started`
+  - `get_reid_extractor ... /home/andywu/.openclaw/miloco/models/human_body_reid_v2.onnx`
+- 说明“2 个必需模型缺失”这条根因已被现场验证并解除。
+- 重新打包后的本地 release zip 解压复查时，已确认包含：
+  - `det_4C.onnx`
+  - `human_body_reid_v2.onnx`
+  - `bge-small-zh-v1.5-int8.onnx`
+  - `bge-small-zh-v1.5-tokenizer.json`
+  - `silero_vad.onnx`
