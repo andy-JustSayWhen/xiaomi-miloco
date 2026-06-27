@@ -1,5 +1,39 @@
 # Windows 部署资料包验收记录
 
+## 2026-06-27 本机 GitHub Release v0.3 摄像头部署验证
+
+> 验收对象：GitHub Release `v0.3` / `easy-miloco-v0.3-windows.zip`
+> 测试方式：本机 Windows + Ubuntu-24.04 WSL，使用已校验 SHA256 与 GitHub Release digest 一致的 release zip 解压运行。
+
+### 本轮基线
+
+- Release asset: `easy-miloco-v0.3-windows.zip`
+- Release SHA256: `8bdc6d9e7f2383c7ecba6d95eb63df45fae52b66fda70966df77835df697dc4a`
+- Release size: `132266370`
+- 本机解压目录：`C:\Users\17239\AppData\Local\Temp\easy-miloco-deploy-test-v0.3-20260627-214458`
+- 验证报告：`miloco-deploy-report-after-restore.txt`
+
+### 执行记录
+
+- 通过 release 包安装器完成基础安装；安装器检测到旧版 Miloco 后导出兼容恢复包，卸载旧版并安装新版。
+- release 包内感知模型已同步到 WSL，后端日志显示 perception engine started。
+- 兼容恢复包只迁移模型配置和 MiOT 登录/home whitelist 所需 kv 键；迁移前已在 WSL 内创建 `config.json` 与 `miloco.db` checkpoint。
+- 安装后诊断报告通过：`BASIC_READY_FROM_WINDOWS=yes`、`BASIC_READY=yes`、`FULL_READY=yes`、`PASS_COUNT=16`、`FAIL_COUNT=0`。
+
+### 摄像头与 OpenClaw 验证
+
+- Miloco 概览页面显示家庭设备总数为 `127`，摄像头区域列出 3 台摄像头。
+- Miloco 概览的实时画面区显示 `0 个在感知`，并提示还没有摄像头在感知；页面中没有视频预览元素。
+- `miloco-cli scope camera list --pretty` 显示 3 台摄像头在线；其中 1 台 `in_use=true` 但 `connected=false`，另 2 台被标记为当前机型暂不支持感知。
+- `miloco-cli perceive devices` 返回空列表；对启用摄像头执行主动感知返回 `2011 No valid active perception sources found`。
+- OpenClaw chat 实际提问“家庭内一共有几台摄像头？每台摄像头当前画面如何，是否能看到画面预览？”后，OpenClaw 回复：共有 3 台摄像头，全部在线；只有 1 台支持感知但视频流未连接，另外 2 台当前机型不支持感知，因此此刻 3 台都拿不到画面预览。
+
+### 结论
+
+- Release `v0.3` 基础部署和满血配置恢复通过。
+- 本轮摄像头链路未通过画面预览验收：面板和 OpenClaw 均确认当前没有可用实时画面预览。
+- 后续应按 camera runbook 继续定位启用摄像头 `connected=false` 的拉流问题；另 2 台属于当前机型不支持感知，不应计入可感知摄像头失败。
+
 ## 2026-06-26 本机 Computer Use release 第二十三轮完整部署测试
 
 > 验收对象：GitHub Release `v0.2` / `easy-miloco-v0.2-windows.zip`
@@ -1110,3 +1144,105 @@ FULL_READY=yes
   - `bge-small-zh-v1.5-int8.onnx`
   - `bge-small-zh-v1.5-tokenizer.json`
   - `silero_vad.onnx`
+
+### 2026-06-27 本地 release v0.3 部署补充：一户三摄像头的感知分流
+
+本轮按用户要求，用 GitHub Release `v0.3` 的 Windows 包完成一次本机部署测试，并把本机作为可泛化案例整理到 `docs/windows/camera-runbook.md`。
+
+本轮新增证据：
+
+- Release 包：`easy-miloco-v0.3-windows.zip`
+  - size：`132266370`
+  - SHA256：`8bdc6d9e7f2383c7ecba6d95eb63df45fae52b66fda70966df77835df697dc4a`
+- 安装后健康检查：
+  - `BASIC_READY_FROM_WINDOWS=yes`
+  - `BASIC_READY=yes`
+  - `FULL_READY=yes`
+  - `FAIL_COUNT=0`
+- Miloco 概览显示：
+  - 家庭内有 3 台摄像头。
+  - `实时画面` 为 `0 个在感知`。
+  - 页面无可用画面预览。
+- API/CLI 分流证据：
+  - `/api/perception/engine/status` 返回 `running=true`、`ready=true`、`active_sources=[]`。
+  - `/api/perception/devices` 返回空数组。
+  - `miloco-cli scope camera list --pretty` 显示 3 台摄像头在线，但只有 1 台是 `in_use=true`，且该台 `connected=false`。
+  - 两台未启用摄像头分别为 `chuangmi.camera.021a04`、`chuangmi.camera.036a02`，均命中 `backend/miot/src/miot/configs/camera_extra_info.yaml` 的 `denylist.camera`。
+  - 尝试启用这两台时，服务返回“当前机型暂不支持接入感知”。
+  - 已支持的那台摄像头被 SDK 接受 decoded video 订阅，但 60 秒内没有产出 decoded first frame，随后被后端降级为未连接并进入冷却。
+- OpenClaw 实测问答：
+  - OpenClaw 能通过 Miloco 工具确认家庭内共有 3 台摄像头。
+  - OpenClaw 结论为：3 台均在线，但当前没有任何一台能显示画面预览或进入可描述画面的感知状态。
+
+本轮结论：
+
+- 这不是安装包缺模型、OpenClaw 模型不可用或账号未绑定问题；部署与基础服务已通过。
+- 这是同一家庭内的两类摄像头问题叠加：
+  - 配置误拦截：两台创米 2020 年型号位于 denylist，初始被判断为不支持；后续 direct SDK probe 证明实际可出帧，详见下一节逐台闭环。
+  - 视频数据面/首帧问题：一台已支持摄像头可进入 scope，但 decoded video 首帧失败，因此不能进入 `active_sources`。
+- 后续“让三台都被感知”的方案必须按 did 分流，不能用一个 UI 开关或一个状态字段概括。
+
+### 2026-06-27 本地逐台闭环：三台摄像头原因与处理办法
+
+本轮按“解决一台、记录一台”的方式处理，不再把三台摄像头混成一个结论。
+
+#### 1. 客厅摄像头 `1039007350`
+
+- 型号：`chuangmi.camera.021a04`。
+- 原始现象：
+  - Miloco scope 中显示“当前机型暂不支持感知”。
+  - `in_use=false`、`connected=false`。
+- 实测证据：
+  - direct SDK probe 强制构造 `MIoTCameraInfo` 后，`start ok`。
+  - 首帧约 1.25 秒到达。
+  - 计数：`raw_video_count=85`、`decoded_jpg_count=7`、`decoded_video_count=85`。
+- 根因：
+  - `camera_extra_info.yaml` 将 `chuangmi.camera.021a04` 放在 `denylist.camera`，属于配置误拦截；实际 native SDK 可以拉流。
+- 处理办法：
+  - 从 `backend/miot/src/miot/configs/camera_extra_info.yaml` 的 denylist 移除该型号。
+  - 热修当前安装环境同一路径下的 runtime YAML，重启 Miloco。
+- 复测结果：
+  - `scope camera list` 中该摄像头变为 `is_online=true / in_use=true / connected=true`。
+  - `perceive devices` 稳定包含该 did。
+  - `perceive query --source 1039007350` 能描述客厅画面。
+
+#### 2. 床边置物架摄像头 `450305034`
+
+- 型号：`chuangmi.camera.036a02`。
+- 原始现象：
+  - Miloco scope 中显示“当前机型暂不支持感知”。
+  - `in_use=false`、`connected=false`。
+- 实测证据：
+  - direct SDK probe 强制构造 `MIoTCameraInfo` 后，`start ok`。
+  - 首帧约 1.37 秒到达。
+  - 计数：`raw_video_count=42`、`decoded_jpg_count=7`、`decoded_video_count=42`。
+- 根因：
+  - `camera_extra_info.yaml` 将 `chuangmi.camera.036a02` 放在 `denylist.camera`，属于配置误拦截；实际 native SDK 可以拉流。
+- 处理办法：
+  - 从 `backend/miot/src/miot/configs/camera_extra_info.yaml` 的 denylist 移除该型号。
+  - 热修当前安装环境 runtime YAML，重启 Miloco。
+- 复测结果：
+  - `scope camera list` 中该摄像头变为 `is_online=true / in_use=true / connected=true`。
+  - `perceive devices` 稳定包含该 did。
+  - `perceive query --source 450305034` 能描述主卧画面。
+
+#### 3. 主卧电脑桌上摄像头 `1146439633`
+
+- 型号：`chuangmi.camera.061a01`。
+- 原始现象：
+  - 该型号已在可支持相机集合中，不是 denylist 问题。
+  - `is_online=true / in_use=true / connected=false`。
+  - `/api/miot/camera_list` 显示 `lan_online=false / local_ip=null / camera_status="2"`。
+- 实测证据：
+  - direct SDK probe：`start ok`，但状态反复 `CONNECTING -> DISCONNECTED`。
+  - 计数：`raw_video_count=0`、`decoded_jpg_count=0`、`decoded_video_count=0`。
+  - 调用 `action.9.1 start-p2p-stream` 成功，但 Miloco 120 秒观察仍无帧。
+  - 临时 `camera_lan_overrides.json` 指向 `192.168.31.56` 后，该 IP 可 ping，但 120 秒仍无帧；该 override 已删除。
+  - 短暂关闭再开启 `prop.2.1` 摄像机控制开关，并再次调用 `start-p2p-stream` 后，150 秒仍 `connected=false`。
+- 当前结论：
+  - 该摄像头不是模型 denylist、账号绑定、感知模型缺失、OpenClaw 模型或 Miloco UI 误判问题。
+  - 已排除软件侧温和修复：P2P 唤醒、LAN override、摄像机控制开关 off/on。
+  - 当前断点在设备视频数据面：主机拿不到 LAN IP，native SDK 可启动但无 raw/decoded frame。
+- 下一步处理办法：
+  - 需要设备侧动作：在米家 App 打开实时预览确认本机位画面可用；断电重启该摄像头；确认它与 Miloco 主机处于普通 2.4G Wi-Fi/同路由/非访客网络/非隔离 SSID；必要时重新配网。
+  - 设备侧动作完成后，再重启 Miloco 并复测 `connected=true`、`perceive devices`、`perceive query --source 1146439633`。

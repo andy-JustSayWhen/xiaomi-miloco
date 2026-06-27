@@ -291,3 +291,53 @@ flowchart LR
 远程 Windows + SSH 排障时，不要把复杂的管道、重定向和多层引号继续硬拼在一行里。固定方法见 [SSH 命令传输方法](ssh-command-transfer.md)。
 
 一句话规则：简单命令直传，复杂命令落脚本，CLI 尽量走绝对路径，不再现场修引号。
+
+## 12. 一户多摄像头的分流方法论
+
+同一个家庭里，不同摄像头可能卡在不同层。不要把“有 3 台摄像头”直接等同于“3 台都能感知”，也不要把“米家在线”直接等同于“Miloco 已拿到画面”。固定流程是：先按 did 分组，再按失败层分流。
+
+denylist 误拦截的自动处理流程见 [Camera denylist 误拦截自动修复 Guide](camera-denylist-auto-fix-guide.md)。确认 direct SDK probe 能出帧后，可用 `docs/scripts/fix-camera-denylist.ps1` 快速热修 Windows/WSL runtime；普通用户可双击 `docs/scripts/fix-camera-denylist.bat` 后输入 did 或型号。
+
+### 情况 A：摄像头出现在 scope 列表，但名称带“当前机型暂不支持感知”
+
+方法论：
+
+1. 先查 `miloco-cli scope camera list --pretty`，确认该 did 是否只作为“设备族相机”显示，而不是进入 `get_cameras_async()` 的可拉流相机集合。
+2. 再查 `camera_extra_info.yaml` 的 `denylist` 或 `allowlist`。denylist 只能作为“当前配置会拦截”的证据，不能直接当成硬件绝对不支持。
+3. 当用户要求“尽量让所有摄像头接入”时，必须做受控 SDK probe：手动构造同型号 `MIoTCameraInfo`、启动实例、记录 start result、raw/decoded 计数和 SDK 日志。只有 probe 确实出帧，才考虑把型号从 denylist 移出或加 allowlist。
+4. 如果 probe 仍无帧，转设备替换、固件升级、官方能力确认，或另建旁路接入方案。不要在 Miloco 主链路里伪造 `connected=true`。
+
+案例支撑：
+
+| 本机案例 | 证据 | 结论 |
+| --- | --- | --- |
+| 两台 2020 年创米型号 | `chuangmi.camera.021a04` 和 `chuangmi.camera.036a02` 起初位于 `denylist.camera`，CLI 启用返回“当前机型暂不支持接入感知”；direct SDK probe 后分别在约 1.25s / 1.37s 出首帧 | 这是配置误拦截，不是硬件能力边界；移出 denylist 后可进入 `connected=true` 和 `active_sources` |
+
+### 情况 B：摄像头 `is_online=true / in_use=true`，但 `connected=false`
+
+方法论：
+
+1. 先看 `/api/perception/engine/status`。若 engine ready 但 `active_sources=[]`，说明引擎可用，失败在摄像头帧源之前。
+2. 查后端日志。如果有 `Started decode video frame stream ... reg_id=N`，只能说明 SDK 接受订阅；必须继续等 decoded first frame。
+3. 如果日志出现 `produced no decoded video frame within 60s`，按首帧失败处理：有 `lan_online/local_ip` 时允许 manager rebuild；无 LAN hint 时进入冷却，避免 native SDK 反复卡死。
+4. 继续排 PIN、LAN、PPCS、Wi-Fi/SSID、设备休眠、固件和米家 App 实时预览。只有 decoded frame 到达后，才验收 `connected=true`、`active_sources` 包含 did、OpenClaw 能描述画面。
+
+案例支撑：
+
+| 本机案例 | 证据 | 结论 |
+| --- | --- | --- |
+| 一台已支持的摄像头 | scope 显示 `is_online=true / in_use=true / connected=false`；日志显示订阅后 60 秒内没有 decoded video frame，随后被降级并冷却 | 这是视频数据面/首帧问题，不是“没启用摄像头” |
+
+### 情况 C：三台摄像头都在线，但 Miloco 概览显示 `0 个在感知`
+
+方法论：
+
+1. 先用 `scope camera list` 数“家庭内有几台摄像头”，再用 `perceive devices` 数“有几台已进入感知源”，两者不能混用。
+2. 对每台摄像头分别填表：型号是否支持、`is_online`、`in_use`、`connected`、是否在 `active_sources`、OpenClaw 能否描述画面。
+3. 最终交付必须逐台点名。只要有一台没有 `connected=true + active_sources + OpenClaw 画面描述`，就不能说“全部摄像头已被感知”。
+
+案例支撑：
+
+| 本机案例 | 证据 | 结论 |
+| --- | --- | --- |
+| release v0.3 本机部署验证 | Miloco 概览显示 3 台摄像头、`实时画面 0 个在感知`；OpenClaw 查询后确认 3 台在线但均无画面预览 | 当前是“设备发现成功、感知取流未成功”，下一步必须按 A/B 两类分别处理 |

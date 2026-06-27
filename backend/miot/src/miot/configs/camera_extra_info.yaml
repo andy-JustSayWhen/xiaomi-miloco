@@ -69,11 +69,6 @@ denylist:
       reason: 不支持2020年设备
       vendor: 上海创米数联智能科技发展股份有限公司
       year: 2020
-    chuangmi.camera.021a04:
-      name: 小米智能摄像机  云台版Pro
-      reason: 不支持2020年设备
-      vendor: 上海创米数联智能科技发展股份有限公司
-      year: 2020
     chuangmi.camera.021e02:
       name: 小白智能摄像机A2
       reason: 不支持2020年设备
@@ -91,11 +86,6 @@ denylist:
       year: 2021
     chuangmi.camera.029a02:
       name: 小米智能摄像机 云台版2K
-      reason: 不支持2020年设备
-      vendor: 上海创米数联智能科技发展股份有限公司
-      year: 2020
-    chuangmi.camera.036a02:
-      name: 小白智能摄像机 云台版Y2
       reason: 不支持2020年设备
       vendor: 上海创米数联智能科技发展股份有限公司
       year: 2020
