@@ -301,15 +301,15 @@ flowchart LR
 方法论：
 
 1. 先查 `miloco-cli scope camera list --pretty`，确认该 did 是否只作为“设备族相机”显示，而不是进入 `get_cameras_async()` 的可拉流相机集合。
-2. 再查 `camera_extra_info.yaml` 的 `denylist` 或 `allowlist`。如果型号明确在 denylist，默认结论是“当前 native MIoT camera SDK 路径不支持”，不要通过 UI 文案或 KV 强行改成可感知。
-3. 若需要继续探索，必须做受控 SDK probe：手动构造同型号 `MIoTCameraInfo`、启动实例、记录 start result、raw/decoded 计数和 SDK 日志。只有 probe 确实出帧，才考虑把型号从 denylist 移出或加 allowlist。
+2. 再查 `camera_extra_info.yaml` 的 `denylist` 或 `allowlist`。denylist 只能作为“当前配置会拦截”的证据，不能直接当成硬件绝对不支持。
+3. 当用户要求“尽量让所有摄像头接入”时，必须做受控 SDK probe：手动构造同型号 `MIoTCameraInfo`、启动实例、记录 start result、raw/decoded 计数和 SDK 日志。只有 probe 确实出帧，才考虑把型号从 denylist 移出或加 allowlist。
 4. 如果 probe 仍无帧，转设备替换、固件升级、官方能力确认，或另建旁路接入方案。不要在 Miloco 主链路里伪造 `connected=true`。
 
 案例支撑：
 
 | 本机案例 | 证据 | 结论 |
 | --- | --- | --- |
-| 两台 2020 年创米型号 | `chuangmi.camera.021a04` 和 `chuangmi.camera.036a02` 位于 `camera_extra_info.yaml` 的 `denylist.camera`，CLI 启用返回“当前机型暂不支持接入感知” | 这是型号能力边界，不是 scope 开关、OpenClaw 或大模型问题 |
+| 两台 2020 年创米型号 | `chuangmi.camera.021a04` 和 `chuangmi.camera.036a02` 起初位于 `denylist.camera`，CLI 启用返回“当前机型暂不支持接入感知”；direct SDK probe 后分别在约 1.25s / 1.37s 出首帧 | 这是配置误拦截，不是硬件能力边界；移出 denylist 后可进入 `connected=true` 和 `active_sources` |
 
 ### 情况 B：摄像头 `is_online=true / in_use=true`，但 `connected=false`
 

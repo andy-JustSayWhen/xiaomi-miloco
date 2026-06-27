@@ -1178,6 +1178,71 @@ FULL_READY=yes
 
 - 这不是安装包缺模型、OpenClaw 模型不可用或账号未绑定问题；部署与基础服务已通过。
 - 这是同一家庭内的两类摄像头问题叠加：
-  - 型号能力边界：两台创米 2020 年型号位于 denylist，当前 native MIoT camera SDK 路径不接入。
+  - 配置误拦截：两台创米 2020 年型号位于 denylist，初始被判断为不支持；后续 direct SDK probe 证明实际可出帧，详见下一节逐台闭环。
   - 视频数据面/首帧问题：一台已支持摄像头可进入 scope，但 decoded video 首帧失败，因此不能进入 `active_sources`。
 - 后续“让三台都被感知”的方案必须按 did 分流，不能用一个 UI 开关或一个状态字段概括。
+
+### 2026-06-27 本地逐台闭环：三台摄像头原因与处理办法
+
+本轮按“解决一台、记录一台”的方式处理，不再把三台摄像头混成一个结论。
+
+#### 1. 客厅摄像头 `1039007350`
+
+- 型号：`chuangmi.camera.021a04`。
+- 原始现象：
+  - Miloco scope 中显示“当前机型暂不支持感知”。
+  - `in_use=false`、`connected=false`。
+- 实测证据：
+  - direct SDK probe 强制构造 `MIoTCameraInfo` 后，`start ok`。
+  - 首帧约 1.25 秒到达。
+  - 计数：`raw_video_count=85`、`decoded_jpg_count=7`、`decoded_video_count=85`。
+- 根因：
+  - `camera_extra_info.yaml` 将 `chuangmi.camera.021a04` 放在 `denylist.camera`，属于配置误拦截；实际 native SDK 可以拉流。
+- 处理办法：
+  - 从 `backend/miot/src/miot/configs/camera_extra_info.yaml` 的 denylist 移除该型号。
+  - 热修当前安装环境同一路径下的 runtime YAML，重启 Miloco。
+- 复测结果：
+  - `scope camera list` 中该摄像头变为 `is_online=true / in_use=true / connected=true`。
+  - `perceive devices` 稳定包含该 did。
+  - `perceive query --source 1039007350` 能描述客厅画面。
+
+#### 2. 床边置物架摄像头 `450305034`
+
+- 型号：`chuangmi.camera.036a02`。
+- 原始现象：
+  - Miloco scope 中显示“当前机型暂不支持感知”。
+  - `in_use=false`、`connected=false`。
+- 实测证据：
+  - direct SDK probe 强制构造 `MIoTCameraInfo` 后，`start ok`。
+  - 首帧约 1.37 秒到达。
+  - 计数：`raw_video_count=42`、`decoded_jpg_count=7`、`decoded_video_count=42`。
+- 根因：
+  - `camera_extra_info.yaml` 将 `chuangmi.camera.036a02` 放在 `denylist.camera`，属于配置误拦截；实际 native SDK 可以拉流。
+- 处理办法：
+  - 从 `backend/miot/src/miot/configs/camera_extra_info.yaml` 的 denylist 移除该型号。
+  - 热修当前安装环境 runtime YAML，重启 Miloco。
+- 复测结果：
+  - `scope camera list` 中该摄像头变为 `is_online=true / in_use=true / connected=true`。
+  - `perceive devices` 稳定包含该 did。
+  - `perceive query --source 450305034` 能描述主卧画面。
+
+#### 3. 主卧电脑桌上摄像头 `1146439633`
+
+- 型号：`chuangmi.camera.061a01`。
+- 原始现象：
+  - 该型号已在可支持相机集合中，不是 denylist 问题。
+  - `is_online=true / in_use=true / connected=false`。
+  - `/api/miot/camera_list` 显示 `lan_online=false / local_ip=null / camera_status="2"`。
+- 实测证据：
+  - direct SDK probe：`start ok`，但状态反复 `CONNECTING -> DISCONNECTED`。
+  - 计数：`raw_video_count=0`、`decoded_jpg_count=0`、`decoded_video_count=0`。
+  - 调用 `action.9.1 start-p2p-stream` 成功，但 Miloco 120 秒观察仍无帧。
+  - 临时 `camera_lan_overrides.json` 指向 `192.168.31.56` 后，该 IP 可 ping，但 120 秒仍无帧；该 override 已删除。
+  - 短暂关闭再开启 `prop.2.1` 摄像机控制开关，并再次调用 `start-p2p-stream` 后，150 秒仍 `connected=false`。
+- 当前结论：
+  - 该摄像头不是模型 denylist、账号绑定、感知模型缺失、OpenClaw 模型或 Miloco UI 误判问题。
+  - 已排除软件侧温和修复：P2P 唤醒、LAN override、摄像机控制开关 off/on。
+  - 当前断点在设备视频数据面：主机拿不到 LAN IP，native SDK 可启动但无 raw/decoded frame。
+- 下一步处理办法：
+  - 需要设备侧动作：在米家 App 打开实时预览确认本机位画面可用；断电重启该摄像头；确认它与 Miloco 主机处于普通 2.4G Wi-Fi/同路由/非访客网络/非隔离 SSID；必要时重新配网。
+  - 设备侧动作完成后，再重启 Miloco 并复测 `connected=true`、`perceive devices`、`perceive query --source 1146439633`。

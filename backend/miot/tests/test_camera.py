@@ -574,6 +574,8 @@ async def test_is_camera_model_with_prefetched_info():
 
     info = await get_camera_extra_info()
     assert await is_camera_model("xiaomi.camera.082ac1", camera_extra_info=info) is True
+    assert await is_camera_model("chuangmi.camera.021a04", camera_extra_info=info) is True
+    assert await is_camera_model("chuangmi.camera.036a02", camera_extra_info=info) is True
     assert await is_camera_model("chuangmi.camera.ipc004b", camera_extra_info=info) is False
 
 
