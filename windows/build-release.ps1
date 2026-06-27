@@ -276,7 +276,7 @@ function Copy-RequiredArtifacts {
     "## Scope",
     "",
     "- Windows one-click deployment package refresh.",
-    "- Desktop console menu now exposes restart OpenClaw, restart Miloco, restart both, stop services, and stop WSL.",
+    "- Desktop console menu now exposes restart OpenClaw, restart Miloco, restart both, stop services, stop WSL, and a one-click temporary camera unlock for current unsupported-model prompts.",
     "- Includes root ``install.bat`` and ``install.ps1``, Miloco Linux x86_64 local bundle, Windows diagnostics scripts, and docs.",
     "- Target OS: Windows 11 22H2+.",
     "",

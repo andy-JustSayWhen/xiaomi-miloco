@@ -408,6 +408,206 @@ function Restart-All {
   return $false
 }
 
+function Temporarily-UnlockUnsupportedCameras {
+  Write-Host ""
+  Write-Status "正在临时放开当前提示不支持感知的摄像头型号..."
+  Write-Host "只会修改当前已安装环境，不会改 Git 仓库；脚本会先自动备份 camera_extra_info.yaml。" -ForegroundColor Yellow
+  $cmd = @'
+set -e
+export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"
+rm -f /tmp/miloco-temp-unlock-needed-restart
+MILOCO_PY="$HOME/.local/share/uv/tools/miloco/bin/python"
+if [ -x "$MILOCO_PY" ]; then
+  TEMP_UNLOCK_PY="$MILOCO_PY"
+elif command -v python3 >/dev/null 2>&1; then
+  TEMP_UNLOCK_PY="$(command -v python3)"
+else
+  echo "[WARN] 没找到可用的 Python 解释器，无法执行临时热修。"
+  exit 0
+fi
+"$TEMP_UNLOCK_PY" <<'PY'
+import json
+import shutil
+import urllib.request
+from datetime import datetime
+from pathlib import Path
+
+try:
+    import yaml
+    import miot.camera as miot_camera
+except Exception as exc:
+    print(f"[WARN] 无法加载已安装的 miot 运行时: {exc}")
+    print("[WARN] 如果这是刚安装的环境，请先确认 ~/.local/share/uv/tools/miloco/bin/python 已存在，再重试菜单 6。")
+    raise SystemExit(0)
+
+config_path = Path.home() / ".openclaw" / "miloco" / "config.json"
+if not config_path.exists():
+    print(f"[WARN] 没找到配置文件: {config_path}")
+    raise SystemExit(0)
+
+try:
+    config = json.loads(config_path.read_text(encoding="utf-8"))
+except Exception as exc:
+    print(f"[WARN] 无法读取配置文件: {exc}")
+    raise SystemExit(0)
+
+server = config.get("server", {}) if isinstance(config, dict) else {}
+token = str(server.get("token", "")).strip()
+port = int(server.get("port", 1886) or 1886)
+if not token:
+    print("[WARN] 当前配置里没有 server.token，暂时无法自动读取摄像头提示。")
+    raise SystemExit(0)
+
+base_url = f"http://127.0.0.1:{port}"
+headers = {"Authorization": f"Bearer {token}"}
+
+def api_json(path: str) -> dict:
+    req = urllib.request.Request(base_url + path, headers=headers)
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+try:
+    scope = api_json("/api/miot/scope/cameras").get("data") or []
+    devices = api_json("/api/miot/device_list").get("data") or []
+except Exception as exc:
+    print(f"[WARN] 无法从本地 Miloco 读取摄像头列表: {exc}")
+    print("[WARN] 请先确认 Miloco 面板已经能打开，或先在控制台里选 2 / 3 拉起服务。")
+    raise SystemExit(0)
+
+unsupported = [
+    item for item in scope
+    if "当前机型暂不支持感知" in str(item.get("name", ""))
+]
+if not unsupported:
+    print("[INFO] 当前账号下没有面板明确提示 当前机型暂不支持感知 的摄像头。")
+    print("[INFO] 这次没有修改已安装文件。")
+    raise SystemExit(0)
+
+device_by_did = {
+    str(item.get("did")): item
+    for item in devices
+    if isinstance(item, dict) and item.get("did") is not None
+}
+
+models = []
+pin_required = []
+missing_model = []
+unsupported_dids = []
+for item in unsupported:
+    did = str(item.get("did", "")).strip()
+    if not did:
+        continue
+    unsupported_dids.append(did)
+    device = device_by_did.get(did, {})
+    model = str(device.get("model", "")).strip()
+    if model:
+        models.append(model)
+    else:
+        missing_model.append(did)
+    if str(device.get("is_set_pincode", "0")).strip() in {"1", "true", "True"}:
+        pin_required.append(did)
+
+models = sorted(set(models))
+if not models:
+    print("[WARN] 找到了不支持感知提示，但没有从 device_list 里拿到对应型号。")
+    if missing_model:
+        print("[WARN] 缺少型号信息的 did: " + ", ".join(missing_model))
+    raise SystemExit(0)
+
+yaml_path = Path(miot_camera.__file__).resolve().parent / "configs" / "camera_extra_info.yaml"
+if not yaml_path.exists():
+    print(f"[WARN] 没找到已安装的 camera_extra_info.yaml: {yaml_path}")
+    raise SystemExit(0)
+
+raw = yaml.safe_load(yaml_path.read_text(encoding="utf-8")) or {}
+denylist = raw.setdefault("denylist", {})
+camera_denylist = denylist.setdefault("camera", {})
+if not isinstance(camera_denylist, dict):
+    print("[WARN] 已安装的 camera denylist 结构不是对象，暂时不自动改。")
+    raise SystemExit(0)
+
+to_remove = [model for model in models if model in camera_denylist]
+already_allowed = [model for model in models if model not in camera_denylist]
+
+if not to_remove:
+    print("[INFO] 当前提示里的型号已经不在已安装 denylist 里。")
+    print("[INFO] 这次没有修改已安装文件。")
+    if already_allowed:
+        print("[INFO] 已经放开的型号: " + ", ".join(already_allowed))
+    raise SystemExit(0)
+
+timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+backup_path = yaml_path.with_name(f"{yaml_path.name}.bak.temp-unlock-{timestamp}")
+shutil.copy2(yaml_path, backup_path)
+
+for model in to_remove:
+    camera_denylist.pop(model, None)
+
+yaml_text = yaml.safe_dump(raw, allow_unicode=True, sort_keys=False)
+yaml_path.write_text(yaml_text, encoding="utf-8")
+
+record_path = Path.home() / ".openclaw" / "miloco" / "camera_unsupported_temp_unlocks.json"
+history = []
+if record_path.exists():
+    try:
+        loaded = json.loads(record_path.read_text(encoding="utf-8"))
+        if isinstance(loaded, list):
+            history = loaded
+    except Exception:
+        history = []
+history.append(
+    {
+        "applied_at": datetime.now().isoformat(timespec="seconds"),
+        "backup_path": str(backup_path),
+        "yaml_path": str(yaml_path),
+        "models_removed_from_denylist": to_remove,
+        "already_allowed_models": already_allowed,
+        "unsupported_dids": unsupported_dids,
+        "pin_required_dids": pin_required,
+    }
+)
+record_path.write_text(
+    json.dumps(history, ensure_ascii=False, indent=2) + "\n",
+    encoding="utf-8",
+)
+
+Path("/tmp/miloco-temp-unlock-needed-restart").write_text("1\n", encoding="utf-8")
+
+print("[OK] 已在当前已安装环境里临时放开这些型号:")
+for model in to_remove:
+    print("  - " + model)
+if already_allowed:
+    print("[INFO] 这些型号原本就不在 denylist 里:")
+    for model in already_allowed:
+        print("  - " + model)
+print("[INFO] 这次命中的摄像头 did:")
+for did in unsupported_dids:
+    print("  - " + did)
+print(f"[INFO] 已备份原文件: {backup_path}")
+print(f"[INFO] 操作记录: {record_path}")
+print("[INFO] 这是临时修复：以后更新、重装、重新安装新版本后，官方 denylist 可能会回来。")
+if pin_required:
+    print("[INFO] 下面这些摄像头还标记了需要 PIN；如果后面还是看不到画面，请再按 runbook 配 camera_pin_overrides.json:")
+    for did in pin_required:
+        print("  - " + did)
+PY
+
+if [ -f /tmp/miloco-temp-unlock-needed-restart ]; then
+  miloco-cli service restart >/tmp/miloco-temp-unlock-restart.log 2>&1 || {
+    miloco-cli service stop >/tmp/miloco-temp-unlock-stop.log 2>&1 || true
+    miloco-cli service start >/tmp/miloco-temp-unlock-start.log 2>&1
+  }
+else
+  echo "[INFO] 本次没有修改已安装文件，所以没有重启 Miloco 服务。"
+fi
+'@
+  if (Invoke-WslBash $cmd) {
+    return (Open-WhenReady $script:MilocoPort)
+  }
+  Pause-ReturnToMenu
+  return $false
+}
+
 function Stop-Services {
   Write-Host ""
   Write-Host "正在关闭 OpenClaw + Miloco..."
@@ -434,6 +634,7 @@ function Show-Menu {
   Write-Host "  3. 重启 Miloco + OpenClaw"
   Write-Host "  4. 关闭 OpenClaw + Miloco"
   Write-Host "  5. 关闭 WSL"
+  Write-Host "  6. 临时修复当前提示不支持感知的摄像头"
   Write-Host "  0. 退出"
   Write-Host ""
   Write-Host "说明："
@@ -442,6 +643,7 @@ function Show-Menu {
   Write-Host "  3. 一次性拉起整套服务，并打开两个面板。首次安装后、电脑重启后，优先选这个。"
   Write-Host "  4. 停止两个服务，但保留 WSL。适合今天不用了、想释放后台资源，或准备重新启动服务。"
   Write-Host "  5. 停止服务并关闭本次安装使用的 WSL。适合彻底退出、电脑卡顿、网络或端口异常时重置环境。"
+  Write-Host "  6. 只对当前已安装环境做临时热修：自动备份并放开当前被提示 不支持感知 的摄像头型号。"
   Write-Host "  0. 只关闭当前脚本，不影响已经运行的 Miloco 和 OpenClaw 服务。"
   Write-Host ""
 }
@@ -454,16 +656,17 @@ while ($true) {
     continue
   }
 
-  $choice = (Prompt-Line "请选择 [1/2/3/4/5/0]: ").Trim()
+  $choice = (Prompt-Line "请选择 [1/2/3/4/5/6/0]: ").Trim()
   switch ($choice) {
     "1" { [void](Restart-OpenClaw) }
     "2" { [void](Restart-Miloco) }
     "3" { [void](Restart-All) }
     "4" { Stop-Services }
     "5" { Stop-Wsl }
+    "6" { [void](Temporarily-UnlockUnsupportedCameras) }
     "0" { exit 0 }
     default {
-      Write-Host "请输入 1、2、3、4、5 或 0。" -ForegroundColor Yellow
+      Write-Host "请输入 1、2、3、4、5、6 或 0。" -ForegroundColor Yellow
       Start-Sleep -Seconds 1
     }
   }
