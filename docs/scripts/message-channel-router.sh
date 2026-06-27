@@ -10,6 +10,9 @@ Usage:
 
 One-line agent handoff:
   bash docs/scripts/message-channel-router.sh feishu --interactive --install --auth --bind --validate
+
+Generic channel guide:
+  https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/message-channel/docs/message-channels-agent-guide.md
 EOF
 }
 
@@ -31,6 +34,7 @@ case "$channel" in
   *)
     echo "Unsupported message channel: $channel" >&2
     echo "Supported channels: feishu" >&2
+    echo "For other channels, follow: https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/message-channel/docs/message-channels-agent-guide.md" >&2
     exit 2
     ;;
 esac
