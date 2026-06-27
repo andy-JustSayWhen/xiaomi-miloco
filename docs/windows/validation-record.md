@@ -958,3 +958,32 @@ FULL_READY=yes
   - `runtime.report`：PASS
   - `openclaw.http_dashboard` / `openclaw.chat_route`：PASS
   - `openclaw.gateway` / `openclaw.dashboard_url` / `openclaw.gateway_token`：WARN，说明本机当前更像是“HTTP 路由已通，但 CLI 侧 URL / token 可见性没有补齐”，不再是安装包结构或入口闪退问题。
+
+### 2026-06-27 本地迭代补充：WSL 探测不再依赖 Windows 临时文件拷贝
+
+本轮根据用户提供的新日志，继续排查“新版包双击后仍在第 3 步闪退”的问题。
+
+本轮新增证据：
+
+- 现场日志 `dist/windows/easy-miloco-v0.2-windows/miloco-install-console-20260627-094340.txt` 显示，新的闪退点不再是 `bash: not found`，而是：
+  - `cp: can't stat '/mnt/c/Users/17239/AppData/Local/Temp/miloco-distro-probe-xxxx.sh': No such file or directory`
+- 说明 `Invoke-DistroProbe` 虽然已经不再走旧的嵌套 `bash -lc`，但仍依赖“先把脚本写到 Windows `%TEMP%`，再从 WSL 通过 `/mnt/c/...` 拷进 `/tmp`”这条链路。
+- 现场最小复现表明该链路在本机并不稳定；即使 `wsl.exe` 和发行版正常，也可能在安装器真实执行时读不到刚写出的 `%TEMP%` 文件。
+
+本轮补充迭代：
+
+- `windows/package/install.ps1`
+  - 新增 `Invoke-WslEncodedScriptInternal`，统一把 PowerShell 字符串脚本做 base64 编码后，通过：
+    - `wsl.exe -d <distro> -- sh -lc "printf ... | base64 -d | sh"`
+    - 或 `... | bash`
+    直接送进 WSL 执行。
+  - `Invoke-DistroProbe` 改为直接走这条编码执行链，不再写 `miloco-distro-probe-*.sh` 到 Windows `%TEMP%`。
+  - `Invoke-WslBash` / `Invoke-WslBashText` 同步改为走同一条编码执行链，不再依赖 `cp /mnt/c/... /tmp/...`。
+- 这样安装器里最关键的 WSL 脚本执行入口已不再依赖 Windows 临时目录与 `/mnt/c` 的瞬时可见性。
+
+本地验证：
+
+- `windows/package/install.ps1` 通过 Windows PowerShell 5.1 语法解析。
+- 重新用 `windows/build-release.ps1 -ReusePayloadZip` 重打 Windows release 包成功。
+- `docs/scripts/windows-release-validate.ps1 -PackagePath dist/windows/easy-miloco-v0.2-windows.zip -SkipRuntime`：`package.structure` 与 `installer.smoke` 均 PASS。
+- 直接对本地解压目录启动 `install.ps1` 复测时，不再停在第 3 步 WSL 探测错误；当前可见的前台结果变为“当前窗口不是管理员模式”，说明原先的闪退点已经消失，安装器恢复为正常的可读暂停行为。

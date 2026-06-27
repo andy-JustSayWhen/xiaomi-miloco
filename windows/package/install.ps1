@@ -337,6 +337,48 @@ function Get-WslExePath {
   return ""
 }
 
+function Invoke-WslEncodedScriptInternal {
+  param(
+    [string]$DistroName,
+    [string]$Script,
+    [string]$Runner = "bash",
+    [switch]$CaptureText
+  )
+
+  $Script = $Script -replace "`r`n", "`n"
+  $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Script))
+  $wslExe = Get-WslExePath
+  if ([string]::IsNullOrWhiteSpace($wslExe)) {
+    if ($CaptureText) {
+      return [pscustomobject]@{
+        code = 127
+        text = "没有找到 wsl.exe。"
+      }
+    }
+    return 127
+  }
+
+  $command = "printf '%s' '$encoded' | base64 -d | $Runner"
+  if ($CaptureText) {
+    $output = & $wslExe -d $DistroName -- sh -lc $command 2>&1 | ForEach-Object {
+      if ($_ -is [System.Management.Automation.ErrorRecord]) {
+        $_.Exception.Message
+      } else {
+        $_.ToString()
+      }
+    }
+    $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    return [pscustomobject]@{
+      code = $code
+      text = (($output | Out-String).Trim())
+    }
+  }
+
+  & $wslExe -d $DistroName -- sh -lc $command
+  $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  return $code
+}
+
 function Test-WindowsOptionalFeatureEnabled {
   param([string]$FeatureName)
 
@@ -383,41 +425,13 @@ printf 'SYSTEMD_USER_OK=no\n'
 fi
 '@
 
-  $id = [guid]::NewGuid().ToString('N').Substring(0, 8)
-  $winTmp = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-distro-probe-$id.sh"
-  $wslTmp = "/tmp/miloco-distro-probe-$id.sh"
-  [System.IO.File]::WriteAllText($winTmp, ($probe -replace "`r`n", "`n"), [System.Text.UTF8Encoding]::new($false))
-  $wslMnt = ConvertTo-WslPath $winTmp
   $wslExe = Get-WslExePath
   if ([string]::IsNullOrWhiteSpace($wslExe)) {
     throw "没有找到 wsl.exe。"
   }
-  try {
-    $copyOutput = & $wslExe -d $Name -- cp $wslMnt $wslTmp 2>&1 | ForEach-Object {
-      if ($_ -is [System.Management.Automation.ErrorRecord]) {
-        $_.Exception.Message
-      } else {
-        $_.ToString()
-      }
-    }
-    $copyCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
-    if ($copyCode -ne 0) {
-      $output = $copyOutput
-      $code = $copyCode
-    } else {
-      $output = & $wslExe -d $Name -- sh $wslTmp 2>&1 | ForEach-Object {
-        if ($_ -is [System.Management.Automation.ErrorRecord]) {
-          $_.Exception.Message
-        } else {
-          $_.ToString()
-        }
-      }
-      $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
-    }
-  } finally {
-    & $wslExe -d $Name -- rm -f $wslTmp *> $null
-    Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
-  }
+  $result = Invoke-WslEncodedScriptInternal -DistroName $Name -Script $probe -Runner "sh" -CaptureText
+  $output = $result.text
+  $code = $result.code
   $values = @{}
   foreach ($line in (($output | Out-String).Trim() -split "`r?`n")) {
     if ($line -match "^([A-Z_]+)=(.*)$") {
@@ -851,47 +865,21 @@ function Ensure-Wsl {
 function Invoke-WslBash {
   param([string]$Script)
 
-  $Script = $Script -replace "`r`n", "`n"
-  $id = [guid]::NewGuid().ToString('N').Substring(0, 8)
-  $wslTmp = "/tmp/miloco-$id.sh"
-
-  # Write script to a Windows temp file, then copy into WSL via /mnt path
-  $winTmp = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-$id.sh"
-  [System.IO.File]::WriteAllText($winTmp, $Script, [System.Text.UTF8Encoding]::new($false))
-  $wslMnt = ConvertTo-WslPath $winTmp
   $resolvedDistro = Get-ResolvedDistro
   $wslExe = Get-WslExePath
   if ([string]::IsNullOrWhiteSpace($wslExe)) {
     Fail "没有找到 wsl.exe，无法进入 Ubuntu 执行安装步骤。请重启 Windows 后重新双击 install.bat。"
   }
 
-  try {
-    & $wslExe -d $resolvedDistro -- cp $wslMnt $wslTmp
-    $copyCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
-    if ($copyCode -ne 0) {
-      Fail "无法把临时脚本复制到 WSL，退出码 $copyCode。请把窗口内容发给维护者。"
-    }
-
-    & $wslExe -d $resolvedDistro -- bash $wslTmp
-    $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
-    if ($code -ne 0) {
-      Fail "WSL 内命令执行失败，退出码 $code。上方通常有具体错误，请把窗口内容或诊断报告发给维护者。"
-    }
-  } finally {
-    & $wslExe -d $resolvedDistro -- rm -f $wslTmp *> $null
-    Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
+  $code = Invoke-WslEncodedScriptInternal -DistroName $resolvedDistro -Script $Script -Runner "bash"
+  if ($code -ne 0) {
+    Fail "WSL 内命令执行失败，退出码 $code。上方通常有具体错误，请把窗口内容或诊断报告发给维护者。"
   }
 }
 
 function Invoke-WslBashText {
   param([string]$Script)
 
-  $Script = $Script -replace "`r`n", "`n"
-  $id = [guid]::NewGuid().ToString('N').Substring(0, 8)
-  $wslTmp = "/tmp/miloco-probe-$id.sh"
-  $winTmp = Join-Path ([System.IO.Path]::GetTempPath()) "miloco-probe-$id.sh"
-  [System.IO.File]::WriteAllText($winTmp, $Script, [System.Text.UTF8Encoding]::new($false))
-  $wslMnt = ConvertTo-WslPath $winTmp
   $resolvedDistro = Get-ResolvedDistro
   $wslExe = Get-WslExePath
   if ([string]::IsNullOrWhiteSpace($wslExe)) {
@@ -901,39 +889,7 @@ function Invoke-WslBashText {
     }
   }
 
-  $copyOutput = & $wslExe -d $resolvedDistro -- cp $wslMnt $wslTmp 2>&1 | ForEach-Object {
-    if ($_ -is [System.Management.Automation.ErrorRecord]) {
-      $_.Exception.Message
-    } else {
-      $_.ToString()
-    }
-  }
-  $copyCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
-  if ($copyCode -ne 0) {
-    Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
-    return [pscustomobject]@{
-      code = $copyCode
-      text = (($copyOutput | Out-String).Trim())
-    }
-  }
-
-  try {
-    $output = & $wslExe -d $resolvedDistro -- bash $wslTmp 2>&1 | ForEach-Object {
-      if ($_ -is [System.Management.Automation.ErrorRecord]) {
-        $_.Exception.Message
-      } else {
-        $_.ToString()
-      }
-    }
-    $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
-  } finally {
-    & $wslExe -d $resolvedDistro -- rm -f $wslTmp *> $null
-    Remove-Item -LiteralPath $winTmp -ErrorAction SilentlyContinue
-  }
-  return [pscustomobject]@{
-    code = $code
-    text = (($output | Out-String).Trim())
-  }
+  return (Invoke-WslEncodedScriptInternal -DistroName $resolvedDistro -Script $Script -Runner "bash" -CaptureText)
 }
 
 function Get-ExistingInstallStatus {
