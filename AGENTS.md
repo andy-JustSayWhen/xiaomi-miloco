@@ -1,38 +1,38 @@
-# easy-miloco Agent Rules
+# easy-miloco Agent 规则
 
-## First Step For Every Turn
+## 每一轮的第一步
 
-- Before planning, editing, testing, or answering about this repository, read this file.
-- If the conversation was resumed, compacted, interrupted, or the task feels blurry, read this file again before continuing.
-- Treat this file as the local project contract. If it conflicts with a direct newer user instruction, follow the newer user instruction and update this file when the new rule should persist.
-- Before code edits, read the `README.md` `### 目录树` section; do not add new top-level directories unless clearly necessary.
-- When the user says to remember something, or the Agent says it will remember something for this repository, persist that durable rule or workflow note in this file instead of leaving it only in chat.
+- 在规划、编辑、测试或回答任何与本仓库有关的问题之前，先阅读本文件。
+- 如果对话是恢复、压缩或中断后继续的，或者任务感觉不清晰，继续前再次阅读本文件。
+- 将本文件视为本地项目契约。如果它与用户更新的直接指令冲突，遵循更新的用户指令；当新规则需要长期保留时，同步更新本文件。
+- 在修改代码前，阅读 `README.md` 的 `### 目录树` 小节；除非确有必要，不要新增顶层目录。
+- 当用户要求记住某事，或 Agent 表示会为本仓库记住某事时，把这条长期规则或流程说明写入本文件，不要只留在聊天中。
 
-## Git Rules
+## Git 规则
 
-- Before code edits, check `git status`.
-- Commit small useful checkpoints. Commit frequency should favor rollback safety over tidiness.
-- Push when a checkpoint is useful remotely, after tests, or when the user asks. Do not keep saying "later" when a commit/push is practical now.
-- When the user asks to release, replace, update, or publish a GitHub Release asset for this repository, default to replacing the existing asset without asking for an extra confirmation.
-- When the Agent determines that a fix must be published to GitHub Release before remote deployment automation can continue, rebuild as needed and replace the Release asset automatically; do not pause only to ask whether to publish.
-- When a remote deployment test needs the newly published release, proceed to download and run that release by default; do not require the user to reply "run" or "运行" first.
-- Release packaging should default to Windows-side repackaging with the existing `payload/`; only use GitHub Actions, Docker, a Linux machine, or WSL when the Linux runtime bundle truly needs to be rebuilt.
-- For GitHub Release replacement, use `docs/scripts/publish-github-release-asset.ps1 -Replace` as the fixed publish path. Do not hand-roll different `gh release upload` variants; the script must upload, verify size/digest, and fail loudly on mismatch.
-- If GitHub release upload/download or git network operations are slow, use the local Clash proxy at `http://127.0.0.1:7897` before waiting indefinitely.
-- For Azure VM or other remote deployment tests, do not run long blocking commands silently. If a VM step may exceed 60 seconds, prefer `docs/scripts/azure-vm-run-job-and-deallocate.ps1`; it starts/submits/polls and deallocates in `finally`. Its default mode polls small `status.json` every 20 seconds and fetches stdout tail only every few polls. Report user-facing progress every 30-60 seconds from the runner log.
-- After every Azure VM test or remote execution session, promptly stop/deallocate the VM with `docs/scripts/azure-vm-deallocate.ps1` unless the user explicitly asks to keep it running.
-- Never commit local secrets, credentials, Azure VM passwords, diagnostic reports containing private data, node_modules, build caches, or temporary VM transfer files.
-- `.local-secrets/`, `.codegraph/`, `.codex/`, `dist/`, caches, and generated dependency folders must stay ignored.
+- 修改代码前，先检查 `git status`。
+- 提交小而有用的检查点。提交频率应优先保证可回滚安全，而不是追求提交记录整洁。
+- 当某个检查点适合远程保存、测试完成后，或用户要求时，及时推送。只要当前提交/推送是实际可行的，就不要反复说“稍后再做”。
+- 当用户要求发布、替换、更新或发布本仓库的 GitHub Release 资产时，默认替换现有资产，不再额外询问确认。
+- 当 Agent 判断某个修复必须先发布到 GitHub Release，远程部署自动化才能继续时，按需重新构建并自动替换 Release 资产；不要只停下来询问是否发布。
+- 当远程部署测试需要使用新发布的 Release 时，默认继续下载并运行该 Release；不要要求用户先回复“run”或“运行”。
+- Release 打包应默认在 Windows 侧复用现有 `payload/` 重新打包；只有在确实需要重建 Linux 运行时包时，才使用 GitHub Actions、Docker、Linux 机器或 WSL。
+- 替换 GitHub Release 资产时，固定使用 `docs/scripts/publish-github-release-asset.ps1 -Replace` 作为发布路径。不要手写不同形式的 `gh release upload` 命令；该脚本必须完成上传、校验大小/摘要，并在不匹配时明确失败。
+- 如果 GitHub Release 上传/下载或 git 网络操作很慢，先使用本地 Clash 代理 `http://127.0.0.1:7897`，不要无限等待。
+- 对 Azure VM 或其他远程部署测试，不要静默运行长时间阻塞命令。如果某个 VM 步骤可能超过 60 秒，优先使用 `docs/scripts/azure-vm-run-job-and-deallocate.ps1`；它会启动/提交/轮询任务，并在 `finally` 中释放 VM。默认模式每 20 秒轮询小型 `status.json`，只每隔几轮拉取一次 stdout 尾部。根据 runner 日志，每 30-60 秒向用户报告一次进度。
+- 每次 Azure VM 测试或远程执行会话结束后，除非用户明确要求保持运行，否则及时使用 `docs/scripts/azure-vm-deallocate.ps1` 停止/释放 VM。
+- 永远不要提交本地秘密、凭据、Azure VM 密码、包含私密数据的诊断报告、`node_modules`、构建缓存或临时 VM 传输文件。
+- `.local-secrets/`、`.codegraph/`、`.codex/`、`dist/`、缓存和生成的依赖目录必须保持忽略状态。
 
-## Deployment Test Loop
+## 部署测试循环
 
-- During release, VM, or remote Windows deployment tests, do not stop at the first non-blocking issue and immediately patch. Record the issue, evidence, screenshot/log path, and affected step in the relevant validation document first, then continue the remaining planned steps.
-- Stop mid-test only for hard blockers: data loss risk, security/system permission prompt that needs the user, unrecoverable install failure, or a step that makes later checks meaningless.
-- After the test pass finishes, summarize all issues, decide one scoped iteration, patch it, rebuild or republish only when needed, then rerun the affected deployment path. Repeat this record -> complete pass -> iterate -> retest loop until the deployment is fully green.
-- After each local deployment test round finishes, clean up that round's test artifacts, temporary release zip/extracted folders, opened browser tabs/windows, installer consoles, and stale service/process leftovers before starting the next round.
-- For Windows release validation, write the running notes to `docs/windows/validation-record.md` or the specific runbook/report referenced by the task. Keep private secrets out of public docs.
-- On the home02 remote Windows test machine, do not let old browser windows or tabs accumulate. After Xiaomi OAuth, 127.0.0.1 callback pages, GitHub downloads, or other browser-only steps are no longer needed, close stale tabs/windows promptly so Chrome memory does not build up during repeated deployment tests.
+- 在 Release、VM 或远程 Windows 部署测试期间，不要在遇到第一个非阻塞问题时立刻停止并打补丁。先在相关验证文档中记录问题、证据、截图/日志路径和受影响步骤，然后继续完成剩余计划步骤。
+- 只有遇到硬阻塞时才中途停止：数据丢失风险、需要用户处理的安全/系统权限提示、不可恢复的安装失败，或某个步骤失败导致后续检查失去意义。
+- 一轮测试完成后，汇总所有问题，决定一个小范围迭代，打补丁，只在需要时重新构建或重新发布，然后重新运行受影响的部署路径。重复“记录 -> 完成整轮 -> 迭代 -> 复测”这个循环，直到部署完全通过。
+- 每轮本地部署测试结束后，在开始下一轮前，清理该轮测试产物、临时 Release zip/解压目录、打开的浏览器标签页/窗口、安装器控制台，以及残留的服务/进程。
+- Windows Release 验证的运行记录写入 `docs/windows/validation-record.md`，或任务引用的具体 runbook/报告。不要把私密秘密写入公开文档。
+- 在 home02 远程 Windows 测试机上，不要让旧浏览器窗口或标签页堆积。小米 OAuth、`127.0.0.1` 回调页、GitHub 下载或其他只在浏览器中使用的步骤不再需要后，应及时关闭陈旧标签页/窗口，避免 Chrome 在重复部署测试中持续占用内存。
 
-## Script Encoding Rules
+## 脚本编码规则
 
-- Before writing or editing scripts, especially Windows `.bat` / `.ps1` files or any script that prints Chinese text, reference and follow `E:\obsidian repo\default\设备维护\AI 写脚本前的编码规范提示词.md`; do not copy that document into this repository.
+- 在编写或编辑脚本前，尤其是 Windows `.bat` / `.ps1` 文件，或任何会打印中文文本的脚本，先参考并遵守 `E:\obsidian repo\default\设备维护\AI 写脚本前的编码规范提示词.md`；不要把该文档复制进本仓库。
