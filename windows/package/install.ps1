@@ -252,6 +252,37 @@ function Test-ReportAllowsPostAuthSetup {
   return $true
 }
 
+function Invoke-DeployReport {
+  param(
+    [switch]$SkipBlockingCheck
+  )
+
+  $powershellExe = Get-PowerShellExe
+  $resolvedDistro = Get-ResolvedDistro
+  $reportPath = Join-Path $PackageRoot ("miloco-deploy-report-{0}.txt" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
+  & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action Report -Distro $resolvedDistro -MilocoPort $script:MilocoPort -OpenClawPort $OpenClawPort -ReportPath $reportPath
+  $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+
+  if ($SkipBlockingCheck) {
+    return [pscustomobject]@{
+      Code = $code
+      ReportPath = $reportPath
+      ContinueToPostAuth = $true
+    }
+  }
+
+  $continueToPostAuth = $false
+  if ($code -ne 0) {
+    $continueToPostAuth = Test-ReportAllowsPostAuthSetup $reportPath
+  }
+
+  return [pscustomobject]@{
+    Code = $code
+    ReportPath = $reportPath
+    ContinueToPostAuth = $continueToPostAuth
+  }
+}
+
 function Require-File {
   param([string]$Path)
   if (-not (Test-Path -LiteralPath $Path)) {
@@ -1219,7 +1250,7 @@ function Prepare-ExistingInstallForCleanInstall {
   }
 
   if ($script:PhaseTotal -lt 12) {
-    $script:PhaseTotal = 12
+    $script:PhaseTotal = 13
   }
 
   Write-Host ""
@@ -2058,15 +2089,13 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
   Write-Ok "桌面控制台已准备好，后续可用于重启或关闭 Miloco/OpenClaw。"
 
   Write-Step "生成安装诊断报告"
-  $powershellExe = Get-PowerShellExe
-  $resolvedDistro = Get-ResolvedDistro
-  $reportPath = Join-Path $PackageRoot ("miloco-deploy-report-{0}.txt" -f (Get-Date -Format "yyyyMMdd-HHmmss"))
-  & $powershellExe -NoProfile -ExecutionPolicy Bypass -File $Workflow -Action Report -Distro $resolvedDistro -MilocoPort $script:MilocoPort -OpenClawPort $OpenClawPort -ReportPath $reportPath
-  $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  $reportResult = Invoke-DeployReport
+  $reportPath = $reportResult.ReportPath
+  $code = $reportResult.Code
 
   $continueToPostAuth = $false
   if ($code -ne 0) {
-    $continueToPostAuth = Test-ReportAllowsPostAuthSetup $reportPath
+    $continueToPostAuth = $reportResult.ContinueToPostAuth
     if ($continueToPostAuth) {
       Write-Warn "基础服务已经完成，但账号授权或 API 配置还没有完成。安装器将继续进入后配置流程。"
     } else {
@@ -2108,6 +2137,16 @@ openclaw gateway restart >/tmp/openclaw-windows-restart.log 2>&1 || openclaw gat
     Write-Host "如果需要恢复旧配置，请复制上面这个 ZIP 文件路径，发给本机 OpenClaw，命令它按照 ZIP 内 AGENTS.md 尝试恢复，以确保最大兼容性。" -ForegroundColor Yellow
   }
   $postAuthCode = Invoke-InteractivePostAuthSetup
+  if ($postAuthCode -eq 0) {
+    Write-Step "刷新最终诊断报告"
+    $finalReportResult = Invoke-DeployReport -SkipBlockingCheck
+    $reportPath = $finalReportResult.ReportPath
+    if ($finalReportResult.Code -eq 0) {
+      Write-Ok ("最终诊断报告已更新：{0}" -f $reportPath)
+    } else {
+      Write-Warn ("最终诊断报告生成时返回退出码 {0}，请查看：{1}" -f $finalReportResult.Code, $reportPath)
+    }
+  }
   Write-Host ""
   if ($postAuthCode -eq 0) {
     Write-Host "[OK] 自动安装阶段完成。" -ForegroundColor Green

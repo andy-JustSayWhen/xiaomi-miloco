@@ -197,16 +197,28 @@ function Invoke-Report {
     )
 
     Write-Host ("正在写入 {0}..." -f $Label)
-    $output = & $powershellExe @CommandArgs 2>&1 | ForEach-Object {
-      if ($_ -is [System.Management.Automation.ErrorRecord]) {
-        $_.Exception.Message
-      } else {
-        $_.ToString()
+    $stdoutPath = Join-Path ([System.IO.Path]::GetTempPath()) ("miloco-report-{0}.stdout.log" -f ([guid]::NewGuid().ToString("N")))
+    $stderrPath = Join-Path ([System.IO.Path]::GetTempPath()) ("miloco-report-{0}.stderr.log" -f ([guid]::NewGuid().ToString("N")))
+    try {
+      $proc = Start-Process -FilePath $powershellExe `
+        -ArgumentList $CommandArgs `
+        -NoNewWindow `
+        -PassThru `
+        -Wait `
+        -RedirectStandardOutput $stdoutPath `
+        -RedirectStandardError $stderrPath
+      $code = if ($null -eq $proc.ExitCode) { 0 } else { $proc.ExitCode }
+
+      foreach ($path in @($stdoutPath, $stderrPath)) {
+        if (-not (Test-Path -LiteralPath $path)) {
+          continue
+        }
+        Get-Content -LiteralPath $path -Encoding UTF8 -ErrorAction SilentlyContinue | ForEach-Object {
+          $_ | Out-File -FilePath $reportFile -Encoding UTF8 -Append
+        }
       }
-    }
-    $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
-    foreach ($line in $output) {
-      $line | Out-File -FilePath $reportFile -Encoding UTF8 -Append
+    } finally {
+      Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
     }
     if ($code -eq 0) {
       Write-Host ("[OK] {0}已写入报告。" -f $Label)

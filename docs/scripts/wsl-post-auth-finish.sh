@@ -87,12 +87,13 @@ append_detail_log() {
 summarize_command_output() {
   cmd="$1"
   output="$2"
-  python3 - "$cmd" <<'PY' <<< "$output"
+  SUMMARY_TEXT="$output" python3 - "$cmd" <<'PY'
 import json
+import os
 import sys
 
 cmd = sys.argv[1]
-text = sys.stdin.read().replace("\r", "").strip()
+text = os.environ.get("SUMMARY_TEXT", "").replace("\r", "").strip()
 
 def short(value, limit=160):
     value = " ".join(str(value).split())

@@ -985,6 +985,54 @@ FULL_READY=yes
 
 - `windows/package/install.ps1` 通过 Windows PowerShell 5.1 语法解析。
 - 重新用 `windows/build-release.ps1 -ReusePayloadZip` 重打 Windows release 包成功。
+
+### 2026-06-27 本地迭代补充：后授权摘要报错与安装报告前台回显异常
+
+本轮根据用户提供的安装日志与报告，继续收敛安装后半段的三个问题：后授权阶段出现 Python traceback、安装前台把报告提示重复成“正正在在...”、以及安装报告生成过早导致最终状态仍显示未授权。
+
+本轮新增证据：
+
+- 现场日志 `dist/windows/easy-miloco-v0.2-windows/miloco-install-console-20260627-095959.txt` 显示：
+  - `Authorize Xiaomi account` 与 `Post-auth finish` 阶段多次出现：
+    - `NameError: name 'true' is not defined`
+    - `SyntaxError: invalid character '，'`
+  - 但同一轮最后 `wsl-miloco-validate.sh` 仍给出 `FULL_READY=yes`，说明不是实际授权失败，而是摘要层把 JSON / 文本错误喂给了 Python。
+- 同一日志中的第 11 步“生成安装诊断报告”前台输出出现 `正正在在生生成成`、`报报告告路路径径` 这类重复字，而写入到报告文件本身的正文没有相同问题，说明问题在 Windows 侧报告汇总回显，不在子脚本实际输出。
+- 现场报告 `dist/windows/easy-miloco-v0.2-windows/miloco-deploy-report-20260627-100145.txt` 的生成时间早于账号/API 收尾，导致报告里仍是：
+  - `is_bound: false`
+  - `FULL_READY=no`
+  - `miloco.omni_api_key: empty`
+  与同轮最终成功状态不一致。
+
+本轮补充迭代：
+
+- `docs/scripts/wsl-post-auth-finish.sh`
+  - `summarize_command_output()` 不再把命令输出通过冲突的 here-string / here-doc 混喂给 `python3 -`。
+  - 改为用环境变量 `SUMMARY_TEXT` 传递待摘要文本，Python 只解析脚本本身，避免把 JSON 里的 `true` 或中文提示当成 Python 代码执行。
+- `docs/scripts/win-miloco-workflow.ps1`
+  - `Invoke-ReportCommand()` 改为用 `Start-Process` 启动子 PowerShell，并把 stdout/stderr 重定向到临时文件后再写入报告。
+  - 父进程前台只显示简短状态行，避免子进程主机输出被重复回显成“正正在在...”。
+- `windows/package/install.ps1`
+  - 抽出 `Invoke-DeployReport()` 统一生成诊断报告。
+  - 安装主流程仍会在基础服务后先生成一份报告用于是否继续进入后配置的判断。
+  - 当账号/API 收尾成功后，再追加一步“刷新最终诊断报告”，确保最终交付给用户的是完成授权后的真实状态。
+  - 相应把安装总步数从 12 调整为 13，并在刷新成功后明确打印最终报告路径。
+
+本地验证：
+
+- `windows/package/install.ps1`、`docs/scripts/win-miloco-workflow.ps1` 通过 Windows PowerShell 5.1 语法解析。
+- `docs/scripts/wsl-post-auth-finish.sh` 通过 `bash -n` 语法检查。
+- 直接运行 `docs/scripts/win-miloco-workflow.ps1 -Action Report`，前台输出恢复为单次正常提示，不再出现重复字。
+- 直接运行：
+  - `docs/scripts/win-miloco-workflow.ps1 -Action Finish -Distro Ubuntu-24.04 -MilocoPort 18860 -OpenClawPort 18789 ...`
+  - 前台已不再出现 `NameError: true` / `SyntaxError: 检测到非交互终端...`
+  - 关键摘要恢复为正常短句，例如：
+    - `[OK] Miloco service running=True ...`
+    - `[OK] Omni config saved ...`
+    - `[OK] Xiaomi account bound=True nickname=mdidb`
+    - `[OK] Homes total=2 active=andy的家`
+    - `[OK] Cameras total=1 online=1 enabled=1`
+  - 最终校验结果：`BASIC_READY=yes`、`FULL_READY=yes`、`FAIL_COUNT=0`。
 - `docs/scripts/windows-release-validate.ps1 -PackagePath dist/windows/easy-miloco-v0.2-windows.zip -SkipRuntime`：`package.structure` 与 `installer.smoke` 均 PASS。
 - 直接对本地解压目录启动 `install.ps1` 复测时，不再停在第 3 步 WSL 探测错误；当前可见的前台结果变为“当前窗口不是管理员模式”，说明原先的闪退点已经消失，安装器恢复为正常的可读暂停行为。
 
