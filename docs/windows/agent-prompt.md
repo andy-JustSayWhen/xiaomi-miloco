@@ -62,6 +62,12 @@
 - openclaw plugins doctor
 - Windows curl.exe 访问 Miloco 和 OpenClaw
 
+飞书消息渠道接入：
+- 如果用户要求把 OpenClaw / Miloco 通知接入飞书，在 WSL 内执行一句话入口：
+  bash docs/scripts/message-channel-router.sh feishu --interactive --install --auth --bind --validate
+- Windows 一键包用户也可以双击 `Miloco 控制台.bat`，选择 `接入飞书消息渠道`。
+- 该流程只走消息渠道路由，不要把 Feishu 逻辑写进 Miloco 核心服务文件。
+
 满血验收：
 - 如果部署包里已有脚本，优先运行：
   powershell.exe -ExecutionPolicy Bypass -File <temp>\win-miloco-workflow.ps1 -Action Finish -AuthPayload '<授权码>' -MimoApiKey '<MiMo API Key>' -OmniModel '<Omni model>' -OmniBaseUrl '<Omni Base URL>' -Distro <distro> -MilocoPort <miloco_port> -OpenClawPort 18789

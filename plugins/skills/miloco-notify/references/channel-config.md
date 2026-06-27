@@ -10,6 +10,14 @@
 1. 调用 `miloco_notify_bind()`（**无需传参**，自动用当前 sessionKey；工具会校验当前 session 是否有效，无效则拒绝）。
 2. 成功后告诉用户配置完成，后续提醒 / 定时任务 / 告警都会发到这个对话。
 
+如果用户明确说「接入飞书」「通知发到飞书」「绑定飞书通知」且当前 Feishu channel 还没有配置，不要把 Feishu 逻辑硬写进 Miloco。引导操作者在 Miloco 所在 WSL 里运行消息渠道路由：
+
+```bash
+bash docs/scripts/message-channel-router.sh feishu --interactive --install --auth --bind --validate
+```
+
+桌面用户也可以打开 `Miloco 控制台.bat`，选择「接入飞书消息渠道」进入同一流程。
+
 ## 二、发 IM 时遇到 `needsBind`（主流程会撞到这里）
 
 `miloco_im_push` 在尚未绑定（或绑定已失效）时**不会直接发出**，而是返回：

@@ -1370,7 +1370,7 @@ function Install-DesktopLauncher {
   $bat = Get-PackageTemplateText "install-launcher.bat.tpl"
   $ps1 = Get-PackageTemplateText "miloco-console.ps1.tpl"
   $openClawPs1 = Get-PackageTemplateText "openclaw-launcher.ps1.tpl"
-  $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$script:MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort).Replace("__OPENCLAW_INFO_PATH__", $openClawInfoPath)
+  $ps1 = $ps1.Replace("__DISTRO__", $resolvedDistro).Replace("__MILOCO_PORT__", [string]$script:MilocoPort).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort).Replace("__OPENCLAW_INFO_PATH__", $openClawInfoPath).Replace("__PACKAGE_ROOT__", $PackageRoot)
   $openClawPs1 = $openClawPs1.Replace("__DISTRO__", $resolvedDistro).Replace("__OPENCLAW_PORT__", [string]$OpenClawPort).Replace("__OPENCLAW_INFO_PATH__", $openClawInfoPath)
   [System.IO.File]::WriteAllText($launcher, $bat, [System.Text.UTF8Encoding]::new($false))
   [System.IO.File]::WriteAllText($psLauncher, $ps1, [System.Text.UTF8Encoding]::new($true))

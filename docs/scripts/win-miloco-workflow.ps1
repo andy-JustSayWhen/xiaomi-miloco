@@ -1,5 +1,5 @@
 ﻿param(
-  [ValidateSet("Preflight", "Validate", "BindUrl", "AuthorizeOnly", "ListHomes", "Finish", "AllBasic", "Report")]
+  [ValidateSet("Preflight", "Validate", "BindUrl", "AuthorizeOnly", "ListHomes", "Finish", "AllBasic", "Report", "Feishu", "FeishuStatus", "FeishuValidate")]
   [string]$Action = "AllBasic",
   [string]$Distro = "Ubuntu-24.04",
   [int]$MilocoPort = 18860,
@@ -79,7 +79,7 @@ function Invoke-WslScript {
   $scriptText = [System.IO.File]::ReadAllText($script, [System.Text.UTF8Encoding]::new($false, $true))
   $scriptText = ($scriptText -replace "`r`n", "`n") -replace "`r", "`n"
   [System.IO.File]::WriteAllText($tmpScript, $scriptText, [System.Text.UTF8Encoding]::new($false))
-  foreach ($helperName in @("wsl-miloco-validate.sh")) {
+  foreach ($helperName in @("wsl-miloco-validate.sh", "wsl-feishu-channel-onboard.sh")) {
     $helper = Join-Path $ScriptDir $helperName
     if (Test-Path -LiteralPath $helper) {
       $helperText = [System.IO.File]::ReadAllText($helper, [System.Text.UTF8Encoding]::new($false, $true))
@@ -109,6 +109,17 @@ function Invoke-WslScript {
     $script:WorkflowExitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
   } finally {
     Remove-Item -Recurse -Force -LiteralPath $tmpDir -ErrorAction SilentlyContinue
+  }
+}
+
+function Invoke-Feishu {
+  param(
+    [string[]]$FeishuArgs
+  )
+
+  Write-Step "Feishu message channel"
+  Invoke-WslScript -ScriptName "message-channel-router.sh" -ExtraArgs (@("feishu") + $FeishuArgs) -EnvVars @{
+    OPENCLAW_PORT = [string]$OpenClawPort
   }
 }
 
@@ -318,6 +329,20 @@ try {
     }
     "Report" {
       Invoke-Report
+      exit $script:WorkflowExitCode
+    }
+    "Feishu" {
+      Invoke-Feishu -FeishuArgs @("--interactive", "--install", "--auth", "--bind", "--validate")
+      exit $script:WorkflowExitCode
+    }
+    "FeishuStatus" {
+      $args = @("--status")
+      if ($Json) { $args += "--json" }
+      Invoke-Feishu -FeishuArgs $args
+      exit $script:WorkflowExitCode
+    }
+    "FeishuValidate" {
+      Invoke-Feishu -FeishuArgs @("--validate")
       exit $script:WorkflowExitCode
     }
   }
