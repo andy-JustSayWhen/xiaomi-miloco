@@ -61,6 +61,25 @@ def _camera(
     )
 
 
+def _device(
+    did: str,
+    home_id: str = "H1",
+    *,
+    model: str = "chuangmi.camera.test",
+    online: bool = True,
+    lan_online: bool = True,
+):
+    return SimpleNamespace(
+        did=did,
+        home_id=home_id,
+        name=f"dev-{did}",
+        model=model,
+        online=online,
+        lan_online=lan_online,
+        room_name=None,
+    )
+
+
 # ─── filter.py: load/save round trips ────────────────────────────────────────
 
 
@@ -340,6 +359,27 @@ async def test_list_cameras_with_state_lan_online_recovers_stale_cloud_status():
 
 
 @pytest.mark.asyncio
+async def test_list_cameras_with_state_surfaces_unsupported_camera_family_models():
+    kv = _FakeKV({ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"])})
+    svc = _make_service(
+        devices={
+            "c1": _camera("c1", home_id="H1"),
+            "c2": _device("c2", home_id="H1", model="chuangmi.camera.036a02"),
+        },
+        cameras={"c1": _camera("c1", home_id="H1")},
+        kv=kv,
+    )
+
+    out = await svc.list_cameras_with_state()
+    by_did = {c["did"]: c for c in out}
+
+    assert set(by_did.keys()) == {"c1", "c2"}
+    assert by_did["c2"]["in_use"] is False
+    assert by_did["c2"]["connected"] is False
+    assert "暂不支持感知" in by_did["c2"]["name"]
+
+
+@pytest.mark.asyncio
 async def test_toggle_camera_writes_disabled():
     kv = _FakeKV({ScopeConfigKeys.HOME_WHITE_LIST_KEY: json.dumps(["H1"])})
     svc = _make_service(
@@ -448,6 +488,16 @@ async def test_toggle_camera_rejects_unknown():
     svc = _make_service(cameras={"c1": _camera("c1")})
     with pytest.raises(ValidationException):
         await svc.toggle_camera([{"did": "ghost", "in_use": False}])
+
+
+@pytest.mark.asyncio
+async def test_toggle_camera_rejects_unsupported_camera_family_model_with_clear_message():
+    svc = _make_service(
+        devices={"c2": _device("c2", model="chuangmi.camera.036a02")},
+        cameras={"c1": _camera("c1")},
+    )
+    with pytest.raises(ValidationException, match="暂不支持接入感知"):
+        await svc.toggle_camera([{"did": "c2", "in_use": True}])
 
 
 # ─── _assert_did_in_allowed_home ─────────────────────────────────────────────

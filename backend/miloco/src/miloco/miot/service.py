@@ -53,6 +53,11 @@ logger = logging.getLogger(__name__)
 _background_tasks: set[asyncio.Task] = set()
 
 
+def _is_camera_family_model(model: str | None) -> bool:
+    parts = (model or "").split(".")
+    return len(parts) > 1 and parts[1] == "camera"
+
+
 def _parse_prop_iid(iid: str) -> tuple[int, int]:
     """Parse 'prop.{siid}.{piid}' → (siid, piid)."""
     parts = iid.split(".")
@@ -959,6 +964,15 @@ class MiotService:
         # 设备删除后不会自动清除，需要用 _device_info_dict 做交集校验。
         devices = await self._miot_proxy.get_devices()
         cameras = {did: info for did, info in cameras.items() if did in devices}
+        unsupported: dict[str, MIoTDeviceInfo] = {}
+        for did, info in devices.items():
+            if did in cameras:
+                continue
+            if not _is_camera_family_model(getattr(info, "model", None)):
+                continue
+            if not is_home_allowed(self._kv_repo, getattr(info, "home_id", None)):
+                continue
+            unsupported[did] = info
         out: list[dict] = []
         for did, info in cameras.items():
             cloud_online = bool(getattr(info, "online", False))
@@ -980,6 +994,18 @@ class MiotService:
                     "connected": did in connected,
                 }
             )
+        for did, info in unsupported.items():
+            out.append(
+                {
+                    "did": did,
+                    "name": f"{getattr(info, 'name', None) or did}（当前机型暂不支持感知）",
+                    "room_name": getattr(info, "room_name", None),
+                    "is_online": bool(getattr(info, "online", False))
+                    or bool(getattr(info, "lan_online", False)),
+                    "in_use": False,
+                    "connected": False,
+                }
+            )
         return out
 
     async def toggle_camera(self, items: list[dict]) -> list[dict]:
@@ -994,6 +1020,21 @@ class MiotService:
         cameras = await self._miot_proxy.get_cameras() or {}
         unknown = [d for d in all_dids if d not in cameras]
         if unknown:
+            devices = await self._miot_proxy.get_devices() or {}
+            unsupported = [
+                (d, getattr(devices[d], "model", None))
+                for d in unknown
+                if d in devices
+                and _is_camera_family_model(getattr(devices[d], "model", None))
+                and is_home_allowed(self._kv_repo, getattr(devices[d], "home_id", None))
+            ]
+            if unsupported:
+                detail = ", ".join(
+                    f"{did} ({model or 'unknown model'})" for did, model in unsupported
+                )
+                raise ValidationException(
+                    f"这些摄像头当前机型暂不支持接入感知：{detail}"
+                )
             raise ValidationException(
                 f"Unknown camera did(s) {unknown}; valid: {sorted(cameras.keys())}"
             )

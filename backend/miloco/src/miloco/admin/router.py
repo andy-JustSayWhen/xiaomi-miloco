@@ -266,29 +266,67 @@ def _key_by_label(label: str, provided: str | None) -> str:
     return ""
 
 
+def _normalize_omni_label(label: str | None, model: str | None, base_url: str | None) -> str:
+    label = (label or "").strip()
+    if label:
+        return label
+    model = (model or "").strip()
+    base_url = (base_url or "").strip()
+    if model and base_url:
+        return f"{model} @ {base_url}"
+    if model:
+        return model
+    if base_url:
+        return base_url
+    return "当前配置"
+
+
+def _should_synthesize_active_profile(label: str | None, profiles_count: int) -> bool:
+    return not profiles_count and (label or "").strip() in {"", "mimo"}
+
+
 def _full_omni_payload() -> dict:
     """{active, profiles}：均 api_key 打码;profiles 标记哪套 active(按档案名 label 匹配)。"""
     m = get_settings().model
     active = m.omni
+    synthesize_active = _should_synthesize_active_profile(active.label, len(m.omni_profiles))
+    active_label = _normalize_omni_label(
+        None if synthesize_active else active.label,
+        active.model,
+        active.base_url,
+    )
+    profiles = [
+        {
+            "label": _normalize_omni_label(p.label, p.model, p.base_url),
+            "model": p.model,
+            "base_url": p.base_url,
+            "api_key_masked": _mask_api_key(p.api_key),
+            "has_key": bool(p.api_key),
+            "active": _normalize_omni_label(p.label, p.model, p.base_url) == active_label,
+        }
+        for p in m.omni_profiles
+    ]
+    if synthesize_active and active.model and active.base_url:
+        profiles.insert(
+            0,
+            {
+                "label": active_label,
+                "model": active.model,
+                "base_url": active.base_url,
+                "api_key_masked": _mask_api_key(active.api_key),
+                "has_key": bool(active.api_key),
+                "active": True,
+            },
+        )
     return {
         "active": {
-            "label": active.label,
+            "label": active_label,
             "model": active.model,
             "base_url": active.base_url,
             "api_key_masked": _mask_api_key(active.api_key),
             "has_key": bool(active.api_key),
         },
-        "profiles": [
-            {
-                "label": p.label,
-                "model": p.model,
-                "base_url": p.base_url,
-                "api_key_masked": _mask_api_key(p.api_key),
-                "has_key": bool(p.api_key),
-                "active": p.label == active.label,
-            }
-            for p in m.omni_profiles
-        ],
+        "profiles": profiles,
     }
 
 

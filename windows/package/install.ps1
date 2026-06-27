@@ -1288,6 +1288,10 @@ if command -v uv >/dev/null 2>&1; then
   uv tool uninstall supervisor >/tmp/miloco-supervisor-uninstall.log 2>&1 || true
 fi
 rm -rf "$HOME/.openclaw/miloco"
+rm -rf "$HOME/.openclaw/agents"
+rm -rf "$HOME/.openclaw/workspace/memory"
+rm -f "$HOME/.openclaw/workspace/openclaw-workspace-state.json" 2>/dev/null || true
+rm -f "$HOME/.openclaw/state/openclaw.sqlite" "$HOME/.openclaw/state/openclaw.sqlite-shm" "$HOME/.openclaw/state/openclaw.sqlite-wal" 2>/dev/null || true
 rm -f /tmp/miloco-* /tmp/openclaw-miloco-plugin-uninstall.log /tmp/openclaw-uninstall-stop.log 2>/dev/null || true
 exit 0
 '@

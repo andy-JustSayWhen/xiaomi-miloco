@@ -439,9 +439,29 @@ omni = model.setdefault("omni", {})
 if not isinstance(omni, dict):
     omni = {}
     model["omni"] = omni
+label = os.environ.get("OMNI_LABEL") or f"{os.environ['OMNI_MODEL']} @ {os.environ['OMNI_BASE_URL']}"
+omni["label"] = label
 omni["model"] = os.environ["OMNI_MODEL"]
 omni["base_url"] = os.environ["OMNI_BASE_URL"]
 omni["api_key"] = os.environ["MIMO_API_KEY"]
+profiles = model.get("omni_profiles")
+if not isinstance(profiles, list):
+    profiles = []
+entry = {
+    "label": label,
+    "model": os.environ["OMNI_MODEL"],
+    "base_url": os.environ["OMNI_BASE_URL"],
+    "api_key": os.environ["MIMO_API_KEY"],
+}
+updated = False
+for idx, item in enumerate(profiles):
+    if isinstance(item, dict) and item.get("label") == label:
+        profiles[idx] = entry
+        updated = True
+        break
+if not updated:
+    profiles.append(entry)
+model["omni_profiles"] = profiles
 path.parent.mkdir(parents=True, exist_ok=True)
 tmp = path.with_suffix(".tmp")
 tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

@@ -58,8 +58,38 @@ def _get(client):
 def test_get_default_active_no_profiles(client):
     data = _get(client)
     assert data["active"]["model"] == "xiaomi/mimo-v2.5"
+    assert data["active"]["label"] == "xiaomi/mimo-v2.5 @ https://api.xiaomimimo.com/v1"
     assert data["active"]["has_key"] is False
-    assert data["profiles"] == []
+    assert len(data["profiles"]) == 1
+    assert data["profiles"][0]["active"] is True
+    assert data["profiles"][0]["label"] == data["active"]["label"]
+
+
+def test_get_active_without_label_or_profiles_synthesizes_profile(client, monkeypatch, tmp_path):
+    from miloco.config.settings import reset_settings
+    import json as _json
+
+    (tmp_path / "config.json").write_text(
+        _json.dumps(
+            {
+                "model": {
+                    "omni": {
+                        "model": "mimo-v2.5",
+                        "base_url": "https://token-plan-sgp.xiaomimimo.com/v1",
+                        "api_key": "tp-test-123456",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    reset_settings()
+
+    data = _get(client)
+    assert data["active"]["label"] == "mimo-v2.5 @ https://token-plan-sgp.xiaomimimo.com/v1"
+    assert len(data["profiles"]) == 1
+    assert data["profiles"][0]["active"] is True
+    assert data["profiles"][0]["model"] == "mimo-v2.5"
 
 
 def test_put_creates_and_activates(client):
