@@ -47,7 +47,7 @@ https://github.com/andy-JustSayWhen/easy-miloco
    Miloco 控制台.bat
    ```
 
-   该桌面脚本由 `install.ps1` 自动生成。菜单包含重启 OpenClaw 面板、重启 Miloco 面板、重启 Miloco + OpenClaw、关闭 OpenClaw + Miloco、关闭 WSL。
+   该桌面脚本由 `install.ps1` 自动生成。菜单包含重启 OpenClaw 面板、重启 Miloco 面板、重启 Miloco + OpenClaw、关闭 OpenClaw + Miloco、关闭 WSL、接入消息渠道。
 
 维护者需要手动运行或做卸载复测时，再使用 `install.ps1`。
 

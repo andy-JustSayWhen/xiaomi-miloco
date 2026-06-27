@@ -125,7 +125,7 @@ easy-miloco-v0.2-<system>/
 | Windows WSL 安装                | ☑️       | ☑️       | 官方说明 Windows 需 WSL；当前仓库增加 Windows 一键包、预检、安装、后授权、验收和故障矩阵。                                        |
 | Windows 原生后端                | ❌       | ❌       | 两边都不支持 Windows 原生后端；当前仓库明确用 WSL2 承载 Linux 后端。                                                              |
 | 一键部署 zip 包                 | ❌       | ☑️       | 当前仓库新增`windows/package/install.ps1`、manifest、payload 和 release 包文档，面向普通用户双击安装。                            |
-| 桌面控制台菜单                  | ❌       | ☑️       | 当前仓库生成`Miloco 控制台.bat`，提供重启 OpenClaw、重启 Miloco、整套重启、关闭服务、关闭 WSL。                                   |
+| 桌面控制台菜单                  | ❌       | ☑️       | 当前仓库生成`Miloco 控制台.bat`，提供重启 OpenClaw、重启 Miloco、整套重启、关闭服务、关闭 WSL、接入消息渠道。                     |
 | Windows 诊断/验收脚本           | ❌       | ☑️       | 当前仓库新增`docs/scripts/*` 和 `windows-preflight`/`wsl-miloco-validate`/`win-miloco-workflow`，区分 BASIC_READY 与 FULL_READY。 |
 | 国内下载副本                    | ❌       | ☑️       | 当前仓库文档支持 GitHub Release 为基准、夸克网盘作下载副本。                                                                      |
 | 教程、FAQ、runbook              | ❌       | ☑️       | 当前仓库新增`docs/`，覆盖一键部署、Windows、摄像头、SSH 命令传输、NAS 安装、性能报告等复用经验。                                  |
