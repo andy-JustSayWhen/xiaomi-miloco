@@ -987,3 +987,32 @@ FULL_READY=yes
 - 重新用 `windows/build-release.ps1 -ReusePayloadZip` 重打 Windows release 包成功。
 - `docs/scripts/windows-release-validate.ps1 -PackagePath dist/windows/easy-miloco-v0.2-windows.zip -SkipRuntime`：`package.structure` 与 `installer.smoke` 均 PASS。
 - 直接对本地解压目录启动 `install.ps1` 复测时，不再停在第 3 步 WSL 探测错误；当前可见的前台结果变为“当前窗口不是管理员模式”，说明原先的闪退点已经消失，安装器恢复为正常的可读暂停行为。
+
+### 2026-06-27 本地迭代补充：WSL 成功输出误被拼进退出码
+
+本轮根据用户提供的新日志，继续排查“安装已走到第 8 步，但仍被误判失败”的问题。
+
+本轮新增证据：
+
+- 现场日志 `dist/windows/easy-miloco-v0.2-windows/miloco-install-console-20260627-095349.txt` 显示：
+  - 前台已经打印 `[OK] Miloco 后端已在端口 18860 启动。`
+  - 但安装器随后又报：`WSL 内命令执行失败，退出码 [OK] Miloco 后端已在端口 18860 启动。 0。`
+- 这说明最新的 `Invoke-WslEncodedScriptInternal` 在“非捕获模式”下虽然成功执行了 WSL 脚本，但 PowerShell 函数把“标准输出文本”和“整数退出码”一起返回了，调用方 `$code = Invoke-WslEncodedScriptInternal ...` 收到的是混合数组，而不是纯数字。
+
+本轮补充迭代：
+
+- `windows/package/install.ps1`
+  - `Invoke-WslEncodedScriptInternal` 的非捕获分支改为：
+    - 先把 WSL 输出收集到 `$output`
+    - 再逐行 `Write-Host` 回前台
+    - 最后只 `return $code`
+  - 这样前台仍能看到安装脚本自己的 `[OK]` / `[失败]` 输出，但调用方只会拿到纯整数退出码，不再把输出文本拼进错误提示。
+
+本地验证：
+
+- `windows/package/install.ps1` 通过 Windows PowerShell 5.1 语法解析。
+- 最小复现脚本：
+  - WSL 内执行 `echo '[OK] sample output'; exit 0`
+  - 前台可见 `[OK] sample output`
+  - 调用方最终拿到 `FINAL_CODE=0`
+- 重新用 `windows/build-release.ps1 -ReusePayloadZip` 重打 Windows release 包成功。

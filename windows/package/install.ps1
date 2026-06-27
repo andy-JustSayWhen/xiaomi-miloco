@@ -374,8 +374,19 @@ function Invoke-WslEncodedScriptInternal {
     }
   }
 
-  & $wslExe -d $DistroName -- sh -lc $command
+  $output = & $wslExe -d $DistroName -- sh -lc $command 2>&1 | ForEach-Object {
+    if ($_ -is [System.Management.Automation.ErrorRecord]) {
+      $_.Exception.Message
+    } else {
+      $_.ToString()
+    }
+  }
   $code = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+  foreach ($line in $output) {
+    if (-not [string]::IsNullOrWhiteSpace([string]$line)) {
+      Write-Host $line
+    }
+  }
   return $code
 }
 
