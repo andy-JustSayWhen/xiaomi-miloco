@@ -91,108 +91,13 @@ installable 可安装或可接入
 
 ## 5. 打开官方交互式添加流程
 
-命令格式：
-
 ```bash
 openclaw channels add
 ```
 
-示例：
+回车后，选择一个消息渠道，按交互式菜单完成配置。
 
-```bash
-openclaw channels add
-```
-
-在菜单里选择目标渠道，例如：
-
-```text
-Feishu / Lark
-Telegram
-QQ Bot
-Slack
-Discord
-WhatsApp
-```
-
-按交互式菜单填写凭据或扫码授权。
-
-## 6. 指定渠道添加
-
-先查看当前版本支持的参数：
-
-```bash
-openclaw channels add --help
-```
-
-命令格式：
-
-```bash
-openclaw channels add --channel <渠道id>
-```
-
-示例：
-
-```bash
-openclaw channels add --channel feishu
-```
-
-```bash
-openclaw channels add --channel telegram
-```
-
-```bash
-openclaw channels add --channel qqbot
-```
-
-## 7. 渠道凭据示例
-
-### 飞书 / Lark
-
-```bash
-openclaw channels add --channel feishu
-```
-
-如果菜单提示使用 login：
-
-```bash
-openclaw channels login --channel feishu
-```
-
-### Telegram
-
-先在 Telegram 的 `@BotFather` 创建 bot，获取 bot token。
-
-token 示例：
-
-```text
-123456789:ABCxxxxxxxxxxxxxxxx
-```
-
-然后执行：
-
-```bash
-openclaw channels add --channel telegram
-```
-
-按菜单粘贴 bot token。
-
-### QQ Bot
-
-准备 QQ 开放平台 Bot 的 AppID 和 AppSecret。
-
-```bash
-openclaw channels add --channel qqbot
-```
-
-按菜单填写 AppID / AppSecret。
-
-如果当前版本提示 token 格式：
-
-```bash
-openclaw channels add --channel qqbot --token "AppID:AppSecret"
-```
-
-## 8. 重启 Gateway
+## 6. 重启 Gateway
 
 命令格式：
 
@@ -212,26 +117,12 @@ openclaw gateway restart
 openclaw gateway status
 ```
 
-## 9. 验证频道状态
+## 7. 验证频道状态
 
 命令格式：
 
 ```bash
 openclaw channels status --channel <渠道id> --json --probe --timeout 15000
-```
-
-示例：
-
-```bash
-openclaw channels status --channel feishu --json --probe --timeout 15000
-```
-
-```bash
-openclaw channels status --channel telegram --json --probe --timeout 15000
-```
-
-```bash
-openclaw channels status --channel qqbot --json --probe --timeout 15000
 ```
 
 通过标准：
@@ -242,7 +133,7 @@ running=true
 probe.ok=true
 ```
 
-## 10. 真实收发测试
+## 8. 真实收发测试
 
 在目标聊天软件里给 bot 发：
 
@@ -273,7 +164,7 @@ openclaw pairing approve feishu 123456
 
 再次从聊天软件发消息，确认 bot 回复。
 
-## 11. 绑定 Miloco 通知频道
+## 9. 绑定 Miloco 通知频道
 
 在已打通的聊天软件对话里发送：
 
@@ -293,7 +184,7 @@ openclaw pairing approve feishu 123456
 {"ok": true, "channel": "<渠道id>"}
 ```
 
-## 12. 排查命令
+## 10. 排查命令
 
 查看已配置渠道：
 
@@ -333,7 +224,7 @@ python3 -m json.tool ~/.openclaw/openclaw.json | less
 cp ~/.openclaw/openclaw.json ~/.openclaw/openclaw.json.bak.channel-$(date +%Y%m%d-%H%M%S)
 ```
 
-## 13. 完成标准
+## 11. 完成标准
 
 ```text
 openclaw channels list 能看到该渠道
