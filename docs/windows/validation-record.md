@@ -1144,3 +1144,40 @@ FULL_READY=yes
   - `bge-small-zh-v1.5-int8.onnx`
   - `bge-small-zh-v1.5-tokenizer.json`
   - `silero_vad.onnx`
+
+### 2026-06-27 本地 release v0.3 部署补充：一户三摄像头的感知分流
+
+本轮按用户要求，用 GitHub Release `v0.3` 的 Windows 包完成一次本机部署测试，并把本机作为可泛化案例整理到 `docs/windows/camera-runbook.md`。
+
+本轮新增证据：
+
+- Release 包：`easy-miloco-v0.3-windows.zip`
+  - size：`132266370`
+  - SHA256：`8bdc6d9e7f2383c7ecba6d95eb63df45fae52b66fda70966df77835df697dc4a`
+- 安装后健康检查：
+  - `BASIC_READY_FROM_WINDOWS=yes`
+  - `BASIC_READY=yes`
+  - `FULL_READY=yes`
+  - `FAIL_COUNT=0`
+- Miloco 概览显示：
+  - 家庭内有 3 台摄像头。
+  - `实时画面` 为 `0 个在感知`。
+  - 页面无可用画面预览。
+- API/CLI 分流证据：
+  - `/api/perception/engine/status` 返回 `running=true`、`ready=true`、`active_sources=[]`。
+  - `/api/perception/devices` 返回空数组。
+  - `miloco-cli scope camera list --pretty` 显示 3 台摄像头在线，但只有 1 台是 `in_use=true`，且该台 `connected=false`。
+  - 两台未启用摄像头分别为 `chuangmi.camera.021a04`、`chuangmi.camera.036a02`，均命中 `backend/miot/src/miot/configs/camera_extra_info.yaml` 的 `denylist.camera`。
+  - 尝试启用这两台时，服务返回“当前机型暂不支持接入感知”。
+  - 已支持的那台摄像头被 SDK 接受 decoded video 订阅，但 60 秒内没有产出 decoded first frame，随后被后端降级为未连接并进入冷却。
+- OpenClaw 实测问答：
+  - OpenClaw 能通过 Miloco 工具确认家庭内共有 3 台摄像头。
+  - OpenClaw 结论为：3 台均在线，但当前没有任何一台能显示画面预览或进入可描述画面的感知状态。
+
+本轮结论：
+
+- 这不是安装包缺模型、OpenClaw 模型不可用或账号未绑定问题；部署与基础服务已通过。
+- 这是同一家庭内的两类摄像头问题叠加：
+  - 型号能力边界：两台创米 2020 年型号位于 denylist，当前 native MIoT camera SDK 路径不接入。
+  - 视频数据面/首帧问题：一台已支持摄像头可进入 scope，但 decoded video 首帧失败，因此不能进入 `active_sources`。
+- 后续“让三台都被感知”的方案必须按 did 分流，不能用一个 UI 开关或一个状态字段概括。
