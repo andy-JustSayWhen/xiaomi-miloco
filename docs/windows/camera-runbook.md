@@ -72,7 +72,6 @@ wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/<user>/AppData/Local/Temp/diagnose.
 
 | 现象 | 最快定位 | 常见根因 | 修复 | 验收 |
 |---|---|---|---|---|
-| 面板提示 `当前机型暂不支持感知` | 查 `/api/miot/scope/cameras` 是否带该后缀 | 已安装 SDK 的 `camera_extra_info.yaml` denylist 挡住了当前型号 | 对普通用户，优先双击桌面的 `Miloco 控制台`，选 `6` 做临时热修；它只改当前已安装环境并自动备份 | 菜单执行后，面板不再显示该提示，摄像头可继续尝试开启感知 |
 | WebUI 显示某摄像头离线，但米家 App 在线 | 查 `/api/miot/home` 与 `/api/miot/scope/cameras` | SDK `lan_online` 滞后，云端在线但 LAN 状态未刷新 | 不要直接过滤；让云端在线设备进入 tentative stream 重连，并给失败重试加退避 | `is_online=true` 或至少 `connected=true`，最终 active_sources 包含 did |
 | OpenClaw 能看到画面，但 WebUI/Minicloud 显示离线 | 对比 `is_online`、`connected`、`active_sources` | UI 或 scope 在线口径落后于真实 stream 状态 | 以 `connected` 和 active_sources 为更强证据，修在线口径和刷新逻辑 | UI、API、OpenClaw 三者一致 |
 | 左上角 `Nodes: <camera> failed`，但聊天能描述画面 | 查 `/api/monitor/nodes`、engine status、日志 | 节点状态未随重连清零，或部分非关键流失败 | 先确认视频流是否成功；若是音频/旧节点失败，不算满血通过，需清理错误来源 | camera/collector/processor/engine 无持续 failed，或错误被明确降级 |
@@ -91,47 +90,6 @@ wsl.exe -d Ubuntu-24.04 -- bash /mnt/c/Users/<user>/AppData/Local/Temp/diagnose.
 4. 不要一上来重装。摄像头问题大多是账号/home/scope/LAN/stream/model 中一层的问题，重装通常不会修好。
 5. 只要改代码，必须补测试、热修远端运行包、重启/保活、提交推送，并把根因和验收写入部署实录。
 6. 当用户要求“所有摄像头都能看”时，验收必须逐个 did 点名，不允许只证明其中一个画面可用。
-
-## 4.1 普通用户的一键临时热修
-
-适用场景：
-
-- 安装已经完成。
-- Miloco 面板能打开。
-- 摄像头卡片上明确出现 `当前机型暂不支持感知`。
-
-操作：
-
-1. 双击桌面的 `Miloco 控制台`。
-2. 输入 `6`，执行 `临时修复当前提示不支持感知的摄像头`。
-3. 等脚本自动备份、修改当前已安装环境，并重启 Miloco。
-4. 浏览器会重新打开 Miloco 面板；再回到概览页，重新尝试打开对应摄像头的感知开关。
-
-这个一键临时热修做了什么：
-
-- 自动读取当前账号下 `/api/miot/scope/cameras` 里已经被标成 `当前机型暂不支持感知` 的摄像头。
-- 用 `/api/miot/device_list` 找到这些摄像头的 `model`。
-- 只在当前已安装环境里，临时从 `camera_extra_info.yaml` 的 denylist 移除这些型号。
-- 自动备份原始文件，再重启 Miloco 服务。
-
-它不会做什么：
-
-- 不会修改这个 Git 仓库源码。
-- 不会默认放开所有官方 denylist 型号。
-- 不会保证视频一定能出帧。它只负责先移除 `不支持感知` 这层硬拦截。
-
-脚本输出里会告诉用户：
-
-- 这次被临时放开的型号。
-- 对应命中的摄像头 did。
-- 原始备份文件路径。
-- 操作记录文件路径：`$MILOCO_HOME/camera_unsupported_temp_unlocks.json`。
-
-注意：
-
-- 这是临时热修。后续更新、重装、换新版本后，官方 denylist 可能会恢复。
-- 如果脚本已经放开型号，但还是看不到画面，再继续按下面的 PIN / LAN / PPCS 路线排查。
-- 如果输出里提示某个 did `需要 PIN`，说明型号限制已经绕过，但后面可能还要补 `camera_pin_overrides.json`。
 
 ## 5. 满血验收标准
 
