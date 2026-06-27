@@ -926,3 +926,35 @@ FULL_READY=yes
 - `windows/package/install.ps1` PowerShell 语法解析通过。
 - 手工调用与 `Invoke-DistroProbe` 等价的新链路，`Ubuntu-24.04` 可正常返回 `ID=ubuntu`、`VERSION_ID=24.04`、`GLIBC_VERSION` 等探测字段。
 - 后续需基于新打包产物重新执行完整安装链路，确认安装器可越过第 3 步继续走到后续安装阶段。
+
+### 2026-06-27 本地迭代补充：安装器模板外置与 release 三段式验证脚本
+
+本轮把 Windows release 的“可维护性”问题收成两项固定改造：减少 `install.ps1` 体量，以及把 release 校验从临时命令固化成脚本。
+
+本轮补充迭代：
+
+- `windows/package/install.ps1`
+  - 把桌面控制台 `.bat` 模板、Miloco 控制台 `.ps1` 模板、OpenClaw 对话入口 `.ps1` 模板从主脚本中外置到：
+    - `windows/package/templates/install-launcher.bat.tpl`
+    - `windows/package/templates/miloco-console.ps1.tpl`
+    - `windows/package/templates/openclaw-launcher.ps1.tpl`
+  - 安装器运行时改为从 release 包内的 `scripts/windows/templates/` 读取模板，再注入发行版名和端口占位符。
+- `windows/build-release.ps1`
+  - 打包时显式复制上述模板文件进 release 包。
+  - `Test-Package` 不再依赖正则从 `install.ps1` 里硬抠 here-string；改为直接校验模板文件存在、ASCII/LF 规则正确，并对模板替换后的 PowerShell 代码做语法解析。
+- 新增 `docs/scripts/windows-release-validate.ps1`
+  - 第一段：包结构自检，检查入口文件、模板文件、ASCII/LF 规则、PowerShell 语法。
+  - 第二段：安装烟测，隐藏启动 release 包里的 `install.ps1`，确认至少能稳定输出 banner/步骤，而不是一打开就闪退。
+  - 第三段：本机运行态 / OpenClaw 会话探针，复用 `windows-preflight.ps1`、`win-miloco-workflow.ps1 -Action Report`，并补充 dashboard/chat 路由与 gateway/token 的可见性检查。
+
+本地验证：
+
+- `windows/package/install.ps1`、`windows/build-release.ps1`、`docs/scripts/windows-release-validate.ps1` 均通过 Windows PowerShell 5.1 语法解析。
+- 通过 `windows/build-release.ps1 -ReusePayloadZip` 重打 Windows release 包成功。
+- `docs/scripts/windows-release-validate.ps1 -PackagePath dist/windows/easy-miloco-v0.2-windows.zip` 结果：
+  - `package.structure`：PASS
+  - `installer.smoke`：PASS
+  - `runtime.preflight`：PASS
+  - `runtime.report`：PASS
+  - `openclaw.http_dashboard` / `openclaw.chat_route`：PASS
+  - `openclaw.gateway` / `openclaw.dashboard_url` / `openclaw.gateway_token`：WARN，说明本机当前更像是“HTTP 路由已通，但 CLI 侧 URL / token 可见性没有补齐”，不再是安装包结构或入口闪退问题。

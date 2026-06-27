@@ -182,6 +182,7 @@ function Copy-RequiredArtifacts {
   New-Item -ItemType Directory -Force -Path $PackageRoot | Out-Null
   New-Item -ItemType Directory -Force -Path (Join-Path $PackageRoot "payload") | Out-Null
   New-Item -ItemType Directory -Force -Path (Join-Path $PackageRoot "scripts\windows") | Out-Null
+  New-Item -ItemType Directory -Force -Path (Join-Path $PackageRoot "scripts\windows\templates") | Out-Null
 
   $payloadSourceRoot = if ([string]::IsNullOrWhiteSpace($script:ReusePayloadRoot)) { $RepoRoot } else { $script:ReusePayloadRoot }
   $payloadDistRoot = if ([string]::IsNullOrWhiteSpace($script:ReusePayloadRoot)) { Join-Path $RepoRoot "dist" } else { Join-Path $script:ReusePayloadRoot "payload" }
@@ -211,6 +212,9 @@ function Copy-RequiredArtifacts {
 
   Copy-Utf8BomFile -Source (Join-Path $RepoRoot "docs\scripts\win-miloco-workflow.ps1") -Destination (Join-Path $PackageRoot "scripts\windows\win-miloco-workflow.ps1")
   Copy-Utf8BomFile -Source (Join-Path $RepoRoot "docs\scripts\windows-preflight.ps1") -Destination (Join-Path $PackageRoot "scripts\windows\windows-preflight.ps1")
+  Copy-Utf8NoBomLfFile -Source (Join-Path $RepoRoot "windows\package\templates\install-launcher.bat.tpl") -Destination (Join-Path $PackageRoot "scripts\windows\templates\install-launcher.bat.tpl")
+  Copy-Utf8BomFile -Source (Join-Path $RepoRoot "windows\package\templates\miloco-console.ps1.tpl") -Destination (Join-Path $PackageRoot "scripts\windows\templates\miloco-console.ps1.tpl")
+  Copy-Utf8BomFile -Source (Join-Path $RepoRoot "windows\package\templates\openclaw-launcher.ps1.tpl") -Destination (Join-Path $PackageRoot "scripts\windows\templates\openclaw-launcher.ps1.tpl")
   
   $validateSrc = Join-Path $RepoRoot "docs\scripts\wsl-miloco-validate.sh"
   $validateDst = Join-Path $PackageRoot "scripts\windows\wsl-miloco-validate.sh"
@@ -305,6 +309,9 @@ function Test-Package {
     Require-File (Join-Path $root "manifest.json")
     Require-File (Join-Path $root "payload\install.sh")
     Require-File (Join-Path $root "docs\AGENT.md")
+    Require-File (Join-Path $root "scripts\windows\templates\install-launcher.bat.tpl")
+    Require-File (Join-Path $root "scripts\windows\templates\miloco-console.ps1.tpl")
+    Require-File (Join-Path $root "scripts\windows\templates\openclaw-launcher.ps1.tpl")
     $null = [scriptblock]::Create((Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "install.ps1") -Raw))
     $null = [scriptblock]::Create((Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "scripts\windows\win-miloco-workflow.ps1") -Raw))
 
@@ -313,21 +320,18 @@ function Test-Package {
       throw "install.bat must be ASCII-only."
     }
 
-    $installPs1 = Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "install.ps1") -Raw
-    $launcherBatMatch = [regex]::Match($installPs1, "(?s)\`$bat\s*=\s*@'\r?\n(?<bat>.*?)\r?\n'@")
-    if (-not $launcherBatMatch.Success) {
-      throw "Miloco desktop launcher bat template not found."
-    }
-    if ([regex]::Matches($launcherBatMatch.Groups["bat"].Value, "[^\x00-\x7F]").Count -ne 0) {
+    $launcherBatTemplate = Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "scripts\windows\templates\install-launcher.bat.tpl") -Raw
+    if ([regex]::Matches($launcherBatTemplate, "[^\x00-\x7F]").Count -ne 0) {
       throw "Generated Miloco desktop launcher bat template must be ASCII-only."
     }
 
-    $consolePs1Match = [regex]::Match($installPs1, "(?s)\`$ps1\s*=\s*@'\r?\n(?<ps1>.*?)\r?\n'@")
-    if (-not $consolePs1Match.Success) {
-      throw "Miloco desktop console ps1 template not found."
-    }
-    $consolePs1 = $consolePs1Match.Groups["ps1"].Value.Replace("__DISTRO__", "Ubuntu-24.04").Replace("__MILOCO_PORT__", "18860").Replace("__OPENCLAW_PORT__", "18789")
+    $consolePs1 = Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "scripts\windows\templates\miloco-console.ps1.tpl") -Raw
+    $consolePs1 = $consolePs1.Replace("__DISTRO__", "Ubuntu-24.04").Replace("__MILOCO_PORT__", "18860").Replace("__OPENCLAW_PORT__", "18789").Replace("__OPENCLAW_INFO_PATH__", "C:\OpenClaw-login-info.txt")
     $null = [scriptblock]::Create($consolePs1)
+
+    $openClawPs1 = Get-Content -Encoding utf8 -LiteralPath (Join-Path $root "scripts\windows\templates\openclaw-launcher.ps1.tpl") -Raw
+    $openClawPs1 = $openClawPs1.Replace("__DISTRO__", "Ubuntu-24.04").Replace("__OPENCLAW_PORT__", "18789").Replace("__OPENCLAW_INFO_PATH__", "C:\OpenClaw-login-info.txt")
+    $null = [scriptblock]::Create($openClawPs1)
 
     $shellScripts = Get-ChildItem -LiteralPath $root -Recurse -File -Filter "*.sh"
     foreach ($scriptPath in $shellScripts) {
