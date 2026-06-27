@@ -9,7 +9,6 @@
 - `wsl-post-auth-finish.sh`：拿到小米 OAuth payload 和 MiMo API Key 后，一次性完成账号授权、模型配置、服务重启、设备/摄像头检查和最终验收。
 - `message-channel-router.sh`：消息渠道统一路由入口，当前支持 `feishu`。
 - `wsl-feishu-channel-onboard.sh`：在目标 WSL Ubuntu 内安装、授权、绑定和验证 OpenClaw Feishu channel。
-- `../message-channels-agent-guide.md`：QQ、Telegram、Slack、Discord、企业微信等其他渠道的一句话 agent 接入方法论。
 - `win-miloco-workflow.ps1`：Windows 统一入口，按 `-Action` 编排宿主预检、WSL 验收、生成授权链接和后授权收尾。
 - `windows-release-validate.ps1`：维护者验证 release 包的统一入口，覆盖包结构自检、安装烟测，以及本机运行态 / OpenClaw 会话探针。
 - `azure-vm-run-command.ps1`：通过 Azure CLI Run Command 在 Windows VM 内运行控制面 PowerShell。
