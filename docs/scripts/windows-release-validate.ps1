@@ -188,6 +188,13 @@ function Test-InstallerSmoke {
     }
   }
 
+  if (-not $hit -and -not [string]::IsNullOrWhiteSpace($latest) -and (Test-Path -LiteralPath $latest)) {
+    $text = Get-Content -LiteralPath $latest -Raw -ErrorAction SilentlyContinue
+    if ($text -match "\[2/10\]" -or $text -match "\[3/10\]" -or $text -match "\[2/12\]" -or $text -match "\[3/12\]" -or $text -match "环境依赖没有通过" -or $text -match "检查和准备 WSL2 / Ubuntu") {
+      $hit = $true
+    }
+  }
+
   if (-not [string]::IsNullOrWhiteSpace($latest)) {
     Add-Check "installer.log" "INFO" $latest
   }
