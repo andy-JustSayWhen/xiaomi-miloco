@@ -1,11 +1,17 @@
-# OpenClaw 消息渠道手动接入指南
+# OpenClaw 消息渠道接入指南
 
-适用场景：用户刚安装完 OpenClaw / Miloco，想手动接入飞书、Telegram、QQ Bot、Slack 等消息渠道。
+适用场景：用户刚安装完 OpenClaw / Miloco，想接入飞书、Telegram、QQ Bot、Slack 等消息渠道。
+
+这是一份统一文档：
+
+- 用户手动配置时，按本文步骤逐步执行。
+- 用户让 Agent 一句话配置时，Agent 也引用本文，并带用户按同一套官方流程执行。
+- 不维护两份文档，避免手动流程和 Agent 流程漂移。
 
 给 Agent 的一句话：
 
 ```text
-请按 https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/message-channel/docs/message-channel-manual-guide.md 指导我在 Windows + WSL 里手动接入 <渠道名> OpenClaw 消息渠道；不要改 WebUI，不要自造桥，按官方 openclaw channels add 交互式流程走，并在最后做 Gateway 状态、频道 probe、真实收发消息和 Miloco 通知绑定验收。
+请按 https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/message-channel/docs/message-channel-manual-guide.md 在 Windows + WSL 里接入 <渠道名> OpenClaw 消息渠道；不要改 WebUI，不要自造桥，按官方 openclaw channels add 交互式流程走；需要我操作或提供凭据时再问我，并在最后做 Gateway 状态、频道 probe、真实收发消息和 Miloco 通知绑定验收。
 ```
 
 ## 总流程
