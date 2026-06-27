@@ -1,5 +1,39 @@
 # Windows 部署资料包验收记录
 
+## 2026-06-27 本机 GitHub Release v0.3 摄像头部署验证
+
+> 验收对象：GitHub Release `v0.3` / `easy-miloco-v0.3-windows.zip`
+> 测试方式：本机 Windows + Ubuntu-24.04 WSL，使用已校验 SHA256 与 GitHub Release digest 一致的 release zip 解压运行。
+
+### 本轮基线
+
+- Release asset: `easy-miloco-v0.3-windows.zip`
+- Release SHA256: `8bdc6d9e7f2383c7ecba6d95eb63df45fae52b66fda70966df77835df697dc4a`
+- Release size: `132266370`
+- 本机解压目录：`C:\Users\17239\AppData\Local\Temp\easy-miloco-deploy-test-v0.3-20260627-214458`
+- 验证报告：`miloco-deploy-report-after-restore.txt`
+
+### 执行记录
+
+- 通过 release 包安装器完成基础安装；安装器检测到旧版 Miloco 后导出兼容恢复包，卸载旧版并安装新版。
+- release 包内感知模型已同步到 WSL，后端日志显示 perception engine started。
+- 兼容恢复包只迁移模型配置和 MiOT 登录/home whitelist 所需 kv 键；迁移前已在 WSL 内创建 `config.json` 与 `miloco.db` checkpoint。
+- 安装后诊断报告通过：`BASIC_READY_FROM_WINDOWS=yes`、`BASIC_READY=yes`、`FULL_READY=yes`、`PASS_COUNT=16`、`FAIL_COUNT=0`。
+
+### 摄像头与 OpenClaw 验证
+
+- Miloco 概览页面显示家庭设备总数为 `127`，摄像头区域列出 3 台摄像头。
+- Miloco 概览的实时画面区显示 `0 个在感知`，并提示还没有摄像头在感知；页面中没有视频预览元素。
+- `miloco-cli scope camera list --pretty` 显示 3 台摄像头在线；其中 1 台 `in_use=true` 但 `connected=false`，另 2 台被标记为当前机型暂不支持感知。
+- `miloco-cli perceive devices` 返回空列表；对启用摄像头执行主动感知返回 `2011 No valid active perception sources found`。
+- OpenClaw chat 实际提问“家庭内一共有几台摄像头？每台摄像头当前画面如何，是否能看到画面预览？”后，OpenClaw 回复：共有 3 台摄像头，全部在线；只有 1 台支持感知但视频流未连接，另外 2 台当前机型不支持感知，因此此刻 3 台都拿不到画面预览。
+
+### 结论
+
+- Release `v0.3` 基础部署和满血配置恢复通过。
+- 本轮摄像头链路未通过画面预览验收：面板和 OpenClaw 均确认当前没有可用实时画面预览。
+- 后续应按 camera runbook 继续定位启用摄像头 `connected=false` 的拉流问题；另 2 台属于当前机型不支持感知，不应计入可感知摄像头失败。
+
 ## 2026-06-26 本机 Computer Use release 第二十三轮完整部署测试
 
 > 验收对象：GitHub Release `v0.2` / `easy-miloco-v0.2-windows.zip`
