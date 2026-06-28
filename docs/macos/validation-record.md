@@ -1,5 +1,98 @@
 # macOS 懒人包验证记录
 
+## 2026-06-29 v0.1 arm64 小白用户路径复测
+
+分支：`macOS`
+
+产物：
+
+```text
+dist/macos/easy-miloco-v0.1-macos-arm64.zip
+```
+
+SHA-256：
+
+```text
+648f97b0db4be0040672de1588abfcf2cfd8d438ef41eed82ab79bc69e4b8354
+```
+
+本轮测试目标：
+
+```text
+模拟普通 macOS 用户：解压 zip，双击 install.command，按窗口提示完成部署。
+```
+
+环境限制：
+
+```text
+本轮执行可视化鼠标测试时，macOS 屏幕处于锁屏界面。Computer Use 无法读取或操作 Chrome/Finder/Terminal 的真实窗口，因此米家 OAuth 页面无法通过鼠标点击确认，也无法读取浏览器地址栏回调。
+```
+
+已完成的真实安装验证：
+
+```text
+1. 使用当前 zip 解包后运行 install.command。
+2. 安装器检测到旧版 Miloco：
+   MILOCO_CLI=yes
+   OPENCLAW_CLI=yes
+   MILOCO_HOME=yes
+   MILOCO_SERVICE=yes
+   MILOCO_HEALTH=yes
+   OPENCLAW_HTTP=yes
+   MILOCO_PLUGIN=yes
+3. 旧版迁移流程真实通过：
+   - 先导出桌面 Agent 恢复 ZIP
+   - 再卸载旧版 Miloco
+   - 卸载后 preflight 看到 1810/18789 均 free
+4. 新版基础安装通过：
+   - miloco.service_status running
+   - miloco.health {"status":"ok"}
+   - miloco.dashboard HTTP 200
+   - openclaw.gateway LaunchAgent loaded
+   - openclaw.plugin miloco plugin visible
+   - model_key configured
+   - BASIC_READY=yes
+   - FAIL_COUNT=0
+```
+
+未完成项：
+
+```text
+1. 米家 OAuth 未完成：原因是屏幕锁定，无法点击浏览器授权页面。
+2. 因账号未绑定，device rows 和 camera scope 不能 full ready。
+3. OpenClaw agent 对话未完成：当前 OpenClaw agent 缺可用模型认证；cc-switch 中 DeepSeek Codex 配置存在 API key，但 OpenClaw model registry 不识别 deepseek-v4-flash。
+```
+
+小白用户路径发现的问题：
+
+```text
+问题：macOS 原生 ditto 解压 zip 后，install.command / install.sh / macos-*.sh 执行位丢失，双击 install.command 可能失败。
+原因：Python zipfile 写包时只写了权限位 0755，没有写 Unix file type；ditto 不按 unzip 的方式使用该权限元数据。
+修复：macos/build-release.sh 写 ZipInfo 时设置 create_system=3，并把完整 st_mode 低 16 位写入 external_attr。
+```
+
+修复后验证：
+
+```text
+ditto -x -k dist/macos/easy-miloco-v0.1-macos-arm64.zip /tmp/easy-miloco-ditto-fixed
+
+结果：
+-rwxr-xr-x install.command
+-rwxr-xr-x payload/install.sh
+-rwxr-xr-x scripts/macos/macos-preflight.sh
+
+包内元数据：
+install.command create_system=3 attr=0o100755
+payload/install.sh create_system=3 attr=0o100755
+```
+
+本轮测试后清理：
+
+```text
+Miloco 服务、Miloco uv tools、Miloco 数据目录、OpenClaw Miloco 插件、桌面入口、临时解包目录均已清理。
+旧版迁移导出的恢复 ZIP 保留在桌面作为证据。
+```
+
 ## 2026-06-29 v0.1 arm64 本机安装/卸载验证
 
 分支：`macOS`

@@ -94,23 +94,25 @@ rm -rf "$PACKAGE_ROOT/docs/windows/reports"
 cat > "$PACKAGE_ROOT/README.md" <<EOF
 # easy-miloco ${VERSION} macOS ${ARCH}
 
-## Lazy install
+## 懒人安装
 
-1. Unzip this package.
-2. Double-click \`install.command\`.
-3. Follow the prompts for Xiaomi account authorization and model API settings.
+1. 双击解压这个 zip。
+2. 打开解压后的文件夹。
+3. 双击 \`install.command\`。
+4. 按窗口提示完成米家授权和模型 API 配置。
 
-If macOS blocks the script, run:
+如果 macOS 提示文件被阻止，打开“终端”执行：
 
 \`\`\`bash
 xattr -dr com.apple.quarantine "$PACKAGE_NAME"
+chmod +x "$PACKAGE_NAME/install.command"
 \`\`\`
 
-## Agent install
+## Agent 安装
 
-Open \`agent-prompt.md\`, copy the prompt to an Agent, and let it run the package scripts.
+打开 \`agent-prompt.md\`，复制给 Agent，让 Agent 按提示执行。
 
-## URLs
+## 常用地址
 
 - Miloco: http://127.0.0.1:1810/
 - OpenClaw: http://127.0.0.1:18789/
@@ -174,7 +176,8 @@ with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, compressle
             continue
         st = path.stat()
         info = zipfile.ZipInfo(rel)
-        info.external_attr = (stat.S_IMODE(st.st_mode) & 0xFFFF) << 16
+        info.create_system = 3
+        info.external_attr = (st.st_mode & 0xFFFF) << 16
         with path.open("rb") as f:
             zf.writestr(info, f.read(), compress_type=zipfile.ZIP_DEFLATED)
 PY
