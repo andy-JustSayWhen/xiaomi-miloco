@@ -28,8 +28,14 @@ def account_status(pretty):
     print_result(data, pretty)
 
 
-def _parse_auth_payload(payload: str) -> tuple[str, str]:
-    """解析回调 URL、JSON 或 base64(JSON)，返回 (code, state)。"""
+def _state_from_oauth_url(oauth_url: str) -> str:
+    parsed = urlparse(oauth_url)
+    qs = parse_qs(parsed.query)
+    return (qs.get("state") or [""])[0].strip()
+
+
+def _parse_auth_payload(payload: str, expected_state: str = "") -> tuple[str, str]:
+    """解析授权码、回调 URL、JSON 或 base64(JSON)，返回 (code, state)。"""
     payload = payload.strip()
     if not payload:
         raise click.ClickException("授权信息为空。")
@@ -42,6 +48,14 @@ def _parse_auth_payload(payload: str) -> tuple[str, str]:
         if code and state:
             return code, state
         raise click.ClickException("授权信息中 code 或 state 为空。")
+
+    if (
+        expected_state
+        and "://" not in payload
+        and "code=" not in payload
+        and "state=" not in payload
+    ):
+        return payload, expected_state
 
     try:
         if payload.startswith("{"):
@@ -59,7 +73,9 @@ def _parse_auth_payload(payload: str) -> tuple[str, str]:
         KeyError,
         AttributeError,
     ):
-        raise click.ClickException("授权信息格式错误，请从回调页面直接复制。")
+        raise click.ClickException(
+            "授权信息格式错误。请粘贴页面显示的授权码，或粘贴浏览器地址栏里包含 code= 和 state= 的完整地址。"
+        )
     if not code or not state:
         raise click.ClickException("授权信息中 code 或 state 为空。")
     return code, state
@@ -170,19 +186,20 @@ def account_bind(no_wait, pretty):
         "\n已尝试自动打开浏览器完成小米账号授权。"
         f"\n如果浏览器没有弹出，请手动打开：\n\n  {oauth_url}\n"
     )
+    expected_state = _state_from_oauth_url(oauth_url)
 
     if no_wait:
         print_result(data, pretty)
         click.echo("\n授权完成后，请运行：")
         click.echo("  miloco-cli account authorize '<浏览器地址栏完整回调地址>'")
+        click.echo("  如果页面只显示授权码，请重新运行 miloco-cli account bind 交互提交。")
         return
 
     payload = click.prompt(
-        "授权完成后，请粘贴浏览器地址栏里的完整 "
-        "https://127.0.0.1/?code=...&state=... 回调地址",
+        "授权完成后：如果页面直接显示授权码，就粘贴授权码；如果浏览器显示无法访问/报错页，就粘贴地址栏里包含 code= 和 state= 的完整地址",
         type=str,
     )
-    code, state = _parse_auth_payload(payload)
+    code, state = _parse_auth_payload(payload, expected_state=expected_state)
     _submit_authorize(code, state, pretty)
 
 

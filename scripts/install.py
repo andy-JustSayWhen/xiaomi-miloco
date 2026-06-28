@@ -1043,26 +1043,23 @@ class Installer:
                 return
 
         self._print_model_recommendations()
-        profile = self._select_model_profile()
+        selected_api = self._select_model_application_page()
         api_key = self.ui.prompt_input(
             self.ui.i18n.t("model.enter_key"),
             default=self.omni_api_key or "",
-            password=True,
-            validate=lambda v: (
-                True if v.strip() else self.ui.i18n.t("model.key_required")
-            ),
+            password=False,
         )
-        default_base_url = (
-            cur_base_url or profile["base_url"] or self.omni_base_url or ""
-        )
+        if not api_key.strip():
+            self.ui.step_skip(self.ui.i18n.t("model.skipped_hint"))
+            return
         base_url = self.ui.prompt_input(
             self.ui.i18n.t("model.enter_base_url"),
-            default=default_base_url,
+            default="",
             validate=lambda v: (
                 True if v.strip() else self.ui.i18n.t("model.url_required")
             ),
         ).strip()
-        default_model = cur_model or profile["model"] or self.omni_model or ""
+        default_model = selected_api["model"] or self.omni_model or cur_model or ""
         model_name = self._select_omni_model(base_url, api_key, default_model)
 
         self._write_model_config(model_name, base_url, api_key)
@@ -1082,50 +1079,45 @@ class Installer:
         self.ui.step_ok(self.ui.i18n.t("model.config_saved"))
 
     def _print_model_recommendations(self) -> None:
-        self.ui.info(self.ui.i18n.t("model.get_key"))
-        self.ui.info(
-            "01 Xiaomi MiMo TokenPlan: "
-            "https://token-plan-sgp.xiaomimimo.com/v1 / mimo-v2.5"
-        )
-        self.ui.info(
-            "02 Xiaomi MiMo official pay-as-you-go: "
-            "https://api.xiaomimimo.com/v1 / xiaomi/mimo-v2.5"
-        )
-        self.ui.info(
-            "03 Custom OpenAI-compatible provider: "
-            "paste the provider Base URL and vision model"
-        )
+        self.ui.warn("如果您没有自己的大模型 API，可以申请下述任意的免费试用 API。")
+        for option in self._model_application_options():
+            self.ui.info(f"{option['id']} [{option['name']}] {option['url']}")
 
-    def _select_model_profile(self) -> dict[str, str]:
-        profiles = [
+    def _model_application_options(self) -> list[dict[str, str]]:
+        return [
             {
-                "label": "01 Xiaomi MiMo TokenPlan",
-                "base_url": "https://token-plan-sgp.xiaomimimo.com/v1",
-                "model": "mimo-v2.5",
-                "url": "https://platform.xiaomimimo.com",
-            },
-            {
-                "label": "02 Xiaomi MiMo official pay-as-you-go",
-                "base_url": "https://api.xiaomimimo.com/v1",
+                "id": "01",
+                "short_id": "1",
+                "name": "Xiaomi MIMO",
+                "url": "https://platform.xiaomimimo.com?ref=QHSHXL",
                 "model": "xiaomi/mimo-v2.5",
-                "url": "https://platform.xiaomimimo.com",
             },
             {
-                "label": "03 Custom OpenAI-compatible provider",
-                "base_url": "",
+                "id": "02",
+                "short_id": "2",
+                "name": "Agnes",
+                "url": "https://platform.agnes-ai.com/settings/apiKeys",
                 "model": "",
-                "url": "",
+            },
+            {
+                "id": "03",
+                "short_id": "3",
+                "name": "商汤科技",
+                "url": "https://platform.sensenova.cn/console/keys",
+                "model": "",
             },
         ]
-        choice = self.ui.prompt_select(
-            self.ui.i18n.t("model.select_provider"),
-            choices=[p["label"] for p in profiles],
-            default=profiles[0]["label"],
-        )
-        profile = next(p for p in profiles if p["label"] == choice)
-        if profile["url"]:
-            self._open_url(profile["url"])
-        return profile
+
+    def _select_model_application_page(self) -> dict[str, str]:
+        choice = self.ui.prompt_input(
+            "如需打开申请页面，请输入 01/02/03；已有 Key 直接回车",
+            default="",
+        ).strip()
+        for option in self._model_application_options():
+            if choice in {option["id"], option["short_id"]}:
+                self._open_url(option["url"])
+                return option
+        return {"id": "", "short_id": "", "name": "", "url": "", "model": ""}
 
     def _open_url(self, url: str) -> None:
         try:

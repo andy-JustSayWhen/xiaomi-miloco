@@ -118,7 +118,11 @@ install_desktop_helpers() {
     printf 'Miloco URL: http://127.0.0.1:%s/\n' "$MILOCO_PORT"
     printf 'OpenClaw URL: http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
     printf 'OpenClaw token: %s\n' "$token"
-    printf 'Recommended: double-click OpenClaw Chat.command, then open Miloco dashboard.\n'
+    printf 'How to use:\n'
+    printf '1. Double-click OpenClaw Chat.command to talk to the assistant.\n'
+    printf '2. Double-click Miloco Console.command to open/restart/status Miloco and OpenClaw.\n'
+    printf '3. Ask OpenClaw: 家里有几个摄像头？画面如何？\n'
+    printf '4. Open Miloco dashboard to inspect devices, cameras, perception, and settings.\n'
   } > "$info"
 
   printf '[OK] Desktop shortcuts created:\n'
@@ -186,6 +190,13 @@ fi
 printf 'Miloco: http://127.0.0.1:%s/\n' "$MILOCO_PORT"
 printf 'OpenClaw: http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
 printf 'Desktop console: %s\n' "$HOME/Desktop/Miloco Console.command"
+printf 'Desktop OpenClaw chat: %s\n' "$HOME/Desktop/OpenClaw Chat.command"
+printf 'Desktop login/info file: %s\n' "$HOME/Desktop/OpenClaw-login-info.txt"
+printf '\nHow to use:\n'
+printf '  1. Miloco dashboard is for devices, cameras, perception status, and settings.\n'
+printf '  2. OpenClaw Chat is for asking the assistant about the home.\n'
+printf '  3. Try asking: 家里有几个摄像头？画面如何？\n'
+printf '  4. Miloco Console.command can open panels, restart services, stop services, and show status.\n'
 printf 'Logs:\n'
 printf '  %s\n' "$validation_log"
 printf '  /tmp/easy-miloco-macos-service-start.log\n'
