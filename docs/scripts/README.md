@@ -9,6 +9,9 @@
 - `wsl-post-auth-finish.sh`：拿到小米 OAuth payload 和 MiMo API Key 后，一次性完成账号授权、模型配置、服务重启、设备/摄像头检查和最终验收。
 - `win-miloco-workflow.ps1`：Windows 统一入口，按 `-Action` 编排宿主预检、WSL 验收、生成授权链接和后授权收尾。
 - `windows-release-validate.ps1`：维护者验证 release 包的统一入口，覆盖包结构自检、安装烟测，以及本机运行态 / OpenClaw 会话探针。
+- `macos-preflight.sh`：macOS 懒人包预检，检查系统、架构、端口、OpenClaw、uv 和包完整性。
+- `macos-miloco-validate.sh`：macOS 基础/满血验收，输出 `BASIC_READY`、`FULL_READY`、失败数和警告数。
+- `macos-post-auth-finish.sh`：macOS 收到小米 OAuth payload 和 MiMo Key 后的一键收尾脚本。
 - `azure-vm-run-command.ps1`：通过 Azure CLI Run Command 在 Windows VM 内运行控制面 PowerShell。
 - `azure-vm-user-powershell.ps1`：通过 Run Command 创建用户上下文计划任务，用真实 Windows 用户运行 PowerShell。
 - `azure-vm-wsl-script.ps1`：通过用户上下文计划任务执行 WSL bash 脚本，自动处理 CRLF。
