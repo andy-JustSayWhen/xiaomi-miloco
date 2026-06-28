@@ -55,7 +55,10 @@ release 包：
 
 ## 适配目标
 
-第一阶段目标不是做原生 `.app`，而是做一个稳定、可解释、可回滚的 macOS 一键分发包。
+第一阶段目标不是做原生 `.app`，而是做一个稳定、可解释、可回滚的 macOS 一键分发包，并同时支持两种安装方式：
+
+1. Agent 一句话部署：用户把一段提示词交给 Agent，由 Agent 按 prepare/ask/finish 三阶段完成部署、记录证据并处理报错。
+2. 懒人双击交互式部署：用户解压后双击 `install.command`，脚本用中文交互引导完成授权、模型配置、服务启动和验收。
 
 建议包名：
 
@@ -69,6 +72,7 @@ easy-miloco-v<version>-macos-x86_64.zip
 ```text
 easy-miloco-vX-macos-arm64/
 ├── README.md
+├── agent-prompt.md
 ├── install.command
 ├── install.sh
 ├── manifest.json
@@ -89,7 +93,82 @@ easy-miloco-vX-macos-arm64/
 
 Intel Mac 可用同结构，只替换 `miloco-darwin-x86_64-*.tar.gz`。
 
-## 用户流程
+## 官方当前 macOS 部署方式
+
+截至 2026-06-28，官方 `XiaoMi/xiaomi-miloco` 当前 README 对 macOS 的定位是直接支持：系统要求写的是 `macOS / Linux`，Windows 才需要在 WSL 内运行。
+
+官方提供三种入口：
+
+1. Agent 安装：把下面这句发给 OpenClaw，让 Agent 自动安装：
+
+   ```text
+   Please install the Miloco plugin for me: https://raw.githubusercontent.com/XiaoMi/xiaomi-miloco/main/scripts/install-guide.md
+   ```
+
+2. 命令行一行安装：
+
+   ```bash
+   curl -LsSf https://github.com/XiaoMi/xiaomi-miloco/releases/latest/download/install.sh | bash
+   ```
+
+3. 源码构建安装：
+
+   ```bash
+   bash scripts/install.sh --dev
+   ```
+
+官方 Agent 安装指南实际是三阶段：
+
+```text
+Step 1: install.sh --agent-prepare
+Step 2: Agent 先问小米账号授权，再问 Omni 模型配置
+Step 3: install.sh --agent-finish --account-auth ... --omni-api-key ...
+```
+
+官方最新 release `v2026.6.18` 已发布 macOS runtime 资产：
+
+```text
+miloco-darwin-arm64-2026.6.18.tar.gz
+miloco-darwin-x86_64-2026.6.18.tar.gz
+install.sh
+```
+
+所以 easy-miloco 的 macOS 适配不是补底层 macOS 支持，而是补“面向普通用户的一键体验、验证脚本、桌面入口、日志和发版流程”。
+
+## 用户流程 A：Agent 一句话部署
+
+目标：和 Windows 的 Agent 一键部署提示词一样，用户只复制一段话给 Agent。Agent 负责下载/运行脚本、解释 JSON、按顺序询问账号和模型信息、写验证记录。
+
+包内交付：
+
+- `agent-prompt.md`：普通用户复制给 Agent 的完整提示词。
+- `docs/macos/agent-install.md`：维护者版说明，写清命令、日志、验收和失败分支。
+- `docs/scripts/macos-post-auth-finish.sh`：收到账号授权和模型 Key 后执行收尾。
+- `docs/scripts/macos-miloco-validate.sh`：基础/满血验收。
+
+标准流程：
+
+```mermaid
+flowchart TD
+  A["用户复制 agent-prompt.md"] --> B["Agent 运行 install.sh --agent-prepare"]
+  B --> C["解析 AGENT_JSON"]
+  C --> D["先处理小米账号授权"]
+  D --> E["再处理 Omni 模型配置"]
+  E --> F["Agent 运行 install.sh --agent-finish"]
+  F --> G["重启 OpenClaw gateway"]
+  G --> H["运行 macOS 验收脚本"]
+  H --> I["记录 BASIC_READY / FULL_READY 证据"]
+```
+
+Agent 提示词必须包含：
+
+- 当前目标系统是 macOS，不进入 WSL。
+- 下载慢时使用用户本机代理环境变量，但不能无限黑盒等待。
+- 账号授权和模型 API Key 必须按顺序问，不要同时问。
+- 先跑 BASIC_READY，再根据账号/模型/设备/摄像头状态判断 FULL_READY。
+- 遇到摄像头问题按“设备云端 → LAN → scope → stream connected → engine active_sources → OpenClaw 视觉推理”分层排查。
+
+## 用户流程 B：懒人双击交互式部署
 
 ```mermaid
 flowchart TD
@@ -104,6 +183,21 @@ flowchart TD
   I --> J["运行 macOS 验收脚本"]
   J --> K["打开 Dashboard / OpenClaw 入口"]
 ```
+
+双击入口职责：
+
+- 检测当前目录和包完整性。
+- 检测 Gatekeeper quarantine，并给出可复制修复命令。
+- 检测架构，选择 `darwin-arm64` 或 `darwin-x86_64` payload。
+- 调用 `payload/install.sh` 的交互模式。
+- 安装后生成桌面入口和 `OpenClaw-login-info.txt`。
+- 自动运行基础验收，失败时提示日志路径。
+
+双击入口不负责：
+
+- 不隐藏授权码/Key 的交互步骤。
+- 不私自删除用户已有 `~/.openclaw/miloco`。
+- 不把 OpenClaw 缺失伪装成 Miloco 后端失败。
 
 ## 工作拆分
 
