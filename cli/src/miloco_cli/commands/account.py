@@ -6,6 +6,7 @@ import json
 import platform
 import subprocess
 import sys
+import time
 from urllib.parse import parse_qs, urlparse
 
 import click
@@ -84,7 +85,20 @@ def _parse_auth_payload(payload: str, expected_state: str = "") -> tuple[str, st
 def _submit_authorize(code: str, state: str, pretty: bool) -> None:
     from miloco_cli.client import api_get, api_post
 
-    data = api_post("/api/miot/authorize", {"code": code, "state": state})
+    data = None
+    for attempt in range(1, 21):
+        try:
+            data = api_post("/api/miot/authorize", {"code": code, "state": state})
+            break
+        except SystemExit as exc:
+            if exc.code != 2 or attempt >= 20:
+                raise
+            click.echo(
+                "Miloco 后端暂时不可用，正在重试提交授权码...",
+                err=True,
+            )
+            time.sleep(1)
+    assert data is not None
     print_result(data, pretty)
 
     # 登录成功后列出家庭

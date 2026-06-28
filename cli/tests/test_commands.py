@@ -1649,6 +1649,57 @@ def test_account_bind_interactive_submits_authorize(runner):
     )
 
 
+def test_account_bind_interactive_accepts_plain_authorization_code(runner):
+    """交互式 bind：页面直接显示授权码时，用本次 OAuth URL 的 state 提交。"""
+    with patch("miloco_cli.client.api_post") as mock:
+        mock.side_effect = [
+            {
+                "code": 0,
+                "data": {
+                    "oauth_url": "https://account.xiaomi.com/oauth2/authorize?state=STATE123"
+                },
+            },
+            {"code": 0, "data": None},
+        ]
+        result = runner.invoke(
+            cli,
+            ["account", "bind"],
+            input="C3_9CBDA2969CF008C258DBFD32FE2A1B3D\n",
+        )
+    assert result.exit_code == 0
+    assert mock.call_args_list[1].args == (
+        "/api/miot/authorize",
+        {"code": "C3_9CBDA2969CF008C258DBFD32FE2A1B3D", "state": "STATE123"},
+    )
+
+
+def test_account_bind_retries_authorize_when_backend_temporarily_unavailable(
+    runner, monkeypatch
+):
+    monkeypatch.setattr("miloco_cli.commands.account.time.sleep", lambda _: None)
+    with patch("miloco_cli.client.api_post") as mock:
+        mock.side_effect = [
+            {
+                "code": 0,
+                "data": {
+                    "oauth_url": "https://account.xiaomi.com/oauth2/authorize?state=STATE123"
+                },
+            },
+            SystemExit(2),
+            {"code": 0, "data": None},
+        ]
+        result = runner.invoke(
+            cli,
+            ["account", "bind"],
+            input="C3_9CBDA2969CF008C258DBFD32FE2A1B3D\n",
+        )
+    assert result.exit_code == 0
+    assert mock.call_args_list[2].args == (
+        "/api/miot/authorize",
+        {"code": "C3_9CBDA2969CF008C258DBFD32FE2A1B3D", "state": "STATE123"},
+    )
+
+
 def test_account_bind_no_oauth_url(runner):
     """bind 返回无 oauth_url 时报错退出，不进入交互。"""
     with patch("miloco_cli.client.api_post") as mock:

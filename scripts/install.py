@@ -35,6 +35,7 @@ import signal
 import subprocess
 import sys
 import tarfile
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, NoReturn
@@ -861,6 +862,60 @@ class Installer:
             self.ui.step_fail(self.ui.i18n.t("service.start_failed"))
             self.ui.warn(str(e))
 
+    def _service_status(self) -> dict | None:
+        try:
+            result = subprocess.run(
+                ["miloco-cli", "service", "status"],
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        except (subprocess.SubprocessError, FileNotFoundError):
+            return None
+        if result.returncode != 0:
+            return None
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return None
+        return data if isinstance(data, dict) else None
+
+    def _backend_health_ok(self, url: str) -> bool:
+        try:
+            with httpx.Client(timeout=3, verify=False) as client:
+                resp = client.get(url.rstrip("/") + "/health")
+            if not resp.is_success:
+                return False
+            data = resp.json()
+        except (httpx.RequestError, ValueError):
+            return False
+        return isinstance(data, dict) and data.get("status") == "ok"
+
+    def _wait_backend_ready(self, timeout_s: int = 45) -> bool:
+        try:
+            subprocess.run(
+                ["miloco-cli", "service", "start"],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except FileNotFoundError:
+            return False
+        deadline = time.monotonic() + timeout_s
+        while time.monotonic() < deadline:
+            status = self._service_status()
+            server = status.get("server", {}) if status else {}
+            url = server.get("url") if isinstance(server, dict) else None
+            if status and status.get("running") is True and isinstance(url, str):
+                if self._backend_health_ok(url):
+                    self._service_started = True
+                    return True
+            if self._backend_health_ok("http://127.0.0.1:1810"):
+                self._service_started = True
+                return True
+            time.sleep(1)
+        return False
+
     def _stop_service(self) -> None:
         if not self._service_started:
             return
@@ -923,7 +978,7 @@ class Installer:
             self.ui.step_skip(self.ui.i18n.t("account.skip_non_interactive"))
             return
 
-        if not self._service_started:
+        if not self._wait_backend_ready():
             self.ui.step_skip(self.ui.i18n.t("account.service_start_failed"))
             return
 
@@ -931,21 +986,7 @@ class Installer:
             self._authorize_with_payload()
             return
 
-        already_bound = False
-        try:
-            result = subprocess.run(
-                ["miloco-cli", "account", "status"],
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                status_data = json.loads(result.stdout)
-                already_bound = (
-                    status_data.get("code") == 0
-                    and status_data.get("data", {}).get("is_bound") is True
-                )
-        except Exception:
-            pass
+        already_bound = self._account_is_bound()
 
         if already_bound:
             self.ui.step_ok(self.ui.i18n.t("account.already_logged_in"))
@@ -956,6 +997,7 @@ class Installer:
                 choices=[keep_label, rebind_label],
             )
             if choice == keep_label:
+                self._ensure_home_scope()
                 self.ui.ok(self.ui.i18n.t("account.keep_current"))
                 return
         else:
@@ -976,12 +1018,104 @@ class Installer:
                 ["miloco-cli", "account", "bind"],
                 check=True,
             )
+            self._ensure_home_scope()
             self.ui.step_ok(self.ui.i18n.t("account.bind_ok"))
         except (subprocess.CalledProcessError, FileNotFoundError):
-            self.ui.step_fail(self.ui.i18n.t("account.bind_failed"))
+            self._wait_backend_ready(timeout_s=20)
+            if self._account_is_bound():
+                self._ensure_home_scope()
+                self.ui.step_ok(self.ui.i18n.t("account.bind_ok"))
+                self.ui.info(self.ui.i18n.t("account.bind_recovered"))
+            else:
+                self.ui.step_fail(
+                    self.ui.i18n.t("account.bind_failed"),
+                    self.ui.i18n.t("account.bind_failed_hint"),
+                )
+
+    def _account_is_bound(self) -> bool:
+        try:
+            result = subprocess.run(
+                ["miloco-cli", "account", "status"],
+                capture_output=True,
+                text=True,
+                timeout=15,
+            )
+            if result.returncode != 0:
+                return False
+            status_data = json.loads(result.stdout)
+        except (subprocess.SubprocessError, FileNotFoundError, json.JSONDecodeError):
+            return False
+        return (
+            isinstance(status_data, dict)
+            and status_data.get("code") == 0
+            and status_data.get("data", {}).get("is_bound") is True
+        )
+
+    def _ensure_home_scope(self) -> None:
+        if not self._wait_backend_ready(timeout_s=20):
+            return
+        try:
+            result = subprocess.run(
+                ["miloco-cli", "scope", "home", "list"],
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            if result.returncode != 0:
+                return
+            payload = json.loads(result.stdout)
+        except (subprocess.SubprocessError, FileNotFoundError, json.JSONDecodeError):
+            return
+
+        homes = payload.get("data") if isinstance(payload, dict) else None
+        if not isinstance(homes, list) or not homes:
+            self.ui.warn(self.ui.i18n.t("account.home_scope_empty"))
+            return
+        if any(isinstance(home, dict) and home.get("in_use") is True for home in homes):
+            return
+
+        def _home_id(home: dict) -> str:
+            return str(home.get("home_id") or home.get("homeId") or "").strip()
+
+        def _home_name(home: dict) -> str:
+            return str(home.get("home_name") or home.get("homeName") or _home_id(home))
+
+        selectable = [home for home in homes if isinstance(home, dict) and _home_id(home)]
+        if not selectable:
+            self.ui.warn(self.ui.i18n.t("account.home_scope_empty"))
+            return
+
+        selected = selectable[0]
+        if self.platform.is_interactive and len(selectable) > 1:
+            choices = [
+                f"{_home_id(home)}  {_home_name(home)}" for home in selectable
+            ]
+            choice = self.ui.prompt_select(
+                self.ui.i18n.t("account.home_scope_ask"),
+                choices=choices,
+            )
+            selected = selectable[choices.index(choice)]
+
+        home_id = _home_id(selected)
+        try:
+            subprocess.run(
+                ["miloco-cli", "scope", "home", "switch", home_id],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+            self.ui.step_ok(
+                self.ui.i18n.t("account.home_scope_ok", _home_name(selected))
+            )
+        except (subprocess.SubprocessError, FileNotFoundError):
+            self.ui.warn(self.ui.i18n.t("account.home_scope_failed"))
 
     def _authorize_with_payload(self) -> None:
         assert self.account_auth is not None
+        if not self._wait_backend_ready():
+            self.ui.step_skip(self.ui.i18n.t("account.service_start_failed"))
+            return
         self.ui.step(self.ui.i18n.t("account.authorizing"))
         try:
             subprocess.run(
@@ -989,9 +1123,19 @@ class Installer:
                 check=True,
                 capture_output=True,
             )
+            self._ensure_home_scope()
             self.ui.step_ok(self.ui.i18n.t("account.bind_ok"))
         except (subprocess.CalledProcessError, FileNotFoundError):
-            self.ui.step_fail(self.ui.i18n.t("account.bind_failed"))
+            self._wait_backend_ready(timeout_s=20)
+            if self._account_is_bound():
+                self._ensure_home_scope()
+                self.ui.step_ok(self.ui.i18n.t("account.bind_ok"))
+                self.ui.info(self.ui.i18n.t("account.bind_recovered"))
+            else:
+                self.ui.step_fail(
+                    self.ui.i18n.t("account.bind_failed"),
+                    self.ui.i18n.t("account.bind_failed_hint"),
+                )
 
     # ── Model config ──────────────────────────────────────
 
