@@ -112,7 +112,7 @@ Open \`agent-prompt.md\`, copy the prompt to an Agent, and let it run the packag
 
 ## URLs
 
-- Miloco: http://127.0.0.1:18860/
+- Miloco: http://127.0.0.1:1810/
 - OpenClaw: http://127.0.0.1:18789/
 EOF
 

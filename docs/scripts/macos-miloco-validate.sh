@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -u
 
-MILOCO_PORT="${MILOCO_PORT:-18860}"
+MILOCO_PORT="${MILOCO_PORT:-1810}"
 OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
 STRICT_FULL=0
 
@@ -59,7 +59,8 @@ dashboard_code="$(curl -sS --max-time 3 -o /tmp/easy-miloco-dashboard.html -w "%
 if command -v openclaw >/dev/null 2>&1; then
   pass openclaw.cli "$(openclaw --version 2>/dev/null | head -n 1)"
   gateway_status="$(openclaw gateway status 2>&1 || true)"
-  if printf '%s' "$gateway_status" | grep -Eiq 'running|listening|started|http'; then
+  if printf '%s' "$gateway_status" | grep -Eiq 'Connectivity probe:[[:space:]]*ok|Runtime:[[:space:]]*running|Listening:' \
+    && ! printf '%s' "$gateway_status" | grep -Eiq 'not installed|Service unit not found|Connectivity probe:[[:space:]]*failed'; then
     pass openclaw.gateway "$gateway_status"
   else
     fail openclaw.gateway "$gateway_status"

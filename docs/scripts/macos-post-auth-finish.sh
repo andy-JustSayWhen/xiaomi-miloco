@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-MILOCO_PORT="${MILOCO_PORT:-18860}"
+MILOCO_PORT="${MILOCO_PORT:-1810}"
 OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
 OMNI_MODEL="${OMNI_MODEL:-xiaomi/mimo-v2.5}"
 OMNI_BASE_URL="${OMNI_BASE_URL:-https://api.xiaomimimo.com/v1}"

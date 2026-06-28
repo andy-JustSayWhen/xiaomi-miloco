@@ -4,7 +4,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$ROOT"
 
-MILOCO_PORT="${MILOCO_PORT:-18860}"
+MILOCO_PORT="${MILOCO_PORT:-1810}"
 OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
 export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"
 
@@ -44,6 +44,20 @@ ensure_openclaw() {
   if command -v openclaw >/dev/null 2>&1; then
     return 0
   fi
+  mkdir -p "$HOME/.openclaw/bin"
+  if command -v node >/dev/null 2>&1 && command -v npm >/dev/null 2>&1; then
+    say_step "Installing OpenClaw CLI with npm"
+    npm_prefix="$HOME/.openclaw/tools/npm-openclaw"
+    mkdir -p "$npm_prefix"
+    if npm install --prefix "$npm_prefix" openclaw@latest; then
+      if [ -x "$npm_prefix/node_modules/.bin/openclaw" ]; then
+        ln -sf "$npm_prefix/node_modules/.bin/openclaw" "$HOME/.openclaw/bin/openclaw"
+        hash -r || true
+        command -v openclaw >/dev/null 2>&1 && return 0
+      fi
+    fi
+    printf '[WARN] npm OpenClaw install failed; falling back to official installer.\n' >&2
+  fi
   say_step "Installing OpenClaw CLI"
   if ! command -v curl >/dev/null 2>&1; then
     fail "curl is required to install OpenClaw."
@@ -69,6 +83,16 @@ prime_payload_cache() {
   rm -rf "$cache"
   mkdir -p "$cache"
   tar -xzf "$bundle" -C "$cache"
+}
+
+start_openclaw_gateway() {
+  openclaw gateway status >/tmp/easy-miloco-macos-openclaw-status.log 2>&1 || true
+  if grep -Eiq 'not installed|Service unit not found|LaunchAgent not installed' /tmp/easy-miloco-macos-openclaw-status.log; then
+    openclaw gateway install >/tmp/easy-miloco-macos-openclaw-install.log 2>&1 || true
+  fi
+  openclaw gateway restart >/tmp/easy-miloco-macos-openclaw-restart.log 2>&1 \
+    || openclaw gateway start >/tmp/easy-miloco-macos-openclaw-start.log 2>&1 \
+    || true
 }
 
 install_desktop_helpers() {
@@ -119,7 +143,7 @@ bash "$ROOT/payload/install.sh" "$@"
 
 say_step "Starting services"
 miloco-cli service start >/tmp/easy-miloco-macos-service-start.log 2>&1 || miloco-cli service restart >/tmp/easy-miloco-macos-service-restart.log 2>&1 || true
-openclaw gateway restart >/tmp/easy-miloco-macos-openclaw-restart.log 2>&1 || openclaw gateway start >/tmp/easy-miloco-macos-openclaw-start.log 2>&1 || true
+start_openclaw_gateway
 
 install_desktop_helpers
 

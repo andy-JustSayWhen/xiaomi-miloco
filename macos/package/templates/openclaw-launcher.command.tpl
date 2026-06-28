@@ -4,6 +4,8 @@ set -euo pipefail
 OPENCLAW_PORT="__OPENCLAW_PORT__"
 export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"
 
+openclaw gateway status >/tmp/easy-miloco-openclaw-launcher-status.log 2>&1 || true
+grep -Eiq 'not installed|Service unit not found|LaunchAgent not installed' /tmp/easy-miloco-openclaw-launcher-status.log && openclaw gateway install >>/tmp/easy-miloco-openclaw-launcher.log 2>&1 || true
 openclaw gateway restart >/tmp/easy-miloco-openclaw-launcher.log 2>&1 || openclaw gateway start >>/tmp/easy-miloco-openclaw-launcher.log 2>&1 || true
 url="$(openclaw dashboard --no-open --yes 2>/dev/null | grep -Eo 'https?://[^ ]+' | head -n 1 || true)"
 if [ -z "$url" ]; then
