@@ -58,6 +58,13 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Action Fi
 
 具体 action 以当前 release 包内 `install.ps1` 为准。
 
+
+### LLM API
+API Key：
+Base URL：（必须为openAI兼容格式，一般为.../v1结尾）
+
+拿到后，必须做一次连通性测试。
+
 ###  每次运行后读日志
 
 每次安装器运行后，读取 release 解压目录中最新的：
