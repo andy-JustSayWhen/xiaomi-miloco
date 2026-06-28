@@ -5,16 +5,24 @@
 ## 一键部署
 
 ### Agent 全自动
+（兼容性好，但耗时、耗Token。小白友好，能够自动解决WSL缺失等各种疑难问题）
 
 把下面这句话丢给 Agent，让 Agent 全程代劳：
 
 ```text
-请为我一键部署 Miloco，按照：https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/auto-setup/docs/install-guide.md
+请为我一键部署 Miloco，按照：https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/install-guide.md
 ```
 
 ### 用户自己动
+（效率至上，但遭遇依赖缺失等问题需要您有能力判断处理）
 
 打开 [GitHub Release](https://github.com/andy-JustSayWhen/easy-miloco/releases)，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，双击文件夹根目录内的 `install.bat`。
+
+期间遇到任何问题，请把这句话发给你的agent：
+
+```text
+请你在 install.ps1 所在目录查找并读取最新的 miloco-install-console-*.txt、miloco-install-inputs-*.txt、miloco-deploy-report-*.txt，根据这些日志和诊断报告定位并解决问题；如果日志里提示 WSL 内详细日志，再按提示继续读取对应的 /tmp/*.log 或 ~/.openclaw/miloco/log/miloco-backend.log。
+```
 
 #### 下载加速
 
