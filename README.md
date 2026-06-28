@@ -1,11 +1,15 @@
 # easy-miloco
 
-本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库做的工作主要为：1. 提供一键部署包，适配 Windows、macOS、NAS 和云服务器；2. 提供教程。面向小白，长期更新 miloco 系列教程；3. 其他见 [项目说明](#项目说明)。
+本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库主要做三件事：
+
+1. 提供 Windows 一键部署包。
+2. 把安装、更新、排障流程写成小白能照着做的教程。
+3. 把实测踩坑沉淀到文档和脚本里，尽量让 Agent 能自己定位问题。
 
 ## 一键部署
 
 ### Agent 全自动
-（兼容性好，但耗时、耗Token。小白友好，能够自动解决WSL缺失等各种疑难问题）
+省心，适合不想自己处理 WSL、依赖、日志的人；缺点是会慢一点，也会多消耗一些 Token。
 
 把下面这句话丢给 Agent，让 Agent 全程代劳：
 
@@ -14,7 +18,7 @@
 ```
 
 ### 用户自己动
-（效率至上，但遭遇依赖缺失等问题需要您有能力判断处理）
+速度最快，适合能按提示处理权限、WSL、网络问题的人。
 
 打开 [GitHub Release](https://github.com/andy-JustSayWhen/easy-miloco/releases)，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，双击文件夹根目录内的 `install.bat`。
 
@@ -33,7 +37,7 @@
    - 使用方法：打开上述任一网站，按页面提示操作（也可自行搜索或问 AI）
 
 2. **从网盘下载**
-   - [夸克网盘备份](https://pan.quark.cn/s/22f5fb48488d)
+   - [夸克网盘备份](https://pan.quark.cn/s/5d839d2f3b0f)
    - 网盘为下载副本，版本基准仍以 GitHub Release 为准
 
 ## 环境依赖
@@ -42,21 +46,21 @@
 
 | 依赖                    | 是否需要 | 原因                                                                                                                                               |
 | ----------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 操作系统                | 必须     | Windows 建议 Windows 11 22H2+；低于该版本不保证完整兼容。macOS、Linux 后续按对应一键包说明执行                                                     |
+| 操作系统                | 必须     | 当前一键包先支持 Windows，建议 Windows 11 22H2+；低于该版本不保证完整兼容。macOS、Linux 先走源码/手动安装路线，后续再补一键包                       |
 | 兼容 Ubuntu WSL2        | 必须     | Miloco 当前不作为 Windows 原生后端运行；安装器会复用已存在且通过能力检测的 Ubuntu WSL2，只有没有可用 Ubuntu 时才默认安装 Ubuntu-24.04              |
 | Linux 基础能力          | 必须     | 需要 WSL version 2、glibc >= 2.28、CPU 架构 x86_64/aarch64，并能运行 bash、curl、systemd user 相关命令；Ubuntu 22.04+ 推荐，20.04 允许但会提示风险 |
 | 管理员权限              | 必须     | 首次安装可能需要启用 WSL、VirtualMachinePlatform、Hyper-V 防火墙入站规则                                                                           |
 | 网络访问 GitHub Release | 必须     | 官方版本基准和更新包以 GitHub Release 为准                                                                                                         |
 | 夸克网盘                | 可选     | 中国大陆用户 GitHub 下载慢时使用副本                                                                                                               |
 | 小米账号                | 必须     | 用于绑定米家设备、读取家庭和设备列表                                                                                                               |
-| MiMo API Key            | 必须     | 用于 Miloco 视觉/多模态感知推理                                                                                                                    |
+| LLM API Key / Base URL  | 必须     | 用于 Miloco 视觉/多模态感知推理。Base URL 需要是 OpenAI 兼容格式，通常以 `/v1` 结尾                                                                  |
 | 米家摄像头              | 必须     | 用于让 Miloco 获取家中画面并做视觉理解；摄像头需已绑定米家 App，且在米家 App 里能正常打开画面。支持型号见`docs/cameras.md`                         |
 | OpenClaw                | 必须     | Miloco 以 OpenClaw 插件/技能形式接入 Agent 对话和自动化                                                                                            |
 | Python / Node / uv      | 可选     | 用户无需预装，一键包会自动准备；如果自动安装失败，诊断报告会指出失败层                                                                             |
 
 兼容声明：
 
-Miloco for Windows v0.2 仅对 Windows 11 22H2 及以上版本提供完整一键部署保证。低于该版本的 Windows 可能可以运行基础服务，但不保证摄像头实时流、WSL mirrored networking、Hyper-V 防火墙、OpenClaw/Miloco 联动稳定可用。
+当前 Windows 一键包只对 Windows 11 22H2 及以上版本提供完整部署保证。低于该版本可能能跑基础服务，但摄像头实时流、WSL 网络、Hyper-V 防火墙、OpenClaw/Miloco 联动都不保证稳定。
 
 ## 项目说明
 
@@ -87,7 +91,7 @@ Miloco for Windows v0.2 仅对 Windows 11 22H2 及以上版本提供完整一键
 Release 包目录树示例：
 
 ```text
-easy-miloco-v0.2-<system>/
+easy-miloco-v0.5-windows/
 ├── README.md
 ├── install.bat
 ├── install.ps1
@@ -129,13 +133,13 @@ easy-miloco-v0.2-<system>/
 | `miloco-terminate-task` skill   | ☑️       | ☑️       | 两边均支持终止任务；当前仓库强调审计快照、级联清理和 cron pending 清理。                                                          |
 | `miloco-notify` skill           | ☑️       | ☑️       | 两边均支持感知异常分级和通知；当前仓库文档补充通知渠道排障路径。                                                                  |
 | `miloco-cli` 服务/设备/配置管理 | ☑️       | ☑️       | 官方 CLI 提供 service、account、config、device、scope 等命令；当前仓库保留并补充 Windows/WSL 验收脚本。                           |
-| macOS/Linux 安装                | ☑️       | ☑️       | 官方主线是`install.sh`；当前仓库仍保留官方脚本和源码构建路径。                                                                    |
+| macOS/Linux 安装                | ☑️       | ☑️       | 官方主线是`install.sh`；当前仓库保留源码和脚本路线，但当前一键 zip 先发 Windows。                                                 |
 | Windows WSL 安装                | ☑️       | ☑️       | 官方说明 Windows 需 WSL；当前仓库增加 Windows 一键包、预检、安装、后授权、验收和故障矩阵。                                        |
 | Windows 原生后端                | ❌       | ❌       | 两边都不支持 Windows 原生后端；当前仓库明确用 WSL2 承载 Linux 后端。                                                              |
-| 一键部署 zip 包                 | ❌       | ☑️       | 当前仓库新增`windows/package/install.ps1`、manifest、payload 和 release 包文档，面向普通用户双击安装。                            |
+| 一键部署 zip 包                 | ❌       | ☑️       | 当前仓库新增 Windows release 包，用户解压后双击根目录 `install.bat` 即可开始安装。                                                |
 | 桌面控制台菜单                  | ❌       | ☑️       | 当前仓库生成`Miloco 控制台.bat`，提供重启 OpenClaw、重启 Miloco、整套重启、关闭服务、关闭 WSL、接入消息渠道。                     |
 | Windows 诊断/验收脚本           | ❌       | ☑️       | 当前仓库新增`docs/scripts/*` 和 `windows-preflight`/`wsl-miloco-validate`/`win-miloco-workflow`，区分 BASIC_READY 与 FULL_READY。 |
-| 国内下载副本                    | ❌       | ☑️       | 当前仓库文档支持 GitHub Release 为基准、夸克网盘作下载副本。                                                                      |
+| 国内下载副本                    | ❌       | ☑️       | GitHub Release 是版本基准；GitHub 慢时可用夸克网盘副本下载。                                                                      |
 | 教程、FAQ、runbook              | ❌       | ☑️       | 当前仓库新增`docs/`，覆盖一键部署、Windows、摄像头、SSH 命令传输、NAS 安装、性能报告等复用经验。                                  |
 | 性能报告 WebUI                  | ❌       | ☑️       | 当前仓库新增`performance_report.py`、`performance_report_router.py` 和 `PerformanceReportsPage.tsx`，展示每次后端运行报告。       |
 | Agent 可读备份恢复包            | ❌       | ☑️       | 当前仓库新增`backup_export.py`、`BackupPage.tsx` 和 `/admin/backup/export`，导出家庭档案、成员、任务、模型配置的逻辑恢复 zip。    |
@@ -150,4 +154,4 @@ easy-miloco-v0.2-<system>/
 - 用户问题优先通过诊断报告定位，不盲目重装。
 - 更新前只备份本项目相关状态，不默认导出整个 WSL。
 - 失败经验和成功经验必须沉淀到 `docs/faq/known-issues.md` 或对应 runbook。
-- v0.2 先保证 Windows 11 22H2+；macOS、NAS、云服务器在 Windows 路线稳定后再展开。
+- 当前先保证 Windows 11 22H2+ 的一键部署；macOS、NAS、云服务器等路线等 Windows 包稳定后再展开。
