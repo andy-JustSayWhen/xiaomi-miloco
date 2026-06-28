@@ -3,6 +3,8 @@
 import base64
 import binascii
 import json
+import platform
+import subprocess
 import sys
 from urllib.parse import parse_qs, urlparse
 
@@ -50,7 +52,13 @@ def _parse_auth_payload(payload: str) -> tuple[str, str]:
         data = json.loads(decoded)
         code = data["code"].strip()
         state = data["state"].strip()
-    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError, KeyError, AttributeError):
+    except (
+        binascii.Error,
+        UnicodeDecodeError,
+        json.JSONDecodeError,
+        KeyError,
+        AttributeError,
+    ):
         raise click.ClickException("授权信息格式错误，请从回调页面直接复制。")
     if not code or not state:
         raise click.ClickException("授权信息中 code 或 state 为空。")
@@ -104,12 +112,41 @@ def _submit_authorize(code: str, state: str, pretty: bool) -> None:
             except ValueError:
                 pass
             if any(h["home_id"] == choice for h in home_list):
-                idx = next(i for i, h in enumerate(home_list) if h["home_id"] == choice)
+                idx = next(
+                    i for i, h in enumerate(home_list) if h["home_id"] == choice
+                )
                 break
             click.echo("无效选择，请重新输入")
         target = home_list[idx]["home_id"]
         api_put("/api/miot/scope/homes", {"home_id": target})
         click.echo(f"\n已切换到 {home_list[idx].get('home_name', target)}")
+
+
+def _open_user_url(url: str) -> None:
+    try:
+        if sys.platform == "darwin":
+            subprocess.run(
+                ["open", url],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        elif sys.platform == "win32":
+            subprocess.run(
+                ["cmd", "/c", "start", "", url],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        elif platform.system().lower() == "linux":
+            subprocess.run(
+                ["xdg-open", url],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+    except OSError:
+        pass
 
 
 @account_group.command("bind")
@@ -128,16 +165,21 @@ def account_bind(no_wait, pretty):
     if not oauth_url:
         raise click.ClickException("后端未返回 oauth_url。")
 
-    click.echo(f"\n请在浏览器中打开以下链接完成小米账号授权：\n\n  {oauth_url}\n")
+    _open_user_url(oauth_url)
+    click.echo(
+        "\n已尝试自动打开浏览器完成小米账号授权。"
+        f"\n如果浏览器没有弹出，请手动打开：\n\n  {oauth_url}\n"
+    )
 
     if no_wait:
         print_result(data, pretty)
         click.echo("\n授权完成后，请运行：")
-        click.echo("  miloco-cli account authorize <授权码>")
+        click.echo("  miloco-cli account authorize '<浏览器地址栏完整回调地址>'")
         return
 
     payload = click.prompt(
-        "授权完成后，从页面复制授权码并粘贴到此处",
+        "授权完成后，请粘贴浏览器地址栏里的完整 "
+        "https://127.0.0.1/?code=...&state=... 回调地址",
         type=str,
     )
     code, state = _parse_auth_payload(payload)

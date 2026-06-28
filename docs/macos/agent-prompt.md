@@ -19,12 +19,16 @@
    - 如果没有 openclaw，下载并执行 https://openclaw.ai/install-cli.sh。
    - 运行 bash payload/install.sh --agent-prepare。
 5. 解析 --agent-prepare 输出的 AGENT_JSON。先处理小米账号授权，再处理 Omni 模型配置，不要同时问两个问题。
-6. 用户提供小米 OAuth payload 后，使用 --agent-finish 或 scripts/macos/macos-post-auth-finish.sh 收尾。
-7. 收尾后运行：
+6. Omni 模型配置必须收齐三项：API Key、Base URL、视觉模型名。不要只问 Key，也不要擅自把 Base URL 固定成某一个默认值。
+   - Xiaomi MiMo TokenPlan：`https://token-plan-sgp.xiaomimimo.com/v1`，视觉模型通常用 `mimo-v2.5`。
+   - Xiaomi MiMo 官方按量：`https://api.xiaomimimo.com/v1`，视觉模型通常用 `xiaomi/mimo-v2.5`。
+   - 其他 OpenAI 兼容服务：让用户提供服务商给的 `/v1` Base URL 和支持视觉的模型名。
+7. 用户提供小米 OAuth payload 和 Omni 三件套后，使用 --agent-finish 或 scripts/macos/macos-post-auth-finish.sh 收尾，必须显式传入 `--omni-base-url` / `OMNI_BASE_URL` 和 `--omni-model` / `OMNI_MODEL`。
+8. 收尾后运行：
    bash scripts/macos/macos-miloco-validate.sh --strict-full
-8. 不能只以服务启动作为完成。必须报告 Miloco URL、OpenClaw URL、账号状态、模型 Key 状态、设备列表状态、摄像头 scope 状态。
-9. 摄像头异常不要重装，按“云端设备 -> LAN -> scope -> stream connected -> engine active_sources -> OpenClaw 视觉推理”分层定位。
-10. 下载或安装超过 1 分钟无输出时，先检查进程和日志，不要重复启动多个安装器。
+9. 不能只以服务启动作为完成。必须报告 Miloco URL、OpenClaw URL、账号状态、模型 Key 状态、设备列表状态、摄像头 scope 状态。
+10. 摄像头异常不要重装，按“云端设备 -> LAN -> scope -> stream connected -> engine active_sources -> OpenClaw 视觉推理”分层定位。
+11. 下载或安装超过 1 分钟无输出时，先检查进程和日志，不要重复启动多个安装器。
 
 交付格式：
 - Miloco URL

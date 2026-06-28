@@ -120,6 +120,22 @@ install_desktop_helpers() {
     printf 'OpenClaw token: %s\n' "$token"
     printf 'Recommended: double-click OpenClaw Chat.command, then open Miloco dashboard.\n'
   } > "$info"
+
+  printf '[OK] Desktop shortcuts created:\n'
+  printf '  %s\n' "$console"
+  printf '  %s\n' "$openclaw_entry"
+  printf '  %s\n' "$info"
+}
+
+open_dashboards() {
+  miloco_url="http://127.0.0.1:$MILOCO_PORT/"
+  openclaw_url="$(openclaw dashboard --no-open --yes 2>/dev/null | grep -Eo 'https?://[^ ]+' | head -n 1 || true)"
+  [ -n "$openclaw_url" ] || openclaw_url="http://127.0.0.1:$OPENCLAW_PORT/"
+
+  printf '[OK] Opening Miloco dashboard: %s\n' "$miloco_url"
+  open "$miloco_url" >/tmp/easy-miloco-open-miloco.log 2>&1 || true
+  printf '[OK] Opening OpenClaw dashboard: %s\n' "$openclaw_url"
+  open "$openclaw_url" >/tmp/easy-miloco-open-openclaw.log 2>&1 || true
 }
 
 say_step "Checking package"
@@ -148,13 +164,33 @@ start_openclaw_gateway
 install_desktop_helpers
 
 say_step "Validating"
-if bash "$ROOT/scripts/macos/macos-miloco-validate.sh" --miloco-port "$MILOCO_PORT" --openclaw-port "$OPENCLAW_PORT"; then
-  printf '\n[OK] easy-miloco macOS setup finished.\n'
-  printf 'Miloco: http://127.0.0.1:%s/\n' "$MILOCO_PORT"
+validation_log="/tmp/easy-miloco-macos-validation.log"
+set +e
+bash "$ROOT/scripts/macos/macos-miloco-validate.sh" --miloco-port "$MILOCO_PORT" --openclaw-port "$OPENCLAW_PORT" | tee "$validation_log"
+validation_code="${PIPESTATUS[0]}"
+set -e
+basic_ready="$(awk -F= '/^BASIC_READY=/{print $2}' "$validation_log" | tail -n 1)"
+full_ready="$(awk -F= '/^FULL_READY=/{print $2}' "$validation_log" | tail -n 1)"
+
+say_step "Opening dashboards"
+open_dashboards
+
+if [ "$validation_code" -eq 0 ] && [ "$full_ready" = "yes" ]; then
+  printf '\n[OK] easy-miloco macOS full setup finished.\n'
+elif [ "$validation_code" -eq 0 ] && [ "$basic_ready" = "yes" ]; then
+  printf '\n[WARN] easy-miloco macOS basic setup finished, but full readiness is not complete.\n' >&2
+  printf 'This usually means account, model, device rows, or camera scope still needs attention.\n' >&2
 else
   printf '\n[WARN] Setup finished but validation reported issues.\n' >&2
-  printf 'Check: /tmp/easy-miloco-macos-service-start.log and ~/.openclaw/miloco/log/\n' >&2
 fi
+printf 'Miloco: http://127.0.0.1:%s/\n' "$MILOCO_PORT"
+printf 'OpenClaw: http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
+printf 'Desktop console: %s\n' "$HOME/Desktop/Miloco Console.command"
+printf 'Logs:\n'
+printf '  %s\n' "$validation_log"
+printf '  /tmp/easy-miloco-macos-service-start.log\n'
+printf '  %s\n' "$HOME/.openclaw/miloco/log/"
+printf '  %s\n' "$HOME/Library/Logs/openclaw/gateway.log"
 
 printf '\nPress Enter to close this window.\n'
 read -r _ || true

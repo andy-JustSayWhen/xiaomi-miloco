@@ -552,6 +552,8 @@ class Installer:
         *,
         dev: bool = False,
         omni_api_key: str | None = None,
+        omni_model: str | None = None,
+        omni_base_url: str | None = None,
         account_auth: str | None = None,
         miloco_home: Path,
         skip_openclaw: bool = False,
@@ -561,6 +563,8 @@ class Installer:
         self.downloader = downloader
         self.dev = dev
         self.omni_api_key = omni_api_key
+        self.omni_model = omni_model
+        self.omni_base_url = omni_base_url
         self.account_auth = account_auth
         self.miloco_home = miloco_home
         self.skip_openclaw = skip_openclaw
@@ -994,9 +998,14 @@ class Installer:
     def _step_configure(self) -> None:
         self._step_header("model.title", "model.subtitle")
 
-        if self.omni_api_key:
+        if self.omni_api_key and self.omni_model and self.omni_base_url:
             self._quick_configure_mimo()
             return
+        if self.omni_api_key and not self.platform.is_interactive:
+            self.ui.fail(
+                "--omni-api-key requires --omni-base-url and --omni-model "
+                "in non-interactive mode"
+            )
 
         # 非交互模式直接跳过
         if not self.platform.is_interactive:
@@ -1033,55 +1042,184 @@ class Installer:
                 self.ui.step_skip(self.ui.i18n.t("model.skipped_hint"))
                 return
 
-        self.ui.info(self.ui.i18n.t("model.get_key"))
-
-        provider = self.ui.prompt_select(
-            self.ui.i18n.t("model.select_provider"),
-            choices=[
-                self.ui.i18n.t("model.provider_mimo"),
-                self.ui.i18n.t("model.provider_custom"),
-            ],
-        )
-
-        if provider == self.ui.i18n.t("model.provider_mimo"):
-            model_name = "xiaomi/mimo-v2.5"
-            base_url = "https://api.xiaomimimo.com/v1"
-        else:
-            model_name = self.ui.prompt_input(
-                self.ui.i18n.t("model.enter_model"),
-                default=cur_model,
-                validate=lambda v: (
-                    True if v.strip() else self.ui.i18n.t("model.model_required")
-                ),
-            )
-            base_url = self.ui.prompt_input(
-                self.ui.i18n.t("model.enter_base_url"),
-                default=cur_base_url,
-                validate=lambda v: (
-                    True if v.strip() else self.ui.i18n.t("model.url_required")
-                ),
-            )
-
+        self._print_model_recommendations()
+        profile = self._select_model_profile()
         api_key = self.ui.prompt_input(
             self.ui.i18n.t("model.enter_key"),
-            default="",
+            default=self.omni_api_key or "",
             password=True,
             validate=lambda v: (
                 True if v.strip() else self.ui.i18n.t("model.key_required")
             ),
         )
+        default_base_url = (
+            cur_base_url or profile["base_url"] or self.omni_base_url or ""
+        )
+        base_url = self.ui.prompt_input(
+            self.ui.i18n.t("model.enter_base_url"),
+            default=default_base_url,
+            validate=lambda v: (
+                True if v.strip() else self.ui.i18n.t("model.url_required")
+            ),
+        ).strip()
+        default_model = cur_model or profile["model"] or self.omni_model or ""
+        model_name = self._select_omni_model(base_url, api_key, default_model)
 
         self._write_model_config(model_name, base_url, api_key)
         self.ui.step_ok(self.ui.i18n.t("model.config_saved"))
 
     def _quick_configure_mimo(self) -> None:
         self.ui.step(self.ui.i18n.t("model.mimo_quick"))
+        if not self.omni_model or not self.omni_base_url:
+            self.ui.fail(
+                "--omni-api-key requires --omni-base-url and --omni-model"
+            )
         self._write_model_config(
-            "xiaomi/mimo-v2.5",
-            "https://api.xiaomimimo.com/v1",
+            self.omni_model,
+            self.omni_base_url,
             self.omni_api_key or "",
         )
         self.ui.step_ok(self.ui.i18n.t("model.config_saved"))
+
+    def _print_model_recommendations(self) -> None:
+        self.ui.info(self.ui.i18n.t("model.get_key"))
+        self.ui.info(
+            "01 Xiaomi MiMo TokenPlan: "
+            "https://token-plan-sgp.xiaomimimo.com/v1 / mimo-v2.5"
+        )
+        self.ui.info(
+            "02 Xiaomi MiMo official pay-as-you-go: "
+            "https://api.xiaomimimo.com/v1 / xiaomi/mimo-v2.5"
+        )
+        self.ui.info(
+            "03 Custom OpenAI-compatible provider: "
+            "paste the provider Base URL and vision model"
+        )
+
+    def _select_model_profile(self) -> dict[str, str]:
+        profiles = [
+            {
+                "label": "01 Xiaomi MiMo TokenPlan",
+                "base_url": "https://token-plan-sgp.xiaomimimo.com/v1",
+                "model": "mimo-v2.5",
+                "url": "https://platform.xiaomimimo.com",
+            },
+            {
+                "label": "02 Xiaomi MiMo official pay-as-you-go",
+                "base_url": "https://api.xiaomimimo.com/v1",
+                "model": "xiaomi/mimo-v2.5",
+                "url": "https://platform.xiaomimimo.com",
+            },
+            {
+                "label": "03 Custom OpenAI-compatible provider",
+                "base_url": "",
+                "model": "",
+                "url": "",
+            },
+        ]
+        choice = self.ui.prompt_select(
+            self.ui.i18n.t("model.select_provider"),
+            choices=[p["label"] for p in profiles],
+            default=profiles[0]["label"],
+        )
+        profile = next(p for p in profiles if p["label"] == choice)
+        if profile["url"]:
+            self._open_url(profile["url"])
+        return profile
+
+    def _open_url(self, url: str) -> None:
+        try:
+            if sys.platform == "darwin":
+                subprocess.run(
+                    ["open", url],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            elif sys.platform == "win32":
+                subprocess.run(
+                    ["cmd", "/c", "start", "", url],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            elif self.platform.os_name == "linux":
+                subprocess.run(
+                    ["xdg-open", url],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+        except OSError:
+            pass
+
+    def _select_omni_model(
+        self, base_url: str, api_key: str, default_model: str
+    ) -> str:
+        model_ids = self._fetch_model_ids(base_url, api_key)
+        if not model_ids:
+            return self.ui.prompt_input(
+                self.ui.i18n.t("model.enter_model"),
+                default=default_model,
+                validate=lambda v: (
+                    True if v.strip() else self.ui.i18n.t("model.model_required")
+                ),
+            ).strip()
+
+        preferred = default_model
+        if "mimo-v2.5" in model_ids:
+            preferred = "mimo-v2.5"
+        elif "xiaomi/mimo-v2.5" in model_ids:
+            preferred = "xiaomi/mimo-v2.5"
+        self.ui.info(f"Available models from {base_url.rstrip('/')}/models:")
+        choices = []
+        for model_id in model_ids:
+            label = model_id
+            if model_id == preferred:
+                label = f"{model_id}  [recommended for vision]"
+            elif model_id.endswith("pro"):
+                label = f"{model_id}  [usually not for camera vision]"
+            choices.append(label)
+        choices.append(self.ui.i18n.t("model.enter_model"))
+        selected = self.ui.prompt_select(
+            self.ui.i18n.t("model.select_model"),
+            choices=choices,
+            default=next(
+                (x for x in choices if x.startswith(preferred)),
+                choices[0],
+            ),
+        )
+        if selected == self.ui.i18n.t("model.enter_model"):
+            return self.ui.prompt_input(
+                self.ui.i18n.t("model.enter_model"),
+                default=preferred,
+                validate=lambda v: (
+                    True if v.strip() else self.ui.i18n.t("model.model_required")
+                ),
+            ).strip()
+        return selected.split()[0]
+
+    def _fetch_model_ids(self, base_url: str, api_key: str) -> list[str]:
+        try:
+            response = httpx.get(
+                f"{base_url.rstrip('/')}/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+                timeout=20,
+            )
+            response.raise_for_status()
+            data = response.json()
+            models = data.get("data", [])
+            ids = sorted(
+                {
+                    item.get("id", "").strip()
+                    for item in models
+                    if isinstance(item, dict) and item.get("id")
+                }
+            )
+            return [x for x in ids if x]
+        except Exception as exc:
+            self.ui.warn(f"模型列表获取失败，继续手动输入模型名: {exc}")
+            return []
 
     def _write_model_config(self, model: str, base_url: str, api_key: str) -> None:
         for field_name, value in [
@@ -1542,17 +1680,17 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--omni-api-key",
         dest="omni_api_key",
-        help="Omni model API key (auto-configure MiMo)",
+        help="Omni model API key; also provide --omni-base-url and --omni-model",
     )
     parser.add_argument(
         "--omni-model",
         dest="omni_model",
-        help="Omni model name (default: xiaomi/mimo-v2.5)",
+        help="Omni vision model name, for example mimo-v2.5",
     )
     parser.add_argument(
         "--omni-base-url",
         dest="omni_base_url",
-        help="Omni model base URL (default: https://api.xiaomimimo.com/v1)",
+        help="Omni model base URL, for example https://token-plan-sgp.xiaomimimo.com/v1",
     )
     parser.add_argument(
         "--uninstall", action="store_true", help="Uninstall all miloco components"
@@ -1622,6 +1760,8 @@ def main() -> None:
             downloader=downloader,
             dev=args.dev,
             omni_api_key=args.omni_api_key,
+            omni_model=args.omni_model,
+            omni_base_url=args.omni_base_url,
             account_auth=args.account_auth,
             miloco_home=miloco_home,
             skip_openclaw=args.skip_openclaw,
@@ -1677,6 +1817,8 @@ def main() -> None:
         downloader=downloader,
         dev=args.dev,
         omni_api_key=args.omni_api_key,
+        omni_model=args.omni_model,
+        omni_base_url=args.omni_base_url,
         account_auth=args.account_auth,
         miloco_home=miloco_home,
         skip_openclaw=args.skip_openclaw,
