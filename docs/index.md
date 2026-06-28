@@ -10,6 +10,7 @@
 
 - 一键部署：[install-guide.md](install-guide.md)
 - Windows 部署总入口：[windows/index.md](windows/index.md)
+- macOS 部署总入口：[macos/index.md](macos/index.md)
 - 摄像头支持和排障：[cameras.md](cameras.md)
 - 常见问题：[faq/known-issues.md](faq/known-issues.md)
 
@@ -23,6 +24,7 @@ Agent 必须先读：
 常见任务：
 
 - 部署当前机器：读 [windows/agent-install.md](windows/agent-install.md)，按预检、安装、授权、验收顺序推进。
+- 规划 macOS 一键包：读 [macos/macos-adaptation-spec.md](macos/macos-adaptation-spec.md)，先验证 darwin runtime，再做 macOS 分发壳。
 - 手动排障：从 [windows/troubleshooting.md](windows/troubleshooting.md) 和 [faq/known-issues.md](faq/known-issues.md) 开始。
 - 摄像头排障：读 [windows/camera-runbook.md](windows/camera-runbook.md) 和 [cameras.md](cameras.md)。
 - 远程 Windows/WSL 排障命令传输：读 [windows/ssh-command-transfer.md](windows/ssh-command-transfer.md)。
@@ -37,6 +39,7 @@ Agent 必须先读：
 | 目录 | 用途 |
 | --- | --- |
 | [windows/](windows/index.md) | Windows 安装、预检、故障、验收、<windows-sample-host> 实录 |
+| [macos/](macos/index.md) | macOS 一键包规划、适配 spec 和后续验证记录 |
 | [runbooks/](runbooks/change-and-debug-runbook.md) | 变更、排障、发版前检查 |
 | [tests/](tests/test-guide.md) | 测试矩阵和验收清单 |
 | [meta/](meta/source-map.md) | 源码地图和维护日志 |
