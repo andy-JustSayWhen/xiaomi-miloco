@@ -2,10 +2,12 @@
 
 本文件是给 Agent 读取的唯一总入口。README 里的一句话只指向这里；Agent 进入本文件后，必须先识别目标系统，再跳转到对应子指南，不要把 Windows、macOS、Linux/NAS 的步骤混在一起执行。
 
+维护提醒：当前文档位于 `macOS` 开发分支，所以公开 raw URL 暂时指向 `macOS`。合并回 `main` 时，必须把 README、本文、`scripts/install-guide.md` 和 macOS 子指南里的 raw URL 统一改回 `main`。
+
 ## 给用户复制的一句话
 
 ```text
-请为我一键部署 Miloco，按照：https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/install-guide.md
+请为我一键部署 Miloco，按照：https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/macOS/docs/install-guide.md
 ```
 
 ## Agent 路由规则

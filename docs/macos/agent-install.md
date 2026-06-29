@@ -39,7 +39,7 @@
 - 如果我已经下载 release zip：<本地 zip 路径，没有就写无>
 
 要求：
-1. 先读取 https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/install-guide.md，根据系统路由到 macOS 子指南。
+1. 先读取 https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/macOS/docs/install-guide.md，根据系统路由到 macOS 子指南。
 2. 绝对不要使用 WSL。
 3. 自动下载或使用我提供的 macOS release zip，解压后先读 manifest.json、README.md、install.command、scripts/macos/*.sh。
 4. 优先运行 ./install.command；如果当前环境不适合交互式窗口，按 install.command 和 scripts/macos/*.sh 的逻辑执行同等步骤。

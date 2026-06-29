@@ -14,7 +14,7 @@
 把下面这句话丢给 Agent，让 Agent 全程代劳：
 
 ```text
-请为我一键部署 Miloco，按照：https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/install-guide.md
+请为我一键部署 Miloco，按照：https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/macOS/docs/install-guide.md
 ```
 
 Agent 只需要先读上面这个总入口；进入后会按当前系统自动路由到 Windows 或 macOS 子指南。

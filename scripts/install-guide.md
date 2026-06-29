@@ -12,7 +12,7 @@ metadata:
 本文件保留在 `scripts/` 下，只是为了兼容官方 Miloco 的 Agent 安装入口习惯。真实指南已经移动到：
 
 ```text
-https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/install-guide.md
+https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/macOS/docs/install-guide.md
 ```
 
 请读取上面的 `docs/install-guide.md` 并按其中步骤执行。
