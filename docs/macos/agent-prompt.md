@@ -5,7 +5,7 @@
 ```text
 你现在接管这台 macOS 电脑的 easy-miloco 部署。先读取总入口：
 
-https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/macOS/docs/install-guide.md
+https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/install-guide.md
 
 确认当前系统是 macOS 后，按总入口路由到 macOS Agent 子指南执行。目标是自动下载或使用我提供的 macOS release zip，完成部署，并给出 BASIC_READY / FULL_READY 验收结果。
 
