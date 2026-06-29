@@ -8,6 +8,7 @@
 - Windows：[windows/index.md](windows/index.md)
 - macOS：[macos/index.md](macos/index.md)
 - NAS：[nas/index.md](nas/index.md)
+- NAS Docker：[nas/docker-deploy.md](nas/docker-deploy.md)
 - 摄像头：[cameras.md](cameras.md)
 - 常见问题：[faq/known-issues.md](faq/known-issues.md)
 
@@ -18,6 +19,7 @@ Agent 先读 [AGENT.md](AGENT.md)，再按系统进入：
 - Windows Agent 部署：[windows/agent-install.md](windows/agent-install.md)
 - macOS Agent 部署：[macos/agent-install.md](macos/agent-install.md)
 - NAS 硬门槛：[nas/index.md](nas/index.md)
+- NAS Docker 部署：[nas/docker-deploy.md](nas/docker-deploy.md)
 - Release 打包：[runbooks/make-release-package.md](runbooks/make-release-package.md)
 - 变更排障：[runbooks/change-and-debug-runbook.md](runbooks/change-and-debug-runbook.md)
 
@@ -27,7 +29,7 @@ Agent 先读 [AGENT.md](AGENT.md)，再按系统进入：
 | --- | --- |
 | `windows/` | Windows 一键包和摄像头公开指南 |
 | `macos/` | macOS 一键包和 Agent 指南 |
-| `nas/` | NAS 部署硬门槛和后续适配入口 |
+| `nas/` | NAS 部署硬门槛、Docker Compose 部署和后续适配入口 |
 | `scripts/` | release 包复用的预检、收尾、验收和发布脚本 |
 | `runbooks/` | 通用发版、排障和 NAS 安装说明 |
 

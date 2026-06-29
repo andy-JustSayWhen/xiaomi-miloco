@@ -8,7 +8,7 @@ Agent 先判断目标系统，然后只读对应子指南。
 | --- | --- | --- |
 | Windows | `docs/windows/agent-install.md` | [打开](https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/windows/agent-install.md) |
 | macOS | `docs/macos/agent-install.md` | [打开](https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/macos/agent-install.md) |
-| Linux / NAS | `docs/nas/index.md` | [打开](https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/NAS/docs/nas/index.md) |
+| Linux / NAS | `docs/nas/index.md`，通过后读 `docs/nas/docker-deploy.md` | [硬门槛](https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/NAS/docs/nas/index.md) / [Docker](https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/NAS/docs/nas/docker-deploy.md) |
 
 硬规则：
 
