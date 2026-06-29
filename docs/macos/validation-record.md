@@ -1,5 +1,152 @@
 # macOS 懒人包验证记录
 
+## 2026-06-29 v0.1 arm64 自动化 + 可视化回归
+
+分支：`macOS`
+
+产物：
+
+```text
+dist/macos/easy-miloco-v0.1-macos-arm64.zip
+```
+
+SHA-256：
+
+```text
+15776e90e8fd4693215fdff6623f5b5d41e15c19c3cf60471eea480411264ec0
+```
+
+### 自动化部署测试
+
+执行路径：
+
+```text
+1. 解压 zip 到 /tmp/easy-miloco-auto-test。
+2. 运行 install.command --agent-prepare。
+3. 使用既有恢复包补齐模型 Key / Base URL / model 后运行 macos-post-auth-finish.sh --no-strict-full。
+4. 测试结束后停止 Miloco、卸载 OpenClaw Gateway、删除 ~/.openclaw/miloco、桌面入口和临时解包目录。
+```
+
+结果：
+
+```text
+INSTALL_EXIT=0
+FINISH_MODEL_EXIT=0
+BASIC_READY=yes
+FAIL_COUNT=0
+```
+
+通过项：
+
+```text
+- 检测到已有 OpenClaw Miloco 插件残留时，安装器先导出桌面 Agent 恢复包，再卸载旧版，再继续安装。
+- preflight 通过，1810/18789 端口在安装前为空。
+- Miloco 服务启动，/health 返回 {"status":"ok"}，面板 HTTP 200。
+- OpenClaw Gateway 以 LaunchAgent 方式启动，Connectivity probe ok。
+- 桌面入口创建成功：
+  ~/Desktop/Miloco Console.command
+  ~/Desktop/OpenClaw Chat.command
+  ~/Desktop/OpenClaw-login-info.txt
+- OpenClaw 打开地址带 #token=，不再停在登录页。
+- OpenClaw 主聊天模型同步为 mimo/mimo-v2.5，provider/baseUrl/apiKey/modelRow 均 configured。
+```
+
+自动化轮边界：
+
+```text
+本轮 --agent-prepare 未输入小米 OAuth payload，因此账号、设备、摄像头满血不在自动化轮完成。
+模型配置可从本机恢复包补齐，但账号授权必须在可视化轮真实走浏览器 OAuth。
+```
+
+### 可视化部署测试
+
+执行路径：
+
+```text
+1. Finder 打开 dist/macos。
+2. 图形界面解压 easy-miloco-v0.1-macos-arm64.zip。
+3. 从解压目录打开 install.command，Terminal 真实交互安装。
+4. 浏览器自动打开小米 OAuth 页面，点击确认授权。
+5. 浏览器跳到 https://127.0.0.1/?code=...&state=... 报错地址后，把完整地址栏粘回 Terminal。
+6. 选择家庭 andy的家。
+7. 模型配置页显示 Windows 同源的三个推荐入口；已有 Key 直接回车后，依次粘贴 API Key、Base URL，模型列表默认选择 mimo-v2.5。
+8. 安装结束后自动打开 Miloco 面板和 OpenClaw Chat。
+9. 测试结束后停止服务、卸载 LaunchAgent、删除 ~/.openclaw/miloco、桌面入口、解包目录并关闭本地页面。
+```
+
+验证结果：
+
+```text
+BASIC_READY=yes
+FULL_READY=no
+WARN_COUNT=1
+FAIL_COUNT=0
+FULL_FAIL_COUNT=1
+```
+
+通过项：
+
+```text
+- OAuth 两种提示口径实际可用：浏览器跳到 https://127.0.0.1/?code=...&state=... 后，粘贴完整地址栏可成功授权。
+- 家庭切换到 andy的家。
+- 模型 Key、Base URL、mimo-v2.5 配置成功。
+- 最终 Terminal 屏幕显示桌面入口、Miloco 面板地址、OpenClaw Chat 使用方式和 OpenClaw-login-info.txt。
+- Chrome 自动打开 OpenClaw Chat，不再显示登录页；URL 中 token 被页面吸收。
+- Miloco 概述页显示 andy的家、127 件设备、实时画面区域，实时画面显示 2 个在感知，并可见两路画面。
+```
+
+摄像头证据：
+
+```text
+miloco-cli scope camera list --pretty:
+- 1039007350 / 摄像头 客厅 / 客厅 / is_online=true / in_use=true / connected=true
+- 450305034 / 床边置物架 / 主卧 / is_online=true / in_use=true / connected=true
+- 1146439633 / 主卧 电脑桌上 / 主卧 / is_online=true / in_use=true / connected=false
+
+miloco-cli perceive devices --pretty:
+- 1039007350 / 摄像头 客厅 / camera / online=true
+- 450305034 / 床边置物架 / camera / online=true
+- 1146439633 / 主卧 电脑桌上 / camera / online=true
+
+Miloco 面板口径：
+- 家庭：andy的家
+- 设备：127 件
+- 实时画面：2 个在感知
+- 可见画面：客厅、主卧床边视角
+```
+
+OpenClaw Chat 问答证据：
+
+```text
+提问：家里有几个摄像头？画面如何？
+
+回复摘要：
+- 回答家里一共有 3 个摄像头。
+- 列出摄像头 客厅、床边置物架、主卧 电脑桌上。
+- 描述客厅画面：无人，沙发、抱枕、熊猫玩偶、茶几纸巾盒等。
+- 描述主卧床边视角：电脑显示器亮着，桌面有白色小风扇，房间无人。
+- 描述主卧电脑桌视角：同一房间另一个角度，能看到键盘、鼠标、风扇、衣柜和收纳区。
+```
+
+发现的问题：
+
+```text
+1. macos-miloco-validate.sh 的 miloco.devices 仍报 no device rows，但 Miloco 面板实际显示 127 件设备，说明 device list 验证口径或命令输出解析需要修正。
+2. scope camera 显示第三台 主卧 电脑桌上 connected=false，Miloco 面板实时画面也只显示 2 个在感知；但 OpenClaw Chat 回复把第三台也说成“画面正常”。这属于 OpenClaw 摄像头画面口径缺陷，不能算满血通过。
+3. Computer Use 直接读取 Finder 超时，最终使用 Finder/open/AppleScript + 截图完成真实可视化路径。该问题属于测试控制工具限制，不是安装包功能问题。
+```
+
+清理结果：
+
+```text
+- 1810 无监听。
+- 18789 无监听。
+- Miloco/OpenClaw/install.command/macos-miloco-validate 无残留进程。
+- 桌面 Miloco Console.command、OpenClaw Chat.command、OpenClaw-login-info.txt 已删除。
+- dist/macos 解包目录 easy-miloco-v0.1-macos-arm64 已删除。
+- 保留正式 zip 与历史 Agent 恢复包作为发布和恢复证据。
+```
+
 ## 2026-06-29 v0.1 arm64 小白用户路径复测
 
 分支：`macOS`
