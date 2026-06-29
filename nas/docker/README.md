@@ -13,9 +13,8 @@
 
 ```bash
 cd nas/docker
-cp .env.example .env
-docker compose up -d --build
-docker compose logs -f miloco
+./manage.sh start
+./manage.sh logs
 ```
 
 如果 `.env` 里已经有 `MILOCO_ACCOUNT_AUTH`、`OMNI_API_KEY`、`OMNI_BASE_URL`、`OMNI_MODEL`，容器会自动跑完整安装并启动服务。
@@ -23,7 +22,7 @@ docker compose logs -f miloco
 如果这些值为空，容器只完成基础安装和服务启动；补齐 `.env` 后执行：
 
 ```bash
-docker compose restart miloco
+./manage.sh restart
 ```
 
 当前 v0.5 release 尚未包含独立 NAS zip。入口脚本会优先找 NAS zip；`x86_64/amd64` NAS 可临时回退 Windows 包内的 Linux payload。`aarch64/arm64` NAS 需要后续发布包含 `linux-aarch64` runtime 的 NAS zip，或在 `.env` 里指定 `MILOCO_RELEASE_ZIP_URL`。
@@ -36,6 +35,14 @@ docker compose restart miloco
 - OpenClaw 对话：`http://127.0.0.1:18789/`
 
 在其他电脑或手机上，把 `127.0.0.1` 换成 NAS 的局域网 IP。
+
+也可以直接运行：
+
+```bash
+./manage.sh urls
+```
+
+`./manage.sh urls` 会优先从容器里的 OpenClaw 生成可直接打开的登录入口；如果 OpenClaw 还没启动，才显示普通地址。
 
 ## 数据目录
 
@@ -50,14 +57,21 @@ nas/docker/data/
 ## 常用命令
 
 ```bash
-docker compose ps
-docker compose logs -f miloco
-docker compose restart miloco
-docker compose down
+./manage.sh status
+./manage.sh logs
+./manage.sh validate
+./manage.sh restart
+./manage.sh stop
 ```
 
 需要重新执行安装流程：
 
 ```bash
 MILOCO_FORCE_INSTALL=1 docker compose up -d --build
+```
+
+更新前先备份：
+
+```bash
+./manage.sh update
 ```

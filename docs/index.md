@@ -18,6 +18,7 @@ Agent 先读 [AGENT.md](AGENT.md)，再按系统进入：
 
 - Windows Agent 部署：[windows/agent-install.md](windows/agent-install.md)
 - macOS Agent 部署：[macos/agent-install.md](macos/agent-install.md)
+- NAS Agent Docker 部署：[nas/agent-install.md](nas/agent-install.md)
 - NAS 硬门槛：[nas/index.md](nas/index.md)
 - NAS Docker 部署：[nas/docker-deploy.md](nas/docker-deploy.md)
 - Release 打包：[runbooks/make-release-package.md](runbooks/make-release-package.md)

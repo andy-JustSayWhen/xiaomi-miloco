@@ -6,6 +6,12 @@ export MILOCO_HOME="${MILOCO_HOME:-/data/miloco}"
 export MILOCO_PORT="${MILOCO_PORT:-1810}"
 export OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
 export OPENCLAW_GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-$OPENCLAW_PORT}"
+export OPENCLAW_BIND="${OPENCLAW_BIND:-lan}"
+export OPENCLAW_AUTH="${OPENCLAW_AUTH:-token}"
+export MILOCO_SERVER__HOST="${MILOCO_SERVER__HOST:-0.0.0.0}"
+export MILOCO_SERVER__PORT="${MILOCO_SERVER__PORT:-$MILOCO_PORT}"
+export MILOCO_SERVER__URL="${MILOCO_SERVER__URL:-http://127.0.0.1:${MILOCO_PORT}}"
+export MILOCO_AGENT__WEBHOOK_URL="${MILOCO_AGENT__WEBHOOK_URL:-http://127.0.0.1:${OPENCLAW_PORT}/miloco/webhook}"
 export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/root/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 
 STATE_DIR="${EASY_MILOCO_STATE_DIR:-/data/.easy-miloco}"
@@ -62,7 +68,7 @@ download_release_payload() {
   local zip_path="$STATE_DIR/release.zip"
 
   if [ -z "$zip_url" ]; then
-    zip_url="$(select_release_zip_url)"
+    zip_url="$(select_release_zip_url || true)"
   fi
   if [ -z "$zip_url" ]; then
     cat >&2 <<'EOF'
@@ -193,8 +199,8 @@ run_agent_finish_if_ready() {
 
 configure_runtime_ports() {
   if command -v miloco-cli >/dev/null 2>&1; then
-    miloco-cli config set server.url "http://127.0.0.1:${MILOCO_PORT}" --no-restart >/dev/null 2>&1 || true
-    miloco-cli config set agent.webhook_url "http://127.0.0.1:${OPENCLAW_PORT}/miloco/webhook" --no-restart >/dev/null 2>&1 || true
+    miloco-cli config set server.url "$MILOCO_SERVER__URL" --no-restart >/dev/null 2>&1 || true
+    miloco-cli config set agent.webhook_url "$MILOCO_AGENT__WEBHOOK_URL" --no-restart >/dev/null 2>&1 || true
   fi
 }
 
@@ -203,7 +209,7 @@ start_runtime() {
   miloco-cli service start >/tmp/easy-miloco-service-start.log 2>&1 || miloco-cli service restart >/tmp/easy-miloco-service-restart.log 2>&1 || true
 
   log "Starting OpenClaw gateway"
-  openclaw gateway --dev --bind loopback --port "$OPENCLAW_PORT" install --port "$OPENCLAW_PORT" >/tmp/easy-miloco-openclaw-install.log 2>&1 || true
+  openclaw gateway --dev --bind "$OPENCLAW_BIND" --auth "$OPENCLAW_AUTH" --port "$OPENCLAW_PORT" install --port "$OPENCLAW_PORT" >/tmp/easy-miloco-openclaw-install.log 2>&1 || true
   openclaw gateway restart >/tmp/easy-miloco-openclaw-restart.log 2>&1 || openclaw gateway start >/tmp/easy-miloco-openclaw-start.log 2>&1 || true
 }
 
@@ -222,9 +228,11 @@ OpenClaw 对话: http://127.0.0.1:${OPENCLAW_PORT}/
 配置目录:      ${MILOCO_HOME}
 持久数据:      /data
 运行载荷:      ${RUNTIME_DIR}
+OpenClaw bind: ${OPENCLAW_BIND}
 
 如果这是 NAS 主机，请把 127.0.0.1 替换为 NAS 的局域网 IP。
-如果 FULL_READY 还不是 yes，补齐 .env 后执行: docker compose restart
+如果 FULL_READY 还不是 yes，补齐 .env 后执行: ./manage.sh restart
+常用入口: ./manage.sh urls | ./manage.sh status | ./manage.sh logs
 
 EOF
 }

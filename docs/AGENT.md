@@ -17,7 +17,7 @@
 | 部署 Miloco | [install-guide.md](install-guide.md) |
 | Windows 部署 | [windows/agent-install.md](windows/agent-install.md) |
 | macOS 部署 | [macos/agent-install.md](macos/agent-install.md) |
-| NAS 部署 | [nas/index.md](nas/index.md)、[nas/docker-deploy.md](nas/docker-deploy.md) |
+| NAS 部署 | [nas/index.md](nas/index.md)、[nas/agent-install.md](nas/agent-install.md)、[nas/docker-deploy.md](nas/docker-deploy.md) |
 | 摄像头排障 | [cameras.md](cameras.md)、[windows/camera-runbook.md](windows/camera-runbook.md) |
 | 制作 release 包 | [runbooks/make-release-package.md](runbooks/make-release-package.md) |
 | 通用变更排障 | [runbooks/change-and-debug-runbook.md](runbooks/change-and-debug-runbook.md) |

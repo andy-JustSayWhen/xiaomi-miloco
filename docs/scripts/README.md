@@ -17,6 +17,11 @@
 - `macos-post-auth-finish.sh`：macOS 后授权收尾。
 - `macos-miloco-validate.sh`：macOS 基础/满血验收。
 
+## NAS
+
+- `../nas/docker-deploy.md`：NAS Docker 部署说明。
+- `../../nas/docker/manage.sh`：NAS Docker 控制入口，提供启动、重启、日志、状态和验收。
+
 ## Release
 
 - `publish-github-release-asset.ps1`：替换 GitHub Release 资产并校验。

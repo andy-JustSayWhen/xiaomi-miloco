@@ -23,16 +23,16 @@ nas/docker/
 ├── Dockerfile
 ├── README.md
 ├── compose.yaml
-└── entrypoint.sh
+├── entrypoint.sh
+└── manage.sh
 ```
 
 ## 推荐命令
 
 ```bash
 cd nas/docker
-cp .env.example .env
-docker compose up -d --build
-docker compose logs -f miloco
+./manage.sh start
+./manage.sh logs
 ```
 
 当前 v0.5 release 尚未包含独立 NAS zip。入口脚本会优先找 NAS zip；`x86_64/amd64` NAS 可临时回退 Windows 包内的 Linux payload。`aarch64/arm64` NAS 需要发布包含 `linux-aarch64` runtime 的 NAS zip，或在 `.env` 里填写 `MILOCO_RELEASE_ZIP_URL`。
@@ -52,6 +52,8 @@ network_mode: host
 
 这是摄像头场景的默认选择。不要先改成 bridge 网络；如果改成 bridge 后摄像头实时画面或持续感知不可用，先恢复 host 网络再排查。
 
+Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 默认 `OPENCLAW_BIND=lan`。如果只允许 NAS 本机访问，把 `.env` 里的 `OPENCLAW_BIND` 改成 `loopback`。
+
 ## 数据和隐私
 
 - 持久目录：`nas/docker/data/`
@@ -61,10 +63,22 @@ network_mode: host
 ## 常用控制
 
 ```bash
-docker compose ps
-docker compose logs -f miloco
-docker compose restart miloco
-docker compose down
+./manage.sh urls
+./manage.sh status
+./manage.sh logs
+./manage.sh validate
+./manage.sh restart
+./manage.sh stop
 ```
 
-补齐 `.env` 后，执行 `docker compose restart miloco`。入口脚本有安装标记，不会在普通重启时无脑重复安装。
+补齐 `.env` 后，执行 `./manage.sh restart`。入口脚本有安装标记，不会在普通重启时无脑重复安装。
+
+`./manage.sh urls` 会优先从容器里的 OpenClaw 生成可直接打开的登录入口；如果 OpenClaw 还没启动，才显示普通地址。
+
+更新或卸载前：
+
+```bash
+./manage.sh backup
+./manage.sh update
+./manage.sh uninstall
+```
