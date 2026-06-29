@@ -33,7 +33,13 @@ metadata:
 
 ### 第二步 · 获取摄像头
 
-**必须先 `perceive devices` 拿全量感知源，再选 source——不要直接用预注入 catalog 里的摄像头。** catalog 只是高频子集、不保证覆盖全部摄像头，也不带 `online` 状态；漏摄像头或拿离线源会导致漏查 / 空跑。
+**摄像头数量必须先 `scope camera list`。** 这个列表代表 Miloco 认识到的摄像头全集，含 `in_use` / `is_online` / `connected`。用户问“家里有几个摄像头”时，以这里的条数回答总数；再说明其中多少台已启用感知、多少台当前画面流已接入。不要把 `perceive devices` 的条数当作全屋摄像头总数，它只代表当前可用于主动感知查询的在线源。若总数和 `connected=true` 数量不同，必须说清“总共 N 台，其中 M 台当前接入画面流”，不要说“全部都在工作”。
+
+```bash
+miloco-cli scope camera list    # 返回摄像头全集（含 did/room/in_use/is_online/connected）
+```
+
+**实时看画面时再 `perceive devices` 拿可查询的感知源。** catalog 只是高频子集、不保证覆盖全部摄像头，也不带 `online` 状态；漏摄像头或拿离线源会导致漏查 / 空跑。
 
 ```bash
 miloco-cli perceive devices    # 返回 device_type=camera 的感知源（含 did/room/online）

@@ -7,8 +7,12 @@ import { registerBeforePromptBuildHook, resolveProfile } from "../src/hooks/prom
 
 // catalog 走 miloco-cli，测试里 mock 掉，单独控制空/非空两条路径。
 const getCatalog = vi.fn<() => Promise<string>>();
+const getPerceptionSnapshot = vi.fn<() => Promise<string>>();
 vi.mock("../src/services/catalog.js", () => ({
   getCatalog: () => getCatalog(),
+}));
+vi.mock("../src/services/perception.js", () => ({
+  getPerceptionSnapshot: () => getPerceptionSnapshot(),
 }));
 
 type HookResult = {
@@ -74,6 +78,8 @@ describe("before_prompt_build 组装", () => {
     writeFileSync(p, "# 家庭档案\n\n### 妈妈\n- 对花粉过敏", "utf8");
     getCatalog.mockReset();
     getCatalog.mockResolvedValue("");
+    getPerceptionSnapshot.mockReset();
+    getPerceptionSnapshot.mockResolvedValue("");
   });
 
   afterEach(() => {
@@ -153,5 +159,17 @@ describe("before_prompt_build 组装", () => {
     getCatalog.mockResolvedValue("");
     const noCat = await run("agent:main:miloco");
     expect(noCat.appendSystemContext ?? "").not.toContain("## 设备目录");
+  });
+
+  it("full：摄像头与画面摘要进 append；minimal 不注入", async () => {
+    const { api, run } = makeApi();
+    registerBeforePromptBuildHook(api, {} as any);
+    getPerceptionSnapshot.mockResolvedValue("## 当前摄像头与画面摘要\n摄像头总数：3 个");
+
+    const full = await run("agent:main:miloco");
+    expect(full.appendSystemContext).toContain("摄像头总数：3 个");
+
+    const minimal = await run("agent:main:cron:[t1]:run:abc");
+    expect(minimal.appendSystemContext ?? "").not.toContain("当前摄像头与画面摘要");
   });
 });

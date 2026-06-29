@@ -363,6 +363,139 @@ start_openclaw_gateway() {
     || true
 }
 
+configure_openclaw_chat_model() {
+  say_step "Configuring OpenClaw chat model"
+  if ! command -v python3 >/dev/null 2>&1 || ! command -v openclaw >/dev/null 2>&1; then
+    printf '[WARN] Cannot configure OpenClaw chat model: python3 or openclaw is missing.\n' >&2
+    return 0
+  fi
+  python3 - <<'PY'
+import json
+import shutil
+import subprocess
+from datetime import datetime
+from pathlib import Path
+
+home = Path.home()
+miloco_config = home / ".openclaw" / "miloco" / "config.json"
+openclaw_config = home / ".openclaw" / "openclaw.json"
+
+if not miloco_config.exists():
+    print("[WARN] Miloco config not found; skip OpenClaw chat model config.")
+    raise SystemExit(0)
+
+miloco = json.loads(miloco_config.read_text(encoding="utf-8"))
+omni = miloco.get("model", {}).get("omni", {})
+omni_model = str(omni.get("model") or "").strip()
+omni_base_url = str(omni.get("base_url") or "").strip()
+api_key = str(omni.get("api_key") or "")
+if not omni_model or not omni_base_url or not api_key:
+    print("[WARN] Miloco Omni model config is incomplete; skip OpenClaw chat model config.")
+    raise SystemExit(0)
+
+if openclaw_config.exists():
+    data = json.loads(openclaw_config.read_text(encoding="utf-8"))
+else:
+    data = {}
+
+def as_dict(parent, key):
+    value = parent.get(key)
+    if not isinstance(value, dict):
+        value = {}
+        parent[key] = value
+    return value
+
+def normalize_model_id(value):
+    value = (value or "").strip()
+    if "/" not in value:
+        return value
+    prefix, rest = value.split("/", 1)
+    if prefix in {"mimo", "xiaomi"}:
+        return rest
+    return value
+
+def infer_provider_id(base_url, model):
+    text = f"{base_url} {model}".lower()
+    if "xiaomimimo" in text or "token-plan" in text or model.startswith(("mimo-", "mimo_")):
+        return "mimo"
+    return "miloco-llm"
+
+chat_model_id = normalize_model_id(omni_model)
+provider_id = infer_provider_id(omni_base_url, chat_model_id)
+chat_ref = f"{provider_id}/{chat_model_id}"
+
+plugins = data.setdefault("plugins", {}).setdefault("entries", {})
+entry = plugins.setdefault("miloco-openclaw-plugin", {})
+config = entry.setdefault("config", {})
+config["omni_model"] = omni_model
+config["omni_base_url"] = omni_base_url
+config["omni_api_key"] = api_key
+
+defaults = as_dict(as_dict(data, "agents"), "defaults")
+as_dict(defaults, "model")["primary"] = chat_ref
+agent_row = as_dict(as_dict(defaults, "models"), chat_ref)
+params = as_dict(agent_row, "params")
+params.setdefault("maxTokens", 8192)
+if provider_id == "mimo" and chat_model_id in {"mimo-v2.5-pro", "mimo-v2-pro", "mimo-v2.6-pro"}:
+    extra_body = as_dict(params, "extraBody")
+    extra_body.setdefault("thinking", {"type": "enabled"})
+    extra_body.setdefault("reasoning_effort", "high")
+
+models = as_dict(data, "models")
+models.setdefault("mode", "merge")
+provider = as_dict(as_dict(models, "providers"), provider_id)
+provider["baseUrl"] = omni_base_url
+provider["apiKey"] = api_key
+provider["api"] = "openai-completions"
+provider.setdefault("timeoutSeconds", 300)
+provider.setdefault("contextWindow", 1000000)
+provider.setdefault("contextTokens", 1000000)
+provider_models = provider.get("models")
+if not isinstance(provider_models, list):
+    provider_models = []
+if not any(isinstance(row, dict) and row.get("id") == chat_model_id for row in provider_models):
+    provider_models.append({"id": chat_model_id, "name": chat_model_id})
+for row in provider_models:
+    if isinstance(row, dict) and row.get("id") == chat_model_id:
+        row.setdefault("input", ["text", "image"])
+        row.setdefault("contextWindow", 1000000)
+        row.setdefault("contextTokens", 1000000)
+        row.setdefault("maxTokens", 8192)
+provider["models"] = provider_models
+
+openclaw_config.parent.mkdir(parents=True, exist_ok=True)
+backup = None
+if openclaw_config.exists():
+    backup = openclaw_config.with_name(openclaw_config.name + ".bak.easy-miloco-" + datetime.now().strftime("%Y%m%d-%H%M%S"))
+    shutil.copy2(openclaw_config, backup)
+openclaw_config.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+validated = subprocess.run(["openclaw", "config", "validate"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, timeout=30)
+if validated.returncode != 0:
+    if backup is not None:
+        shutil.copy2(backup, openclaw_config)
+    print("[FAIL] OpenClaw config validation failed; restored previous config.")
+    print(validated.stdout)
+    raise SystemExit(2)
+print(f"[OK] OpenClaw chat model configured: primary={chat_ref}")
+PY
+}
+
+read_openclaw_token() {
+  python3 - <<'PY' 2>/dev/null || true
+import json
+from pathlib import Path
+path = Path.home() / ".openclaw" / "openclaw.json"
+try:
+    data = json.loads(path.read_text(encoding="utf-8"))
+    token = data.get("gateway", {}).get("auth", {}).get("token", "")
+    if token:
+        print(token)
+except Exception:
+    pass
+PY
+}
+
 install_desktop_helpers() {
   desktop="$HOME/Desktop"
   [ -d "$desktop" ] || return 0
@@ -381,7 +514,8 @@ install_desktop_helpers() {
     "$ROOT/scripts/macos/templates/openclaw-launcher.command.tpl" > "$openclaw_entry"
   chmod +x "$openclaw_entry"
 
-  token="$(openclaw config get gateway.auth.token 2>/dev/null || true)"
+  token="$(read_openclaw_token)"
+  [ -n "$token" ] || token="$(openclaw config get gateway.auth.token 2>/dev/null || true)"
   {
     printf 'Miloco URL: http://127.0.0.1:%s/\n' "$MILOCO_PORT"
     printf 'OpenClaw URL: http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
@@ -433,6 +567,8 @@ bash "$ROOT/payload/install.sh" "$@"
 
 say_step "Starting services"
 miloco-cli service start >/tmp/easy-miloco-macos-service-start.log 2>&1 || miloco-cli service restart >/tmp/easy-miloco-macos-service-restart.log 2>&1 || true
+start_openclaw_gateway
+configure_openclaw_chat_model
 start_openclaw_gateway
 
 install_desktop_helpers

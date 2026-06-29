@@ -1,6 +1,7 @@
 import { loadHomeProfile } from "../home-profile/helpers.js";
 import { buildPendingSuggestionBlock } from "../home-profile/injection.js";
 import { getCatalog } from "../services/catalog.js";
+import { getPerceptionSnapshot } from "../services/perception.js";
 import type { HookRegister } from "./index.js";
 
 // 注入 profile：按 session 类型组合不同的块（方案见 _local/prompt-refactor-plan.md §3）。
@@ -168,6 +169,9 @@ export const registerBeforePromptBuildHook: HookRegister = (api) => {
       if (profile === "full") {
         const pending = buildPendingSuggestionBlock();
         if (pending) append.push(pending);
+
+        const perceptionSnapshot = await getPerceptionSnapshot();
+        if (perceptionSnapshot) append.push(perceptionSnapshot);
       }
 
       // catalog 放最末（最易变）；CLI 失败回退空串则整段不出现。

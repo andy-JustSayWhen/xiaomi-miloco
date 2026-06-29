@@ -89,6 +89,52 @@ else
   full_missing miloco.model_key "missing"
 fi
 
+openclaw_model_status="$(
+python3 - <<'PY' 2>&1
+import json
+from pathlib import Path
+
+path = Path.home() / ".openclaw" / "openclaw.json"
+if not path.exists():
+    print("openclaw.json missing")
+    raise SystemExit(1)
+
+data = json.loads(path.read_text(encoding="utf-8"))
+primary = data.get("agents", {}).get("defaults", {}).get("model", {}).get("primary") or ""
+if "/" not in primary:
+    print(f"primary={primary or '<empty>'}")
+    raise SystemExit(1)
+
+provider_id, model_id = primary.split("/", 1)
+providers = data.get("models", {}).get("providers", {})
+provider = providers.get(provider_id) if isinstance(providers, dict) else None
+if not isinstance(provider, dict):
+    print(f"primary={primary} provider={provider_id} missing")
+    raise SystemExit(1)
+
+base_url = provider.get("baseUrl") or provider.get("baseURL") or ""
+api_key = provider.get("apiKey") or ""
+api = provider.get("api") or ""
+rows = provider.get("models")
+has_model_row = any(isinstance(row, dict) and row.get("id") == model_id for row in rows) if isinstance(rows, list) else False
+
+print(f"primary={primary}")
+print(f"provider={provider_id}")
+print(f"api={api or '<empty>'}")
+print(f"baseUrl={'configured' if isinstance(base_url, str) and base_url else 'empty'}")
+print(f"apiKey={'configured' if isinstance(api_key, str) and api_key else 'empty'}")
+print(f"modelRow={'configured' if has_model_row else 'missing'}")
+
+if not base_url or not api_key or not has_model_row:
+    raise SystemExit(1)
+PY
+)"
+if [ $? -eq 0 ]; then
+  pass openclaw.main_chat_model "$openclaw_model_status"
+else
+  full_missing openclaw.main_chat_model "$openclaw_model_status"
+fi
+
 device_list="$(miloco-cli device list 2>&1 || true)"
 if printf '%s' "$device_list" | awk 'END { exit NR > 1 ? 0 : 1 }'; then
   pass miloco.devices "device list has rows"
