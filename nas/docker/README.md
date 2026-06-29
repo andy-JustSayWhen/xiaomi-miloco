@@ -17,10 +17,9 @@ cd nas/docker
 ./manage.sh logs
 ```
 
-默认使用网盘离线镜像，不在 NAS 上现场构建。先导入镜像：
+默认使用在线镜像，不在 NAS 上现场构建：
 
 ```bash
-docker load -i images/easy-miloco-nas-v0.5-<arch>.tar
 ./manage.sh start
 ```
 
