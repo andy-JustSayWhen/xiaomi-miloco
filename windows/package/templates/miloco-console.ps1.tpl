@@ -5,7 +5,6 @@ $script:Distro = "__DISTRO__"
 $script:MilocoPort = __MILOCO_PORT__
 $script:OpenClawPort = __OPENCLAW_PORT__
 $script:OpenClawInfoPath = "__OPENCLAW_INFO_PATH__"
-$script:MessageChannelGuideUrl = "https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/message-channel/docs/message-channel-setup-guide.md"
 $script:WslExe = Join-Path $env:WINDIR "System32\wsl.exe"
 if (-not (Test-Path -LiteralPath $script:WslExe)) {
   $script:WslExe = "wsl.exe"
@@ -428,41 +427,6 @@ function Stop-Wsl {
   Write-Host "WSL 关闭命令已发送。"
 }
 
-function Open-MessageChannelSetup {
-  while ($true) {
-    Clear-Host
-    Write-Host "========================================"
-    Write-Host "       接入消息渠道（飞书、微信等）"
-    Write-Host "========================================"
-    Write-Host ""
-    Write-Host "  1. 手动接入"
-    Write-Host "  2. agent自动接入"
-    Write-Host "  0. 返回"
-    Write-Host ""
-
-    $choice = (Prompt-Line "请选择 [1/2/0]: ").Trim()
-    switch ($choice) {
-      "1" {
-        Start-Process $script:MessageChannelGuideUrl
-        Pause-ReturnToMenu @("已打开：", $script:MessageChannelGuideUrl, "按回车返回菜单...")
-      }
-      "2" {
-        $sentence = "按 $script:MessageChannelGuideUrl 接入 <渠道名> OpenClaw 消息渠道。"
-        Write-Host ""
-        Write-Host "复制下面的这句话给你的agent:"
-        Write-Host ""
-        Write-Host $sentence -ForegroundColor Cyan
-        Pause-ReturnToMenu
-      }
-      "0" { return }
-      default {
-        Write-Host "请输入 1、2 或 0。" -ForegroundColor Yellow
-        Start-Sleep -Seconds 1
-      }
-    }
-  }
-}
-
 function Show-Menu {
   Clear-Host
   Write-Host "========================================"
@@ -474,7 +438,6 @@ function Show-Menu {
   Write-Host "  3. 重启 Miloco + OpenClaw"
   Write-Host "  4. 关闭 OpenClaw + Miloco"
   Write-Host "  5. 关闭 WSL"
-  Write-Host "  6. 接入消息渠道（飞书、微信等）"
   Write-Host "  0. 退出"
   Write-Host ""
   Write-Host "说明："
@@ -483,7 +446,6 @@ function Show-Menu {
   Write-Host "  3. 一次性拉起整套服务，并打开两个面板。首次安装后、电脑重启后，优先选这个。"
   Write-Host "  4. 停止两个服务，但保留 WSL。适合今天不用了、想释放后台资源，或准备重新启动服务。"
   Write-Host "  5. 停止服务并关闭本次安装使用的 WSL。适合彻底退出、电脑卡顿、网络或端口异常时重置环境。"
-  Write-Host "  6. 打开消息渠道接入步骤，或复制一句话交给 agent 自动处理。"
   Write-Host "  0. 只关闭当前脚本，不影响已经运行的 Miloco 和 OpenClaw 服务。"
   Write-Host ""
 }
@@ -496,17 +458,16 @@ while ($true) {
     continue
   }
 
-  $choice = (Prompt-Line "请选择 [1/2/3/4/5/6/0]: ").Trim()
+  $choice = (Prompt-Line "请选择 [1/2/3/4/5/0]: ").Trim()
   switch ($choice) {
     "1" { [void](Restart-OpenClaw) }
     "2" { [void](Restart-Miloco) }
     "3" { [void](Restart-All) }
     "4" { Stop-Services }
     "5" { Stop-Wsl }
-    "6" { Open-MessageChannelSetup }
     "0" { exit 0 }
     default {
-      Write-Host "请输入 1、2、3、4、5、6 或 0。" -ForegroundColor Yellow
+      Write-Host "请输入 1、2、3、4、5 或 0。" -ForegroundColor Yellow
       Start-Sleep -Seconds 1
     }
   }

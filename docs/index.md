@@ -1,53 +1,35 @@
 # easy-miloco Docs
 
-这里是本 fork 的文档总入口。文档围绕三件事长期维护：
-
-- 快速部署：提供一键部署包，让普通用户和 Agent 尽量少碰复杂依赖和配置。
-- 源码优化：记录本 fork 相对官方仓库做过哪些代码和实现调整。
-- 使用教程：面向小白，长期更新 miloco 系列教程、常见问题和成功经验。
+公开仓库只保留可复用、可发布、可审计的文档。实机日志、用户环境记录、授权过程、截图证据、长验证记录和个人记忆不得放入 `docs/`。
 
 ## 用户入口
 
-- 一键部署：[install-guide.md](install-guide.md)
-- Windows 部署总入口：[windows/index.md](windows/index.md)
-- macOS 部署总入口：[macos/index.md](macos/index.md)
-- 摄像头支持和排障：[cameras.md](cameras.md)
+- 一键部署总入口：[install-guide.md](install-guide.md)
+- Windows：[windows/index.md](windows/index.md)
+- macOS：[macos/index.md](macos/index.md)
+- 摄像头：[cameras.md](cameras.md)
 - 常见问题：[faq/known-issues.md](faq/known-issues.md)
 
 ## Agent 入口
 
-Agent 必须先读：
+Agent 先读 [AGENT.md](AGENT.md)，再按系统进入：
 
-- [AGENT.md](AGENT.md)
-- [install-guide.md](install-guide.md)
+- Windows Agent 部署：[windows/agent-install.md](windows/agent-install.md)
+- macOS Agent 部署：[macos/agent-install.md](macos/agent-install.md)
+- Release 打包：[runbooks/make-release-package.md](runbooks/make-release-package.md)
+- 变更排障：[runbooks/change-and-debug-runbook.md](runbooks/change-and-debug-runbook.md)
 
-常见任务：
+## 保留范围
 
-- 部署当前机器：先读 [install-guide.md](install-guide.md)，按系统路由到 Windows 或 macOS 子指南。
-- Windows Agent 部署：读 [windows/agent-install.md](windows/agent-install.md)，按预检、安装、授权、验收顺序推进。
-- macOS Agent 部署：读 [macos/agent-install.md](macos/agent-install.md)，按 release 包、授权、模型配置、验收顺序推进。
-- 规划 macOS 一键包：读 [macos/macos-adaptation-spec.md](macos/macos-adaptation-spec.md)，先验证 darwin runtime，再做 macOS 分发壳。
-- 手动排障：从 [windows/troubleshooting.md](windows/troubleshooting.md) 和 [faq/known-issues.md](faq/known-issues.md) 开始。
-- 摄像头排障：读 [windows/camera-runbook.md](windows/camera-runbook.md) 和 [cameras.md](cameras.md)。
-- 远程 Windows/WSL 排障命令传输：读 [windows/ssh-command-transfer.md](windows/ssh-command-transfer.md)。
-- UU 远程用户视角测试：读 [windows/uu-remote-computer-use.md](windows/uu-remote-computer-use.md)，优先鼠标、右键粘贴和安全中转。
-- 性能报告与面板入口：读 [runbooks/performance-report-webui-spec.md](runbooks/performance-report-webui-spec.md)。
-- 制作更新包：维护者专用，读 [runbooks/make-release-package.md](runbooks/make-release-package.md)。
-- Azure VM 非视觉部署和验证：读 [runbooks/azure-vm-nonvisual-test.md](runbooks/azure-vm-nonvisual-test.md)。
-- NAS 类 Linux 主机安装复盘：读 [runbooks/nas01-openclaw-miloco-install.md](runbooks/nas01-openclaw-miloco-install.md)。
-
-## 文档地图
-
-| 目录 | 用途 |
+| 路径 | 用途 |
 | --- | --- |
-| [windows/](windows/index.md) | Windows 安装、预检、故障、验收、<windows-sample-host> 实录 |
-| [macos/](macos/index.md) | macOS 一键包、Agent 部署、适配 spec 和验证记录 |
-| [runbooks/](runbooks/change-and-debug-runbook.md) | 变更、排障、发版前检查 |
-| [tests/](tests/test-guide.md) | 测试矩阵和验收清单 |
-| [meta/](meta/source-map.md) | 源码地图和维护日志 |
-| [scripts/](scripts/README.md) | 从 OB 迁入的预检与验收脚本 |
-| [windows/reports/](windows/reports/) | <windows-sample-host> 部署和摄像头验收报告 |
+| `windows/` | Windows 一键包和摄像头公开指南 |
+| `macos/` | macOS 一键包和 Agent 指南 |
+| `scripts/` | release 包复用的预检、收尾、验收和发布脚本 |
+| `runbooks/` | 通用发版、排障和 NAS 安装说明 |
 
-## v0.2 边界
+## 隐私规则
 
-Windows 11 22H2+ 和 macOS 12+ 是当前一键部署优先保证范围。低于建议版本可能可以运行基础服务，但不保证摄像头实时流、系统服务、OpenClaw/Miloco 联动稳定可用。
+- 不提交 API Key、OAuth code、token、设备 PIN、真实家庭名、真实主机名、真实用户路径或实机长日志。
+- 验证记录只保留结论和可复用步骤；原始日志放在本机 ignored 目录或用户私有知识库。
+- `docs/` 只服务公开发行和 Agent 路由，不做聊天记录归档。

@@ -2,7 +2,7 @@
 
 > 更新日期：2026-06-29
 > 用途：说明当前 Windows release 包的版本口径和生成规则。
-> 关联：[Windows部署资料包发布清单](release-package.md)、[Windows部署资料包验收记录](validation-record.md)
+> 关联：[Windows部署资料包发布清单](release-package.md)
 
 ## 当前版本口径
 

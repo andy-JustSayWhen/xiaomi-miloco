@@ -2,7 +2,7 @@
 
 > 更新日期：2026-06-29
 > 用途：记录当前 Windows GitHub Release zip 的内容、生成方式和验收口径。
-> 关联：[Windows部署总入口](index.md)、[Windows部署教程-独立分发版](standalone-package.md)、[Windows部署资料包验收记录](validation-record.md)
+> 关联：[Windows部署总入口](index.md)
 
 ## 当前发布物
 
@@ -59,7 +59,7 @@ easy-miloco-v0.5-windows.zip
 - `install.ps1`、桌面控制台模板、Windows workflow 脚本 PowerShell 解析通过。
 - 包内 `.sh` 文件使用 LF 行尾。
 
-本机复测和视觉部署记录见 [Windows部署资料包验收记录](validation-record.md)。
+本机复测和视觉部署原始记录不进入公开 docs；只保留可复用的结论和脚本。
 
 ## 交付口径
 

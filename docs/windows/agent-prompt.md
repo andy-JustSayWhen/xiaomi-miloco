@@ -1,23 +1,19 @@
 # Agent 一键部署提示词
 
-用途：把下面提示词复制给具备 SSH 能力的 Agent，让它按官方流程在 Windows + WSL 机器上部署 Miloco，并边部署边记录。
+用途：把下面提示词复制给具备 SSH 能力的 Agent，让它按官方流程在 Windows + WSL 机器上部署 Miloco。
 
-配套文档：[Windows部署决策树](decision-tree.md) 用于判断下一步，[Windows部署故障排除矩阵](troubleshooting.md) 用于按报错修复；摄像头异常专项见 [摄像头问题快速定位与修复Runbook](camera-runbook.md)。
-第一次部署先看 [Windows部署总入口](index.md)。
-官方流程核对见 [官方部署流程对齐核查](upstream-deploy-alignment.md)。
-最终交付前按 [Windows满血验收证据清单](full-validation-evidence.md) 核对证据。
+第一次部署先看 [Windows部署总入口](index.md)。摄像头异常专项见 [摄像头问题快速定位与修复Runbook](camera-runbook.md)。
 
 ## 标准提示词
 
 ```text
-你现在接管一台 Windows 电脑的 Miloco 部署。目标是按 Xiaomi Miloco 官方说明，在 Windows 的 WSL2 内完成满血部署，并记录每一步。
+你现在接管一台 Windows 电脑的 Miloco 部署。目标是按 Xiaomi Miloco 官方说明，在 Windows 的 WSL2 内完成满血部署，并给出简短状态摘要。
 
 目标机器：
 - SSH：<windows_user>@<host_or_ip>
 - WSL distro：<Ubuntu-24.04 或实际名称>
 - WSL 用户：<linux_user>
 - 如在中国大陆或 GitHub 慢：优先使用显式代理环境变量，例如 http://127.0.0.1:7897
-- Obsidian 实录：<部署实录.md 路径>
 
 硬性要求：
 1. 不在 Windows 原生安装 Miloco；Windows 必须进入 WSL 安装。
@@ -27,7 +23,7 @@
    - Step 2: 根据 JSON 询问/收集账号授权码和模型 API Key
    - Step 3: install.sh --agent-finish --account-auth ... --omni-api-key ...
 4. 小米账号授权和 MiMo API Key 必须按顺序处理：先账号，再模型；不要同时问两个问题。
-5. 每个命令、关键输出、错误、判断、修复都追加到 Obsidian 实录。
+5. 记录关键命令、输出摘要、错误、判断和修复；不要把私有日志写入公开 docs。
 6. 最终不能只验证服务启动，还要验证满血能力。
 7. 摄像头异常不要直接重装，按“云端设备 → LAN 可达 → scope → stream connected → engine active_sources → OpenClaw 视觉推理”六层定位。
 
@@ -77,45 +73,6 @@
 - 给出 Miloco URL、OpenClaw URL、插件状态、账号状态、模型状态、设备/摄像头状态
 - 把通用坑位抽象回 Windows 部署教程
 - 如果缺用户授权码/API Key，不要宣称满血完成，只能说明基础服务就绪并等待用户提供材料
-```
-
-## <windows-sample-host> 专用填充版
-
-```text
-你现在接管 <windows-sample-host> 的 Miloco 部署。目标是按 Xiaomi Miloco 官方说明，在 Windows 的 WSL2 内完成满血部署，并记录每一步。
-
-目标机器：
-- SSH 主部署用户：<windows-user>@<tailscale-ip>
-- 管理员备用用户：<admin-user>@<tailscale-ip>
-- WSL distro：Ubuntu-24.04
-- WSL 用户：<wsl-user>
-- 代理：127.0.0.1:7897
-- Obsidian 实录：E:\BaiduSyncdisk\obsidian repo\default\App学习笔记\easy-miloco\02-deploy\<windows-sample-host>部署实录.md
-- SSH 信息：E:\BaiduSyncdisk\obsidian repo\default\常用SSH信息\<windows-sample-host>
-
-当前已知：
-- Miloco 端口以安装器报告为准；Windows 一键安装默认从 18860 起自动选择可用端口
-- OpenClaw Gateway 当前端口是 18789
-- 不要关闭 Clash Verge TUN
-
-继续部署时先复核：
-- miloco-cli service status
-- curl -fsS http://127.0.0.1:<miloco_port>/health
-- openclaw gateway status
-- openclaw plugins inspect miloco-openclaw-plugin
-- miloco-cli account status
-- miloco-cli config show
-- miloco-cli device list
-- miloco-cli scope camera list --pretty
-
-满血缺口：
-- 需要用户提供小米 OAuth 授权码
-- 需要用户提供 MiMo API Key
-
-收到后执行：
-- 优先运行：powershell.exe -ExecutionPolicy Bypass -File <temp>\win-miloco-workflow.ps1 -Action Finish -AuthPayload <授权码> -MimoApiKey <MiMo API Key> -OmniModel <Omni model> -OmniBaseUrl <Omni Base URL> -Distro <distro> -MilocoPort <miloco_port> -OpenClawPort 18789
-- 如果脚本不可用，再手动执行：miloco-cli account authorize <授权码>、miloco-cli config set model.omni.api_key <MiMo API Key> --no-restart、miloco-cli service restart、openclaw gateway restart
-- 再跑满血验收
 ```
 
 ## 给用户的最短下一步

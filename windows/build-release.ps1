@@ -277,7 +277,6 @@ function Copy-RequiredArtifacts {
     "",
     "- 提供显式入口，让 Miloco 能够快速接入飞书、微信等消息渠道。",
     "- Windows one-click deployment package refresh.",
-    "- Desktop console menu now provides an explicit message-channel entry for Feishu, WeChat, and other channels.",
     "- Message-channel entry opens the shared OpenClaw setup guide or shows the one-sentence agent handoff prompt.",
     "- Desktop console menu still exposes restart OpenClaw, restart Miloco, restart both, stop services, and stop WSL.",
     "- Includes root ``install.bat`` and ``install.ps1``, Miloco Linux x86_64 local bundle, Windows diagnostics scripts, and docs.",

@@ -89,7 +89,6 @@ cp "$REPO_ROOT/macos/package/templates/openclaw-launcher.command.tpl" "$PACKAGE_
 chmod +x "$PACKAGE_ROOT/scripts/macos/"*.sh
 
 cp -R "$REPO_ROOT/docs" "$PACKAGE_ROOT/docs"
-rm -rf "$PACKAGE_ROOT/docs/windows/reports"
 
 cat > "$PACKAGE_ROOT/README.md" <<EOF
 # easy-miloco ${VERSION} macOS ${ARCH}
