@@ -8,11 +8,12 @@ Agent 先判断目标系统，然后只读对应子指南。
 | --- | --- | --- |
 | Windows | `docs/windows/agent-install.md` | [打开](https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/windows/agent-install.md) |
 | macOS | `docs/macos/agent-install.md` | [打开](https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/macos/agent-install.md) |
-| Linux / NAS | `docs/runbooks/nas01-openclaw-miloco-install.md` | [打开](https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/runbooks/nas01-openclaw-miloco-install.md) |
+| Linux / NAS | `docs/nas/index.md` | [打开](https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/NAS/docs/nas/index.md) |
 
 硬规则：
 
 - Windows 必须走 WSL2，不要在 Windows 原生安装 Miloco。
 - macOS 直接使用 darwin runtime，绝对不要使用 WSL。
+- NAS 必须先过 `docs/nas/index.md` 的硬门槛；不满足系统/架构/glibc 条件时停止。
 - 不要混用不同系统的脚本、日志路径和验收命令。
 - 按子指南验收；`FULL_READY=no` 不等于安装失败，必须说明缺口。
