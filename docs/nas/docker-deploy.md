@@ -8,12 +8,12 @@
 
 | 档位 | 条件 | 结果 |
 | --- | --- | --- |
-| 基础一键 | 运行 `./manage.sh start` | 拉取发布镜像、自动创建容器、下载安装器、安装 Miloco/OpenClaw、启动基础服务 |
+| 基础一键 | 运行 `./manage.sh start` | 使用已 `docker load` 的离线镜像、自动创建容器、下载安装器、安装 Miloco/OpenClaw、启动基础服务 |
 | 完整一键 | `.env` 已有 `MILOCO_ACCOUNT_AUTH`、`OMNI_API_KEY`、`OMNI_BASE_URL`、`OMNI_MODEL` | 自动完成账号、模型、插件、服务启动和基础验收 |
 
 YAML 不能公开内置小米账号授权和模型 API Key；这些只能由用户或 Agent 写入本机 `.env`。
 
-默认不在 NAS 上现场构建镜像。现场构建会拉 `node`、apt、npm、uv 等多条外网链路，实测在家庭 NAS 上很容易低速卡住。普通部署走发布镜像；只有维护者调试才设置 `EASY_MILOCO_BUILD=1`。
+默认不在 NAS 上现场构建镜像。现场构建会拉 `node`、apt、npm、uv 等多条外网链路，实测在家庭 NAS 上很容易低速卡住。普通部署走网盘离线镜像；只有维护者调试才设置 `EASY_MILOCO_BUILD=1`。
 
 ## 文件
 
@@ -59,14 +59,15 @@ network_mode: host
 
 Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 默认 `OPENCLAW_BIND=lan`。如果只允许 NAS 本机访问，把 `.env` 里的 `OPENCLAW_BIND` 改成 `loopback`。
 
-如果拉镜像很慢或失败，不要反复重跑 `start`。优先处理以下三种：
+如果缺少镜像，不要反复重跑 `start`。优先处理以下三种：
 
 ```bash
-# 1. 使用你自己的镜像仓库或内网镜像
-EASY_MILOCO_IMAGE=<registry>/<repo>/easy-miloco-nas:v0.5 ./manage.sh start
+# 1. 网盘下载离线镜像后导入
+docker load -i images/easy-miloco-nas-v0.5-<arch>.tar
+./manage.sh start
 
-# 2. 已经手工 docker load 了镜像，跳过 pull
-EASY_MILOCO_SKIP_PULL=1 ./manage.sh start
+# 2. 使用你自己的镜像仓库或内网镜像
+EASY_MILOCO_IMAGE=<registry>/<repo>/easy-miloco-nas:v0.5 ./manage.sh start
 
 # 3. 维护者本地调试才现场构建
 EASY_MILOCO_BUILD=1 ./manage.sh start

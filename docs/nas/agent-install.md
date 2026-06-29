@@ -9,7 +9,7 @@
 3. 不把 `.env`、授权 payload、API Key、日志、`data/`、`backups/` 写进 git。
 4. 账号授权和模型配置缺失时，只能报告基础安装就绪，不能报告 FULL_READY。
 5. 每次更新或卸载前先执行 `./manage.sh backup`。
-6. 默认使用发布镜像；不要让普通 NAS 用户现场 build。只有维护者调试才设置 `EASY_MILOCO_BUILD=1`。
+6. 默认使用网盘离线镜像；不要让普通 NAS 用户现场 build。只有维护者调试才设置 `EASY_MILOCO_BUILD=1`。
 
 ## 文件入口
 
@@ -50,14 +50,15 @@ OMNI_MODEL=<模型名>
 ./manage.sh logs
 ```
 
-如果 `./manage.sh start` 卡在镜像拉取，停止当前 compose 进程并清理本轮测试产物，不要重复开多个构建。处理顺序：
+如果缺少镜像或镜像拉取卡住，停止当前 compose 进程并清理本轮测试产物，不要重复开多个构建。处理顺序：
 
 ```bash
-# 优先切换到可达镜像仓库或内网镜像
-EASY_MILOCO_IMAGE=<registry>/<repo>/easy-miloco-nas:v0.5 ./manage.sh start
+# 优先使用网盘下载的离线镜像
+docker load -i images/easy-miloco-nas-v0.5-<arch>.tar
+./manage.sh start
 
-# 如果已手工 docker load 镜像
-EASY_MILOCO_SKIP_PULL=1 ./manage.sh start
+# 如果有可达镜像仓库或内网镜像
+EASY_MILOCO_IMAGE=<registry>/<repo>/easy-miloco-nas:v0.5 ./manage.sh start
 
 # 只有维护者调试才允许现场构建
 EASY_MILOCO_BUILD=1 ./manage.sh start

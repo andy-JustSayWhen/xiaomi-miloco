@@ -11,7 +11,7 @@ BACKUP_DIR="$SCRIPT_DIR/backups"
 ENV_FILE="$SCRIPT_DIR/.env"
 ENV_EXAMPLE="$SCRIPT_DIR/.env.example"
 DOCKER_CMD=()
-DEFAULT_IMAGE="ghcr.io/andy-justsaywhen/easy-miloco-nas:v0.5"
+DEFAULT_IMAGE="easy-miloco-nas:v0.5"
 
 log() {
   printf '[easy-miloco-nas] %s\n' "$*"
@@ -200,10 +200,9 @@ start() {
     if env_flag EASY_MILOCO_SKIP_PULL 0; then
       log "Skipping image pull; using local image if present: $img"
     elif image_exists "$img"; then
-      compose pull "$SERVICE_NAME" || log "Image pull failed; using existing local image: $img"
+      log "Using local image: $img"
     else
-      log "Pulling NAS image: $img"
-      compose pull "$SERVICE_NAME" || die "Image pull failed. Check NAS network, set EASY_MILOCO_IMAGE to a reachable mirror, or set EASY_MILOCO_BUILD=1 for local build."
+      die "Local image not found: $img. Load the NAS offline image first with: docker load -i images/easy-miloco-nas-v0.5-<arch>.tar. Or set EASY_MILOCO_IMAGE to a published reachable image, or EASY_MILOCO_BUILD=1 for maintainer local build."
     fi
     compose up -d
   fi
@@ -240,7 +239,9 @@ update() {
   if env_flag EASY_MILOCO_BUILD 0; then
     compose -f compose.yaml -f compose.build.yaml up -d --build
   else
-    compose pull "$SERVICE_NAME" || die "Image pull failed. Check NAS network or set EASY_MILOCO_IMAGE to a reachable mirror."
+    local img
+    img="$(image_ref)"
+    image_exists "$img" || die "Local image not found: $img. Load the NAS offline image first, or set EASY_MILOCO_IMAGE to a published reachable image."
     compose up -d
   fi
   print_urls
@@ -260,7 +261,7 @@ uninstall() {
 usage() {
   cat <<'EOF'
 Usage:
-  ./manage.sh start          预检并启动 NAS Docker 部署，默认拉取发布镜像
+  ./manage.sh start          预检并启动 NAS Docker 部署，默认使用本地离线镜像
   ./manage.sh urls           显示 Miloco / OpenClaw 访问地址
   ./manage.sh status         查看容器、Miloco、OpenClaw 状态
   ./manage.sh logs           跟随安装和运行日志

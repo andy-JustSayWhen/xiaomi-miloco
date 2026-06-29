@@ -1,6 +1,6 @@
 services:
   miloco:
-    image: "${EASY_MILOCO_IMAGE:-ghcr.io/andy-justsaywhen/easy-miloco-nas:v0.5}"
+    image: "${EASY_MILOCO_IMAGE:-easy-miloco-nas:v0.5}"
     container_name: easy-miloco-nas
     network_mode: host
     restart: unless-stopped
