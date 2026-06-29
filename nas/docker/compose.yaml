@@ -1,14 +1,14 @@
 services:
   miloco:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: easy-miloco-nas:local
+    image: "${EASY_MILOCO_IMAGE:-ghcr.io/andy-justsaywhen/easy-miloco-nas:v0.5}"
     container_name: easy-miloco-nas
     network_mode: host
     restart: unless-stopped
     env_file:
-      - .env
+      - path: .env.example
+        required: true
+      - path: .env
+        required: false
     environment:
       MILOCO_PORT: "${MILOCO_PORT:-1810}"
       OPENCLAW_PORT: "${OPENCLAW_PORT:-18789}"

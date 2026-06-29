@@ -1,0 +1,6 @@
+services:
+  miloco:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: "${EASY_MILOCO_IMAGE:-easy-miloco-nas:local}"

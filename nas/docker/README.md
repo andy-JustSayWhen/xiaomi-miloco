@@ -17,6 +17,14 @@ cd nas/docker
 ./manage.sh logs
 ```
 
+默认使用发布好的 NAS 镜像，不在 NAS 上现场构建。维护者调试才使用：
+
+```bash
+EASY_MILOCO_BUILD=1 ./manage.sh start
+```
+
+如果 Docker socket 权限不足，`manage.sh` 会自动尝试 `sudo docker`，按提示输入 NAS 用户密码即可。
+
 如果 `.env` 里已经有 `MILOCO_ACCOUNT_AUTH`、`OMNI_API_KEY`、`OMNI_BASE_URL`、`OMNI_MODEL`，容器会自动跑完整安装并启动服务。
 
 如果这些值为空，容器只完成基础安装和服务启动；补齐 `.env` 后执行：
@@ -67,7 +75,7 @@ nas/docker/data/
 需要重新执行安装流程：
 
 ```bash
-MILOCO_FORCE_INSTALL=1 docker compose up -d --build
+MILOCO_FORCE_INSTALL=1 ./manage.sh start
 ```
 
 更新前先备份：

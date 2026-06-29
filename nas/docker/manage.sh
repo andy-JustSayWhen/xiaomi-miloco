@@ -10,6 +10,8 @@ DATA_DIR="$SCRIPT_DIR/data"
 BACKUP_DIR="$SCRIPT_DIR/backups"
 ENV_FILE="$SCRIPT_DIR/.env"
 ENV_EXAMPLE="$SCRIPT_DIR/.env.example"
+DOCKER_CMD=()
+DEFAULT_IMAGE="ghcr.io/andy-justsaywhen/easy-miloco-nas:v0.5"
 
 log() {
   printf '[easy-miloco-nas] %s\n' "$*"
@@ -20,9 +22,39 @@ die() {
   exit 1
 }
 
+init_docker_cmd() {
+  if [ "${#DOCKER_CMD[@]}" -gt 0 ]; then
+    return
+  fi
+
+  if [ -n "${EASY_MILOCO_DOCKER:-}" ]; then
+    # shellcheck disable=SC2206
+    DOCKER_CMD=($EASY_MILOCO_DOCKER)
+    return
+  fi
+
+  command -v docker >/dev/null 2>&1 || die "docker not found"
+
+  if docker ps >/dev/null 2>&1; then
+    DOCKER_CMD=(docker)
+    return
+  fi
+
+  if command -v sudo >/dev/null 2>&1; then
+    if sudo -n docker ps >/dev/null 2>&1; then
+      DOCKER_CMD=(sudo -n docker)
+    else
+      DOCKER_CMD=(sudo docker)
+    fi
+  else
+    die "Current user cannot access Docker daemon. Add the user to the docker group or run with sudo."
+  fi
+}
+
 compose() {
-  if docker compose version >/dev/null 2>&1; then
-    docker compose -p "$PROJECT_NAME" "$@"
+  init_docker_cmd
+  if "${DOCKER_CMD[@]}" compose version >/dev/null 2>&1; then
+    "${DOCKER_CMD[@]}" compose -p "$PROJECT_NAME" "$@"
   elif command -v docker-compose >/dev/null 2>&1; then
     docker-compose -p "$PROJECT_NAME" "$@"
   else
@@ -56,6 +88,32 @@ env_value() {
       exit
     }
   ' "$ENV_FILE"
+}
+
+env_flag() {
+  local key="$1"
+  local default="${2:-0}"
+  local value="${!key:-}"
+  if [ -z "$value" ]; then
+    value="$(env_value "$key" 2>/dev/null || printf '%s' "$default")"
+  fi
+  case "$value" in
+    1|true|TRUE|yes|YES|on|ON) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+image_ref() {
+  local img="${EASY_MILOCO_IMAGE:-}"
+  if [ -z "$img" ]; then
+    img="$(env_value EASY_MILOCO_IMAGE 2>/dev/null || true)"
+  fi
+  printf '%s' "${img:-$DEFAULT_IMAGE}"
+}
+
+image_exists() {
+  init_docker_cmd
+  "${DOCKER_CMD[@]}" image inspect "$1" >/dev/null 2>&1
 }
 
 print_urls() {
@@ -100,6 +158,7 @@ EOF
 
 preflight() {
   command -v docker >/dev/null 2>&1 || die "docker not found"
+  init_docker_cmd
   compose version >/dev/null
 
   local arch
@@ -131,7 +190,23 @@ backup() {
 start() {
   preflight
   ensure_env
-  compose up -d --build
+  local img
+  img="$(image_ref)"
+
+  if env_flag EASY_MILOCO_BUILD 0; then
+    log "Building image on this NAS: $img"
+    compose -f compose.yaml -f compose.build.yaml up -d --build
+  else
+    if env_flag EASY_MILOCO_SKIP_PULL 0; then
+      log "Skipping image pull; using local image if present: $img"
+    elif image_exists "$img"; then
+      compose pull "$SERVICE_NAME" || log "Image pull failed; using existing local image: $img"
+    else
+      log "Pulling NAS image: $img"
+      compose pull "$SERVICE_NAME" || die "Image pull failed. Check NAS network, set EASY_MILOCO_IMAGE to a reachable mirror, or set EASY_MILOCO_BUILD=1 for local build."
+    fi
+    compose up -d
+  fi
   print_urls
 }
 
@@ -162,8 +237,12 @@ update() {
   preflight
   ensure_env
   backup
-  compose pull || true
-  compose up -d --build
+  if env_flag EASY_MILOCO_BUILD 0; then
+    compose -f compose.yaml -f compose.build.yaml up -d --build
+  else
+    compose pull "$SERVICE_NAME" || die "Image pull failed. Check NAS network or set EASY_MILOCO_IMAGE to a reachable mirror."
+    compose up -d
+  fi
   print_urls
 }
 
@@ -181,7 +260,7 @@ uninstall() {
 usage() {
   cat <<'EOF'
 Usage:
-  ./manage.sh start          预检并启动 NAS Docker 部署
+  ./manage.sh start          预检并启动 NAS Docker 部署，默认拉取发布镜像
   ./manage.sh urls           显示 Miloco / OpenClaw 访问地址
   ./manage.sh status         查看容器、Miloco、OpenClaw 状态
   ./manage.sh logs           跟随安装和运行日志
