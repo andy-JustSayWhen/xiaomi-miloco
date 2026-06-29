@@ -313,7 +313,7 @@ PY
 }
 
 remove_existing_install() {
-  say_step "Removing existing Miloco"
+  say_step "清理旧版 Miloco"
 
   stop_existing_services_for_backup
 
@@ -327,6 +327,10 @@ remove_existing_install() {
   fi
 
   rm -rf "$HOME/.openclaw/miloco"
+  rm -rf "$HOME/.openclaw/agents"
+  rm -rf "$HOME/.openclaw/workspace/memory"
+  rm -f "$HOME/.openclaw/workspace/openclaw-workspace-state.json" 2>/dev/null || true
+  rm -f "$HOME/.openclaw/state/openclaw.sqlite" "$HOME/.openclaw/state/openclaw.sqlite-shm" "$HOME/.openclaw/state/openclaw.sqlite-wal" 2>/dev/null || true
   rm -f \
     "$HOME/Desktop/Miloco Console.command" \
     "$HOME/Desktop/OpenClaw Chat.command" \
@@ -339,7 +343,7 @@ remove_existing_install() {
   rm -f "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" 2>/dev/null || true
   rm -f /tmp/easy-miloco-macos-service-start.log /tmp/easy-miloco-macos-service-restart.log 2>/dev/null || true
 
-  printf '[OK] Existing Miloco removed. Backup preserved at: %s\n' "$EXISTING_RESTORE_PACK_PATH"
+  printf '[OK] 旧版 Miloco 已清理，OpenClaw 旧聊天/会话缓存已清理。备份保留在：%s\n' "$EXISTING_RESTORE_PACK_PATH"
 }
 
 prepare_existing_install_for_clean_install() {
