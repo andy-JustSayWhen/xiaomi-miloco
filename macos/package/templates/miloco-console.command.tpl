@@ -8,18 +8,18 @@ export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.local/
 
 menu() {
   clear
-  printf 'Miloco Console\n'
-  printf '1. Open Miloco dashboard\n'
-  printf '2. Open OpenClaw Chat\n'
-  printf '3. Open both panels\n'
-  printf '4. Restart Miloco\n'
-  printf '5. Restart OpenClaw\n'
-  printf '6. Restart both\n'
-  printf '7. Stop services\n'
-  printf '8. Show status\n'
-  printf '9. Show logs\n'
-  printf '10. How to use\n'
-  printf '0. Exit\n'
+  printf '米Miloco控制台\n'
+  printf '1. 打开 Miloco 面板\n'
+  printf '2. 打开 OpenClaw 对话\n'
+  printf '3. 同时打开面板和对话\n'
+  printf '4. 重启 Miloco\n'
+  printf '5. 重启 OpenClaw\n'
+  printf '6. 重启全部服务\n'
+  printf '7. 停止服务\n'
+  printf '8. 查看状态\n'
+  printf '9. 打开日志\n'
+  printf '10. 使用说明\n'
+  printf '0. 退出\n'
   printf '> '
 }
 
@@ -96,18 +96,18 @@ write_openclaw_info_file() {
     printf 'WebSocket URL: ws://127.0.0.1:%s\n' "$OPENCLAW_PORT"
     printf 'Gateway Token: %s\n\n' "$token_value"
     printf '最省事的用法：\n'
-    printf '1. 直接双击桌面的 OpenClaw Chat.command；它会刷新本文件，并用带 token 的直达地址打开。\n'
+    printf '1. 直接双击桌面的 OpenClaw 对话.command；它会刷新本文件，并用带 token 的直达地址打开。\n'
     printf '2. 如果页面仍提示登录，把上面的“推荐直接打开”整段复制到浏览器地址栏。\n'
     printf '3. 如果页面里 token 仍为空，把上面的 Gateway Token 整段粘贴进去。\n\n'
     printf '如何获取 / 刷新这些信息：\n'
-    printf '4. 重新双击 OpenClaw Chat.command。\n'
+    printf '4. 重新双击 OpenClaw 对话.command。\n'
     printf '5. 或在终端运行：openclaw dashboard --no-open --yes\n'
     printf '6. 只想看 token，可运行：openclaw config get gateway.auth.token\n\n'
     printf '如何管理 / 修改：\n'
     printf '7. 当前配置文件：~/.openclaw/openclaw.json\n'
     printf '8. 重点字段：gateway.auth.token\n'
-    printf '9. 改完后重开 OpenClaw Chat.command，或重新运行 dashboard 命令刷新。\n\n'
-    printf '这份文件会在每次打开 OpenClaw Chat.command 时自动刷新。\n'
+    printf '9. 改完后重开 OpenClaw 对话.command，或重新运行 dashboard 命令刷新。\n\n'
+    printf '这份文件会在每次打开 OpenClaw 对话.command 时自动刷新。\n'
   } > "$OPENCLAW_INFO_PATH"
 }
 
@@ -115,8 +115,8 @@ open_openclaw() {
   write_openclaw_info_file
   url="$(openclaw_autologin_url)"
   open "$url" || true
-  printf 'OpenClaw: %s\n' "$url"
-  printf 'Login info: %s\n' "$OPENCLAW_INFO_PATH"
+  printf '已打开 OpenClaw 对话。\n'
+  printf '登录信息：%s\n' "$OPENCLAW_INFO_PATH"
 }
 
 restart_openclaw() {
@@ -126,7 +126,7 @@ restart_openclaw() {
 }
 
 pause() {
-  printf 'Press Enter...\n'
+  printf '按回车返回菜单...\n'
   read -r _ || true
 }
 
@@ -142,9 +142,9 @@ while true; do
     6) restart_openclaw; miloco-cli service restart || miloco-cli service start; pause ;;
     7) miloco-cli service stop || true; openclaw gateway stop || true; pause ;;
     8) miloco-cli service status || true; openclaw gateway status || true; pause ;;
-    9) printf 'Miloco logs: %s\n' "$HOME/.openclaw/miloco/log/"; printf 'OpenClaw log: %s\n' "$HOME/Library/Logs/openclaw/gateway.log"; open "$HOME/.openclaw/miloco/log/" || true; pause ;;
-    10) printf 'How to use:\n'; printf '1. Open Miloco dashboard to inspect devices, cameras, perception status, and settings.\n'; printf '2. Open OpenClaw Chat to ask the assistant about the home.\n'; printf '3. Try asking: 家里有几个摄像头？画面如何？\n'; pause ;;
+    9) printf 'Miloco 日志：%s\n' "$HOME/.openclaw/miloco/log/"; printf 'OpenClaw 日志：%s\n' "$HOME/Library/Logs/openclaw/gateway.log"; open "$HOME/.openclaw/miloco/log/" || true; pause ;;
+    10) printf '【快速使用】\n'; printf '1. miloco控制台。用途：查看状态、重启/关闭服务、打开日志。路径：桌面/米Miloco控制台.command\n'; printf '2. openclaw聊天页。用途：日常使用miloco，自然语言聊天即可。路径：桌面/OpenClaw 对话.command\n\n'; printf '【故障备用】\n'; printf '桌面快捷方式打不开时，再把日志和登录信息发给 Agent 排查；平时不用输入网址。\n'; pause ;;
     0) exit 0 ;;
-    *) printf 'Unknown choice.\n'; sleep 1 ;;
+    *) printf '未知选项。\n'; sleep 1 ;;
   esac
 done

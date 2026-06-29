@@ -78,18 +78,18 @@ write_openclaw_info_file() {
     printf 'WebSocket URL: ws://127.0.0.1:%s\n' "$OPENCLAW_PORT"
     printf 'Gateway Token: %s\n\n' "$token_value"
     printf '最省事的用法：\n'
-    printf '1. 直接双击桌面的 OpenClaw Chat.command；它会刷新本文件，并用带 token 的直达地址打开。\n'
+    printf '1. 直接双击桌面的 OpenClaw 对话.command；它会刷新本文件，并用带 token 的直达地址打开。\n'
     printf '2. 如果页面仍提示登录，把上面的“推荐直接打开”整段复制到浏览器地址栏。\n'
     printf '3. 如果页面里 token 仍为空，把上面的 Gateway Token 整段粘贴进去。\n\n'
     printf '如何获取 / 刷新这些信息：\n'
-    printf '4. 重新双击 OpenClaw Chat.command。\n'
+    printf '4. 重新双击 OpenClaw 对话.command。\n'
     printf '5. 或在终端运行：openclaw dashboard --no-open --yes\n'
     printf '6. 只想看 token，可运行：openclaw config get gateway.auth.token\n\n'
     printf '如何管理 / 修改：\n'
     printf '7. 当前配置文件：~/.openclaw/openclaw.json\n'
     printf '8. 重点字段：gateway.auth.token\n'
-    printf '9. 改完后重开 OpenClaw Chat.command，或重新运行 dashboard 命令刷新。\n\n'
-    printf '这份文件会在每次打开 OpenClaw Chat.command 时自动刷新。\n'
+    printf '9. 改完后重开 OpenClaw 对话.command，或重新运行 dashboard 命令刷新。\n\n'
+    printf '这份文件会在每次打开 OpenClaw 对话.command 时自动刷新。\n'
   } > "$OPENCLAW_INFO_PATH"
 }
 
@@ -99,7 +99,7 @@ openclaw gateway restart >/tmp/easy-miloco-openclaw-launcher.log 2>&1 || opencla
 write_openclaw_info_file
 url="$(openclaw_autologin_url)"
 open "$url" || true
-printf 'OpenClaw: %s\n' "$url"
-printf 'Login info: %s\n' "$OPENCLAW_INFO_PATH"
-printf 'Press Enter to close this window.\n'
+printf '已打开 OpenClaw 对话。\n'
+printf '登录信息：%s\n' "$OPENCLAW_INFO_PATH"
+printf '按回车关闭这个窗口。\n'
 read -r _ || true

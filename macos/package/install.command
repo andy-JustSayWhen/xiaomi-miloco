@@ -15,7 +15,7 @@ say_step() {
 
 fail() {
   printf '\n[FAIL] %s\n' "$1" >&2
-  printf 'Press Enter to close this window.\n' >&2
+  printf '按回车关闭这个窗口。\n' >&2
   read -r _ || true
   exit 1
 }
@@ -327,7 +327,15 @@ remove_existing_install() {
   fi
 
   rm -rf "$HOME/.openclaw/miloco"
-  rm -f "$HOME/Desktop/Miloco Console.command" "$HOME/Desktop/OpenClaw Chat.command" "$HOME/Desktop/OpenClaw-login-info.txt" 2>/dev/null || true
+  rm -f \
+    "$HOME/Desktop/Miloco Console.command" \
+    "$HOME/Desktop/OpenClaw Chat.command" \
+    "$HOME/Desktop/OpenClaw-login-info.txt" \
+    "$HOME/Desktop/Miloco 控制台.command" \
+    "$HOME/Desktop/米Miloco控制台.command" \
+    "$HOME/Desktop/OpenClaw 对话.command" \
+    "$HOME/Desktop/OpenClaw 登录信息.txt" \
+    2>/dev/null || true
   rm -f "$HOME/Library/LaunchAgents/ai.openclaw.gateway.plist" 2>/dev/null || true
   rm -f /tmp/easy-miloco-macos-service-start.log /tmp/easy-miloco-macos-service-restart.log 2>/dev/null || true
 
@@ -558,30 +566,30 @@ write_openclaw_info_file() {
     printf 'Gateway Token: %s\n' "$token_value"
     printf '\n'
     printf '最省事的用法：\n'
-    printf '1. 直接双击桌面的 OpenClaw Chat.command；它会刷新本文件，并用带 token 的直达地址打开。\n'
+    printf '1. 直接双击桌面的 OpenClaw 对话.command；它会刷新本文件，并用带 token 的直达地址打开。\n'
     printf '2. 如果页面仍提示登录，把上面的“推荐直接打开”整段复制到浏览器地址栏。\n'
     printf '3. 如果页面里 token 仍为空，把上面的 Gateway Token 整段粘贴进去。\n'
     printf '\n'
     printf '如何获取 / 刷新这些信息：\n'
-    printf '4. 重新双击 OpenClaw Chat.command。\n'
+    printf '4. 重新双击 OpenClaw 对话.command。\n'
     printf '5. 或在终端运行：openclaw dashboard --no-open --yes\n'
     printf '6. 只想看 token，可运行：openclaw config get gateway.auth.token\n'
     printf '\n'
     printf '如何管理 / 修改：\n'
     printf '7. 当前配置文件：~/.openclaw/openclaw.json\n'
     printf '8. 重点字段：gateway.auth.token\n'
-    printf '9. 改完后重开 OpenClaw Chat.command，或重新运行 dashboard 命令刷新。\n'
+    printf '9. 改完后重开 OpenClaw 对话.command，或重新运行 dashboard 命令刷新。\n'
     printf '\n'
-    printf '这份文件会在每次打开 OpenClaw Chat.command 时自动刷新。\n'
+    printf '这份文件会在每次打开 OpenClaw 对话.command 时自动刷新。\n'
   } > "$info"
 }
 
 install_desktop_helpers() {
   desktop="$HOME/Desktop"
   [ -d "$desktop" ] || return 0
-  console="$desktop/Miloco Console.command"
-  openclaw_entry="$desktop/OpenClaw Chat.command"
-  info="$desktop/OpenClaw-login-info.txt"
+  console="$desktop/米Miloco控制台.command"
+  openclaw_entry="$desktop/OpenClaw 对话.command"
+  info="$desktop/OpenClaw 登录信息.txt"
 
   sed \
     -e "s#__MILOCO_PORT__#$MILOCO_PORT#g" \
@@ -651,26 +659,20 @@ print_final_usage_screen() {
     printf '请把下面的日志路径发给 Agent 继续排查。\n\n'
   fi
 
-  printf '已创建桌面快捷方式：\n'
-  printf '  1. %s\n' "$HOME/Desktop/Miloco Console.command"
-  printf '     打开 Miloco 控制台：打开面板、重启服务、停止服务、查看状态。\n'
-  printf '  2. %s\n' "$HOME/Desktop/OpenClaw Chat.command"
-  printf '     打开 OpenClaw Chat：和家庭助手对话。\n'
-  printf '  3. %s\n' "$HOME/Desktop/OpenClaw-login-info.txt"
-  printf '     记录本机面板地址和登录信息。\n\n'
+  printf '【快速使用】\n'
+  printf '1. miloco控制台。用途：查看状态、重启/关闭服务、打开日志。路径：桌面/米Miloco控制台.command\n'
+  printf '2. openclaw聊天页。用途：日常使用miloco，自然语言聊天即可。路径：桌面/OpenClaw 对话.command\n\n'
 
-  printf '接下来怎么用：\n'
-  printf '  1. Miloco 面板： http://127.0.0.1:%s/\n' "$MILOCO_PORT"
-  printf '     看设备、摄像头、感知状态、模型配置和备份。\n'
-  printf '  2. OpenClaw Chat：请双击桌面的 OpenClaw Chat.command；不要直接打开裸端口地址。\n'
-  printf '     它会自动带 token 登录。直接问家庭助手，例如：家里有几个摄像头？画面如何？\n'
-  printf '  3. 日常使用优先双击桌面快捷方式，不需要重新运行安装包。\n\n'
+  printf '【故障备用】\n'
+  printf '桌面快捷方式打不开时，再把下面信息发给 Agent 排查；平时不用输入网址。\n'
+  printf 'Miloco 面板备用地址： http://127.0.0.1:%s/\n' "$MILOCO_PORT"
+  printf 'OpenClaw 登录信息：%s\n\n' "$HOME/Desktop/OpenClaw 登录信息.txt"
 
   printf '日志位置：\n'
   printf '  安装验证：%s\n' "$validation_log"
   printf '  Miloco 后端：%s\n' "$HOME/.openclaw/miloco/log/"
   printf '  OpenClaw：/tmp/openclaw/\n'
-  printf '  OpenClaw 登录信息：%s\n' "$HOME/Desktop/OpenClaw-login-info.txt"
+  printf '  OpenClaw 登录信息：%s\n' "$HOME/Desktop/OpenClaw 登录信息.txt"
 
   if [ -n "$EXISTING_RESTORE_PACK_PATH" ]; then
     printf '\n旧版已先备份再卸载，恢复包在：\n'
@@ -722,5 +724,5 @@ open_dashboards
 
 print_final_usage_screen "$validation_code" "$basic_ready" "$full_ready" "$validation_log"
 
-printf '\nPress Enter to close this window.\n'
+printf '\n按回车关闭这个窗口。\n'
 read -r _ || true
