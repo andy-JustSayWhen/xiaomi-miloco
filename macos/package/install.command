@@ -544,6 +544,69 @@ open_dashboards() {
   open "$openclaw_url" >/tmp/easy-miloco-open-openclaw.log 2>&1 || true
 }
 
+print_validation_summary() {
+  validation_code="$1"
+  basic_ready="$2"
+  full_ready="$3"
+  validation_log="$4"
+
+  if [ "$validation_code" -eq 0 ] && [ "$full_ready" = "yes" ]; then
+    printf '[OK] Validation passed: BASIC_READY=yes, FULL_READY=yes\n'
+  elif [ "$validation_code" -eq 0 ] && [ "$basic_ready" = "yes" ]; then
+    printf '[WARN] Basic validation passed, but full readiness is incomplete.\n' >&2
+    printf '       Usually account, model, device rows, or camera scope still needs attention.\n' >&2
+  else
+    printf '[WARN] Validation reported issues. Full log: %s\n' "$validation_log" >&2
+  fi
+}
+
+print_final_usage_screen() {
+  validation_code="$1"
+  basic_ready="$2"
+  full_ready="$3"
+  validation_log="$4"
+
+  printf '\033c'
+  printf '========================================\n'
+  printf '  easy-miloco macOS 安装完成\n'
+  printf '========================================\n\n'
+
+  if [ "$validation_code" -eq 0 ] && [ "$full_ready" = "yes" ]; then
+    printf '状态：已完成，Miloco 和 OpenClaw 均已就绪。\n\n'
+  elif [ "$validation_code" -eq 0 ] && [ "$basic_ready" = "yes" ]; then
+    printf '状态：基础安装完成，但满血验收未全部通过。\n'
+    printf '请先打开下面的面板检查账号、模型、设备或摄像头范围。\n\n'
+  else
+    printf '状态：安装流程已结束，但验证发现问题。\n'
+    printf '请把下面的日志路径发给 Agent 继续排查。\n\n'
+  fi
+
+  printf '已创建桌面快捷方式：\n'
+  printf '  1. %s\n' "$HOME/Desktop/Miloco Console.command"
+  printf '     打开 Miloco 控制台：打开面板、重启服务、停止服务、查看状态。\n'
+  printf '  2. %s\n' "$HOME/Desktop/OpenClaw Chat.command"
+  printf '     打开 OpenClaw Chat：和家庭助手对话。\n'
+  printf '  3. %s\n' "$HOME/Desktop/OpenClaw-login-info.txt"
+  printf '     记录本机面板地址和登录信息。\n\n'
+
+  printf '接下来怎么用：\n'
+  printf '  1. Miloco 面板： http://127.0.0.1:%s/\n' "$MILOCO_PORT"
+  printf '     看设备、摄像头、感知状态、模型配置和备份。\n'
+  printf '  2. OpenClaw Chat： http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
+  printf '     直接问家庭助手，例如：家里有几个摄像头？画面如何？\n'
+  printf '  3. 日常使用优先双击桌面快捷方式，不需要重新运行安装包。\n\n'
+
+  printf '日志位置：\n'
+  printf '  安装验证：%s\n' "$validation_log"
+  printf '  Miloco 后端：%s\n' "$HOME/.openclaw/miloco/log/"
+  printf '  OpenClaw：/tmp/openclaw/\n'
+
+  if [ -n "$EXISTING_RESTORE_PACK_PATH" ]; then
+    printf '\n旧版已先备份再卸载，恢复包在：\n'
+    printf '  %s\n' "$EXISTING_RESTORE_PACK_PATH"
+  fi
+}
+
 say_step "Checking package"
 need_file "$ROOT/manifest.json"
 need_file "$ROOT/payload/install.sh"
@@ -576,44 +639,17 @@ install_desktop_helpers
 say_step "Validating"
 validation_log="/tmp/easy-miloco-macos-validation.log"
 set +e
-bash "$ROOT/scripts/macos/macos-miloco-validate.sh" --miloco-port "$MILOCO_PORT" --openclaw-port "$OPENCLAW_PORT" | tee "$validation_log"
-validation_code="${PIPESTATUS[0]}"
+bash "$ROOT/scripts/macos/macos-miloco-validate.sh" --miloco-port "$MILOCO_PORT" --openclaw-port "$OPENCLAW_PORT" >"$validation_log" 2>&1
+validation_code="$?"
 set -e
 basic_ready="$(awk -F= '/^BASIC_READY=/{print $2}' "$validation_log" | tail -n 1)"
 full_ready="$(awk -F= '/^FULL_READY=/{print $2}' "$validation_log" | tail -n 1)"
+print_validation_summary "$validation_code" "$basic_ready" "$full_ready" "$validation_log"
 
 say_step "Opening dashboards"
 open_dashboards
 
-if [ "$validation_code" -eq 0 ] && [ "$full_ready" = "yes" ]; then
-  printf '\n[OK] easy-miloco macOS full setup finished.\n'
-elif [ "$validation_code" -eq 0 ] && [ "$basic_ready" = "yes" ]; then
-  printf '\n[WARN] easy-miloco macOS basic setup finished, but full readiness is not complete.\n' >&2
-  printf 'This usually means account, model, device rows, or camera scope still needs attention.\n' >&2
-else
-  printf '\n[WARN] Setup finished but validation reported issues.\n' >&2
-fi
-printf 'Miloco: http://127.0.0.1:%s/\n' "$MILOCO_PORT"
-printf 'OpenClaw: http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
-printf 'Desktop console: %s\n' "$HOME/Desktop/Miloco Console.command"
-printf 'Desktop OpenClaw chat: %s\n' "$HOME/Desktop/OpenClaw Chat.command"
-printf 'Desktop login/info file: %s\n' "$HOME/Desktop/OpenClaw-login-info.txt"
-if [ -n "$EXISTING_RESTORE_PACK_PATH" ]; then
-  printf '\n[IMPORTANT] Existing Miloco was detected and backed up before uninstall:\n'
-  printf '  %s\n' "$EXISTING_RESTORE_PACK_PATH"
-  printf 'This ZIP contains recoverable assets such as model config, home profile, identity data, and tasks when present.\n'
-  printf 'To restore old config, give this ZIP path to local OpenClaw and ask it to follow AGENTS.md inside the ZIP.\n'
-fi
-printf '\nHow to use:\n'
-printf '  1. Miloco dashboard is for devices, cameras, perception status, and settings.\n'
-printf '  2. OpenClaw Chat is for asking the assistant about the home.\n'
-printf '  3. Try asking: 家里有几个摄像头？画面如何？\n'
-printf '  4. Miloco Console.command can open panels, restart services, stop services, and show status.\n'
-printf 'Logs:\n'
-printf '  %s\n' "$validation_log"
-printf '  /tmp/easy-miloco-macos-service-start.log\n'
-printf '  %s\n' "$HOME/.openclaw/miloco/log/"
-printf '  %s\n' "$HOME/Library/Logs/openclaw/gateway.log"
+print_final_usage_screen "$validation_code" "$basic_ready" "$full_ready" "$validation_log"
 
 printf '\nPress Enter to close this window.\n'
 read -r _ || true
