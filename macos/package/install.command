@@ -8,6 +8,110 @@ MILOCO_PORT="${MILOCO_PORT:-1810}"
 OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
 export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.local/share/uv/tools/supervisor/bin:$PATH"
 EXISTING_RESTORE_PACK_PATH=""
+ACTION="interactive"
+AGENT_MODE=0
+INSTALL_ARGS=()
+MILOCO_AUTH_PAYLOAD_ARG=""
+MIMO_API_KEY_ARG=""
+OMNI_MODEL_ARG=""
+OMNI_BASE_URL_ARG=""
+
+usage() {
+  cat <<'EOF'
+Usage: ./install.command [action] [options]
+
+Actions:
+  --agent-prepare       Agent mode: backup old install, install base components, start services, validate, no prompt pause
+  --agent-finish        Agent mode: apply account/model config, finish plugin/services, validate, no prompt pause
+  --validate            Run macOS validation only
+  --uninstall           Uninstall Miloco components using payload installer, then clean macOS desktop/service entries
+
+Options:
+  --account-auth TEXT   Xiaomi OAuth authorization code or full callback URL
+  --omni-api-key TEXT   Omni / MiMo API key
+  --omni-base-url URL   OpenAI-compatible base URL
+  --omni-model TEXT     Vision/multimodal model name
+  --miloco-port PORT    Default: 1810
+  --openclaw-port PORT  Default: 18789
+  --delete-home         Forwarded to payload uninstall
+  --keep-home           Forwarded to payload uninstall
+  --lang LANG           Forwarded to payload installer
+  -h, --help            Show this help
+EOF
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --agent-prepare)
+      ACTION="agent-prepare"
+      AGENT_MODE=1
+      INSTALL_ARGS+=("$1")
+      shift
+      ;;
+    --agent-finish)
+      ACTION="agent-finish"
+      AGENT_MODE=1
+      INSTALL_ARGS+=("$1")
+      shift
+      ;;
+    --validate)
+      ACTION="validate"
+      AGENT_MODE=1
+      shift
+      ;;
+    --uninstall)
+      ACTION="uninstall"
+      AGENT_MODE=1
+      INSTALL_ARGS+=("$1")
+      shift
+      ;;
+    --account-auth)
+      MILOCO_AUTH_PAYLOAD_ARG="$2"
+      INSTALL_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    --omni-api-key)
+      MIMO_API_KEY_ARG="$2"
+      INSTALL_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    --omni-model)
+      OMNI_MODEL_ARG="$2"
+      INSTALL_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    --omni-base-url)
+      OMNI_BASE_URL_ARG="$2"
+      INSTALL_ARGS+=("$1" "$2")
+      shift 2
+      ;;
+    --miloco-port)
+      MILOCO_PORT="$2"
+      shift 2
+      ;;
+    --openclaw-port)
+      OPENCLAW_PORT="$2"
+      shift 2
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    --delete-home|--keep-home|--lang|--dev)
+      if [ "$1" = "--lang" ]; then
+        INSTALL_ARGS+=("$1" "$2")
+        shift 2
+      else
+        INSTALL_ARGS+=("$1")
+        shift
+      fi
+      ;;
+    *)
+      INSTALL_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
 
 say_step() {
   printf '\n== %s ==\n' "$1"
@@ -15,8 +119,10 @@ say_step() {
 
 fail() {
   printf '\n[FAIL] %s\n' "$1" >&2
-  printf '按回车关闭这个窗口。\n' >&2
-  read -r _ || true
+  if [ "$AGENT_MODE" -eq 0 ]; then
+    printf '按回车关闭这个窗口。\n' >&2
+    read -r _ || true
+  fi
   exit 1
 }
 
@@ -680,6 +786,31 @@ print_final_usage_screen() {
   fi
 }
 
+validate_installation() {
+  say_step "验证安装结果"
+  validation_log="/tmp/easy-miloco-macos-validation.log"
+  set +e
+  bash "$ROOT/scripts/macos/macos-miloco-validate.sh" --miloco-port "$MILOCO_PORT" --openclaw-port "$OPENCLAW_PORT" >"$validation_log" 2>&1
+  validation_code="$?"
+  set -e
+  basic_ready="$(awk -F= '/^BASIC_READY=/{print $2}' "$validation_log" | tail -n 1)"
+  full_ready="$(awk -F= '/^FULL_READY=/{print $2}' "$validation_log" | tail -n 1)"
+  print_validation_summary "$validation_code" "$basic_ready" "$full_ready" "$validation_log"
+  if [ "$AGENT_MODE" -eq 1 ]; then
+    cat "$validation_log"
+  fi
+}
+
+finish_macos_package() {
+  say_step "启动服务"
+  miloco-cli service start >/tmp/easy-miloco-macos-service-start.log 2>&1 || miloco-cli service restart >/tmp/easy-miloco-macos-service-restart.log 2>&1 || true
+  start_openclaw_gateway
+  configure_openclaw_chat_model
+  start_openclaw_gateway
+  install_desktop_helpers
+  validate_installation
+}
+
 say_step "检查安装包"
 need_file "$ROOT/manifest.json"
 need_file "$ROOT/payload/install.sh"
@@ -690,6 +821,38 @@ bundle="$(find_bundle)"
 
 remove_quarantine_if_present
 
+case "$ACTION" in
+  validate)
+    validate_installation
+    exit 0
+    ;;
+  uninstall)
+    say_step "卸载 Miloco"
+    bash "$ROOT/payload/install.sh" "${INSTALL_ARGS[@]}"
+    remove_existing_install
+    printf '[OK] macOS Miloco uninstall finished.\n'
+    exit 0
+    ;;
+  agent-finish)
+    say_step "完成 Agent 授权和模型配置"
+    bash "$ROOT/payload/install.sh" "${INSTALL_ARGS[@]}"
+    if [ -n "$MILOCO_AUTH_PAYLOAD_ARG" ] || [ -n "$MIMO_API_KEY_ARG" ] || [ -n "$OMNI_MODEL_ARG" ] || [ -n "$OMNI_BASE_URL_ARG" ]; then
+      MILOCO_AUTH_PAYLOAD="$MILOCO_AUTH_PAYLOAD_ARG" \
+      MIMO_API_KEY="$MIMO_API_KEY_ARG" \
+      OMNI_MODEL="$OMNI_MODEL_ARG" \
+      OMNI_BASE_URL="$OMNI_BASE_URL_ARG" \
+      bash "$ROOT/scripts/macos/macos-post-auth-finish.sh" --no-strict-full --miloco-port "$MILOCO_PORT" --openclaw-port "$OPENCLAW_PORT" || true
+    fi
+    finish_macos_package
+    exit 0
+    ;;
+  interactive|agent-prepare)
+    ;;
+  *)
+    fail "Unknown action: $ACTION"
+    ;;
+esac
+
 prepare_existing_install_for_clean_install
 
 say_step "运行安装前检查"
@@ -699,35 +862,30 @@ ensure_openclaw
 prime_payload_cache "$bundle"
 
 say_step "安装基础组件"
-printf '提示：下面会出现内层安装器的“基础安装流程完成”。那不是整个懒人包结束。\n'
-printf '看到它以后请继续等待，懒人包还会自动启动服务、创建桌面入口、验证并打开页面。\n\n'
-bash "$ROOT/payload/install.sh" "$@"
+if [ "$AGENT_MODE" -eq 0 ]; then
+  printf '提示：下面会出现内层安装器的“基础安装流程完成”。那不是整个懒人包结束。\n'
+  printf '看到它以后请继续等待，懒人包还会自动启动服务、创建桌面入口、验证并打开页面。\n\n'
+fi
+bash "$ROOT/payload/install.sh" "${INSTALL_ARGS[@]}"
 
 say_step "继续完成 macOS 懒人包"
-printf '基础组件已装完。正在自动启动服务、配置 OpenClaw、创建桌面入口，请不要关闭窗口。\n'
+if [ "$AGENT_MODE" -eq 0 ]; then
+  printf '基础组件已装完。正在自动启动服务、配置 OpenClaw、创建桌面入口，请不要关闭窗口。\n'
+fi
 
-say_step "启动服务"
-miloco-cli service start >/tmp/easy-miloco-macos-service-start.log 2>&1 || miloco-cli service restart >/tmp/easy-miloco-macos-service-restart.log 2>&1 || true
-start_openclaw_gateway
-configure_openclaw_chat_model
-start_openclaw_gateway
+finish_macos_package
 
-install_desktop_helpers
-
-say_step "验证安装结果"
-validation_log="/tmp/easy-miloco-macos-validation.log"
-set +e
-bash "$ROOT/scripts/macos/macos-miloco-validate.sh" --miloco-port "$MILOCO_PORT" --openclaw-port "$OPENCLAW_PORT" >"$validation_log" 2>&1
-validation_code="$?"
-set -e
-basic_ready="$(awk -F= '/^BASIC_READY=/{print $2}' "$validation_log" | tail -n 1)"
-full_ready="$(awk -F= '/^FULL_READY=/{print $2}' "$validation_log" | tail -n 1)"
-print_validation_summary "$validation_code" "$basic_ready" "$full_ready" "$validation_log"
-
-say_step "打开面板"
-open_dashboards
-
-print_final_usage_screen "$validation_code" "$basic_ready" "$full_ready" "$validation_log"
-
-printf '\n按回车关闭这个窗口。\n'
-read -r _ || true
+if [ "$AGENT_MODE" -eq 0 ]; then
+  say_step "打开面板"
+  open_dashboards
+  print_final_usage_screen "$validation_code" "$basic_ready" "$full_ready" "$validation_log"
+  printf '\n按回车关闭这个窗口。\n'
+  read -r _ || true
+else
+  printf '[OK] easy-miloco macOS agent action finished: %s\n' "$ACTION"
+  printf 'Miloco: http://127.0.0.1:%s/\n' "$MILOCO_PORT"
+  printf 'OpenClaw: http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
+  printf 'Desktop console: %s\n' "$HOME/Desktop/米Miloco控制台.command"
+  printf 'OpenClaw chat: %s\n' "$HOME/Desktop/OpenClaw 对话.command"
+  printf 'Validation log: %s\n' "$validation_log"
+fi

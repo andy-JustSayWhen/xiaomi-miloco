@@ -15,19 +15,14 @@ https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/macOS/docs/instal
 3. 解压后先定位懒人包根目录，根目录必须包含 install.command、manifest.json、payload/install.sh、payload/miloco-darwin-*.tar.gz、scripts/macos/。
 4. 先运行预检：
    bash scripts/macos/macos-preflight.sh --package-root .
-5. 优先使用懒人包入口：
-   ./install.command
-   如果当前 Agent 环境不能交互双击，就手动执行同等步骤：
-   - 读取 manifest.json 的 version。
-   - 把 payload/miloco-darwin-*.tar.gz 解压到 ~/.openclaw/miloco/.install-cache/<version>/。
-   - 确保 PATH 包含 ~/.openclaw/bin、~/.local/bin、~/.cargo/bin、~/.local/share/uv/tools/supervisor/bin。
-   - 如果没有 openclaw，下载并执行 https://openclaw.ai/install-cli.sh。
-   - 运行 bash payload/install.sh --agent-prepare。
+5. Agent 自动部署必须使用懒人包的非交互入口，不要直接运行交互式 `./install.command`：
+   ./install.command --agent-prepare
 6. 先处理小米账号授权，再处理 Omni 模型配置，不要同时问两个问题。
 7. 模型配置必须收集 API Key、Base URL、Model，不要只收 Key。
-8. 用户提供小米 OAuth payload 后，使用 scripts/macos/macos-post-auth-finish.sh 收尾。
+8. 用户提供小米 OAuth payload、API Key、Base URL、Model 后，使用懒人包收尾：
+   ./install.command --agent-finish --account-auth '<授权码或完整回调 URL>' --omni-api-key '<API Key>' --omni-base-url '<Base URL>' --omni-model '<Model>'
 9. 收尾后运行：
-   bash scripts/macos/macos-miloco-validate.sh --strict-full
+   ./install.command --validate
 10. 不能只以服务启动作为完成。必须报告 Miloco URL、OpenClaw URL、账号状态、模型 Key/Base URL/Model 状态、设备列表状态、摄像头 scope 状态。
 11. 必须打开 Miloco 面板和 OpenClaw 聊天页，问“家里有几个摄像头？画面如何？”。
 12. 摄像头异常不要重装，按“云端设备 -> LAN -> scope -> stream connected -> engine active_sources -> OpenClaw 视觉推理”分层定位。

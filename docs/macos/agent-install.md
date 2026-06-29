@@ -11,7 +11,7 @@
 1. 确认当前系统是 macOS，`uname -s` 必须返回 `Darwin`，绝对不要使用 WSL。
 2. 下载最新的 macOS release zip；如果用户已经下载，使用用户提供的本地 zip。
 3. 解压并通读包内的代码。
-4. 按照 `install.command` 的步骤，代替用户驱动相关脚本等文件推进安装流程。
+4. 按照 `install.command` 的 Agent action 推进安装流程，不要直接运行交互式安装。
 5. 推进期间遇到任何问题，先读取日志和诊断报告定位问题，根据本地和云端源码尝试自动修复。
 6. 执行完 `install.command` 脚本指定的所有步骤，告知用户后续如何开始使用 miloco。
 
@@ -60,11 +60,28 @@ https://pan.quark.cn/s/5d839d2f3b0f
 
 ## 运行安装器
 
-优先在 release 解压目录运行：
+Agent 路线必须优先使用非交互 action：
 
 ```bash
 chmod +x ./install.command
-./install.command
+./install.command --agent-prepare
+```
+
+如果已拿到小米 OAuth payload 和模型配置，继续运行：
+
+```bash
+./install.command --agent-finish \
+  --account-auth '<授权码或完整回调 URL>' \
+  --omni-api-key '<API Key>' \
+  --omni-base-url '<Base URL>' \
+  --omni-model '<Model>'
+```
+
+如果只想复核状态：
+
+```bash
+chmod +x ./install.command
+./install.command --validate
 ```
 
 如果包被 macOS quarantine 阻止，先处理 quarantine 后重跑：
@@ -72,10 +89,14 @@ chmod +x ./install.command
 ```bash
 xattr -dr com.apple.quarantine .
 chmod +x ./install.command scripts/macos/*.sh payload/install.sh
-./install.command
+./install.command --agent-prepare
 ```
 
-如果包内 `install.command` 或 `scripts/macos/*.sh` 支持 action，可按需运行对应 action，例如预检、报告、授权链接、授权收尾、验证、卸载。
+用户自己双击安装时才使用交互入口：
+
+```bash
+./install.command
+```
 
 具体 action 以当前 release 包内 `install.command`、`README.md` 和 `scripts/macos/*.sh` 为准。
 
