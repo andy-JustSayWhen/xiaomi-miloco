@@ -372,7 +372,7 @@ start_openclaw_gateway() {
 }
 
 configure_openclaw_chat_model() {
-  say_step "Configuring OpenClaw chat model"
+  say_step "配置 OpenClaw 聊天模型"
   if ! command -v python3 >/dev/null 2>&1 || ! command -v openclaw >/dev/null 2>&1; then
     printf '[WARN] Cannot configure OpenClaw chat model: python3 or openclaw is missing.\n' >&2
     return 0
@@ -606,7 +606,7 @@ install_desktop_helpers() {
 
   write_openclaw_info_file "$info"
 
-  printf '[OK] Desktop shortcuts created:\n'
+  printf '[OK] 桌面入口已创建：\n'
   printf '  %s\n' "$console"
   printf '  %s\n' "$openclaw_entry"
   printf '  %s\n' "$info"
@@ -680,7 +680,7 @@ print_final_usage_screen() {
   fi
 }
 
-say_step "Checking package"
+say_step "检查安装包"
 need_file "$ROOT/manifest.json"
 need_file "$ROOT/payload/install.sh"
 need_file "$ROOT/scripts/macos/macos-preflight.sh"
@@ -692,16 +692,21 @@ remove_quarantine_if_present
 
 prepare_existing_install_for_clean_install
 
-say_step "Running preflight"
+say_step "运行安装前检查"
 bash "$ROOT/scripts/macos/macos-preflight.sh" --package-root "$ROOT" --miloco-port "$MILOCO_PORT" --openclaw-port "$OPENCLAW_PORT"
 
 ensure_openclaw
 prime_payload_cache "$bundle"
 
-say_step "Installing Miloco"
+say_step "安装基础组件"
+printf '提示：下面会出现内层安装器的“基础安装流程完成”。那不是整个懒人包结束。\n'
+printf '看到它以后请继续等待，懒人包还会自动启动服务、创建桌面入口、验证并打开页面。\n\n'
 bash "$ROOT/payload/install.sh" "$@"
 
-say_step "Starting services"
+say_step "继续完成 macOS 懒人包"
+printf '基础组件已装完。正在自动启动服务、配置 OpenClaw、创建桌面入口，请不要关闭窗口。\n'
+
+say_step "启动服务"
 miloco-cli service start >/tmp/easy-miloco-macos-service-start.log 2>&1 || miloco-cli service restart >/tmp/easy-miloco-macos-service-restart.log 2>&1 || true
 start_openclaw_gateway
 configure_openclaw_chat_model
@@ -709,7 +714,7 @@ start_openclaw_gateway
 
 install_desktop_helpers
 
-say_step "Validating"
+say_step "验证安装结果"
 validation_log="/tmp/easy-miloco-macos-validation.log"
 set +e
 bash "$ROOT/scripts/macos/macos-miloco-validate.sh" --miloco-port "$MILOCO_PORT" --openclaw-port "$OPENCLAW_PORT" >"$validation_log" 2>&1
@@ -719,7 +724,7 @@ basic_ready="$(awk -F= '/^BASIC_READY=/{print $2}' "$validation_log" | tail -n 1
 full_ready="$(awk -F= '/^FULL_READY=/{print $2}' "$validation_log" | tail -n 1)"
 print_validation_summary "$validation_code" "$basic_ready" "$full_ready" "$validation_log"
 
-say_step "Opening dashboards"
+say_step "打开面板"
 open_dashboards
 
 print_final_usage_screen "$validation_code" "$basic_ready" "$full_ready" "$validation_log"
