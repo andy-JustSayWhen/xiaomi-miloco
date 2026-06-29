@@ -485,15 +485,95 @@ read_openclaw_token() {
   python3 - <<'PY' 2>/dev/null || true
 import json
 from pathlib import Path
-path = Path.home() / ".openclaw" / "openclaw.json"
-try:
-    data = json.loads(path.read_text(encoding="utf-8"))
-    token = data.get("gateway", {}).get("auth", {}).get("token", "")
+home = Path.home()
+
+def read_json(path):
+    try:
+        if path.exists():
+            return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    return {}
+
+def text(value):
+    return value.strip() if isinstance(value, str) else ""
+
+miloco = read_json(home / ".openclaw" / "miloco" / "config.json")
+openclaw = read_json(home / ".openclaw" / "openclaw.json")
+candidates = []
+agent = miloco.get("agent") if isinstance(miloco, dict) else {}
+if isinstance(agent, dict):
+    candidates.append(agent.get("auth_bearer"))
+gateway = openclaw.get("gateway") if isinstance(openclaw, dict) else {}
+auth = gateway.get("auth") if isinstance(gateway, dict) else {}
+if isinstance(auth, dict):
+    candidates.extend([auth.get("token"), auth.get("password"), auth.get("bearer")])
+for candidate in candidates:
+    token = text(candidate)
     if token:
         print(token)
-except Exception:
-    pass
+        break
 PY
+}
+
+url_encode() {
+  value="$1"
+  VALUE="$value" python3 - <<'PY' 2>/dev/null || true
+import os
+from urllib.parse import quote
+print(quote(os.environ.get("VALUE", ""), safe=""))
+PY
+}
+
+openclaw_autologin_url() {
+  token="$(read_openclaw_token)"
+  if [ -n "$token" ]; then
+    encoded_token="$(url_encode "$token")"
+    if [ -n "$encoded_token" ]; then
+      printf 'http://127.0.0.1:%s/#token=%s\n' "$OPENCLAW_PORT" "$encoded_token"
+      return 0
+    fi
+  fi
+
+  dashboard_url="$(openclaw dashboard --no-open --yes 2>/dev/null | grep -Eo 'https?://[^ ]+' | head -n 1 || true)"
+  if printf '%s' "$dashboard_url" | grep -Eq '(^|[#?&])token='; then
+    printf '%s\n' "$dashboard_url"
+    return 0
+  fi
+  printf 'http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
+}
+
+write_openclaw_info_file() {
+  info="$1"
+  token="$(read_openclaw_token)"
+  launch_url="$(openclaw_autologin_url)"
+  token_value="$token"
+  [ -n "$token_value" ] || token_value="(empty)"
+  {
+    printf 'OpenClaw 登录信息\n'
+    printf '\n'
+    printf '推荐直接打开: %s\n' "$launch_url"
+    printf '仪表板地址: http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
+    printf 'WebSocket URL: ws://127.0.0.1:%s\n' "$OPENCLAW_PORT"
+    printf 'Gateway Token: %s\n' "$token_value"
+    printf '\n'
+    printf '最省事的用法：\n'
+    printf '1. 直接双击桌面的 OpenClaw Chat.command；它会刷新本文件，并用带 token 的直达地址打开。\n'
+    printf '2. 如果页面仍提示登录，把上面的“推荐直接打开”整段复制到浏览器地址栏。\n'
+    printf '3. 如果页面里 token 仍为空，把上面的 Gateway Token 整段粘贴进去。\n'
+    printf '\n'
+    printf '如何获取 / 刷新这些信息：\n'
+    printf '4. 重新双击 OpenClaw Chat.command。\n'
+    printf '5. 或在终端运行：openclaw dashboard --no-open --yes\n'
+    printf '6. 只想看 token，可运行：openclaw config get gateway.auth.token\n'
+    printf '\n'
+    printf '如何管理 / 修改：\n'
+    printf '7. 当前配置文件：~/.openclaw/openclaw.json\n'
+    printf '8. 重点字段：gateway.auth.token\n'
+    printf '9. 改完后重开 OpenClaw Chat.command，或重新运行 dashboard 命令刷新。\n'
+    printf '\n'
+    printf '这份文件会在每次打开 OpenClaw Chat.command 时自动刷新。\n'
+  } > "$info"
 }
 
 install_desktop_helpers() {
@@ -506,26 +586,17 @@ install_desktop_helpers() {
   sed \
     -e "s#__MILOCO_PORT__#$MILOCO_PORT#g" \
     -e "s#__OPENCLAW_PORT__#$OPENCLAW_PORT#g" \
+    -e "s#__OPENCLAW_INFO_PATH__#$info#g" \
     "$ROOT/scripts/macos/templates/miloco-console.command.tpl" > "$console"
   chmod +x "$console"
 
   sed \
     -e "s#__OPENCLAW_PORT__#$OPENCLAW_PORT#g" \
+    -e "s#__OPENCLAW_INFO_PATH__#$info#g" \
     "$ROOT/scripts/macos/templates/openclaw-launcher.command.tpl" > "$openclaw_entry"
   chmod +x "$openclaw_entry"
 
-  token="$(read_openclaw_token)"
-  [ -n "$token" ] || token="$(openclaw config get gateway.auth.token 2>/dev/null || true)"
-  {
-    printf 'Miloco URL: http://127.0.0.1:%s/\n' "$MILOCO_PORT"
-    printf 'OpenClaw URL: http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
-    printf 'OpenClaw token: %s\n' "$token"
-    printf 'How to use:\n'
-    printf '1. Double-click OpenClaw Chat.command to talk to the assistant.\n'
-    printf '2. Double-click Miloco Console.command to open/restart/status Miloco and OpenClaw.\n'
-    printf '3. Ask OpenClaw: 家里有几个摄像头？画面如何？\n'
-    printf '4. Open Miloco dashboard to inspect devices, cameras, perception, and settings.\n'
-  } > "$info"
+  write_openclaw_info_file "$info"
 
   printf '[OK] Desktop shortcuts created:\n'
   printf '  %s\n' "$console"
@@ -535,12 +606,11 @@ install_desktop_helpers() {
 
 open_dashboards() {
   miloco_url="http://127.0.0.1:$MILOCO_PORT/"
-  openclaw_url="$(openclaw dashboard --no-open --yes 2>/dev/null | grep -Eo 'https?://[^ ]+' | head -n 1 || true)"
-  [ -n "$openclaw_url" ] || openclaw_url="http://127.0.0.1:$OPENCLAW_PORT/"
+  openclaw_url="$(openclaw_autologin_url)"
 
   printf '[OK] Opening Miloco dashboard: %s\n' "$miloco_url"
   open "$miloco_url" >/tmp/easy-miloco-open-miloco.log 2>&1 || true
-  printf '[OK] Opening OpenClaw dashboard: %s\n' "$openclaw_url"
+  printf '[OK] Opening OpenClaw with auto-login: %s\n' "$openclaw_url"
   open "$openclaw_url" >/tmp/easy-miloco-open-openclaw.log 2>&1 || true
 }
 
@@ -592,14 +662,15 @@ print_final_usage_screen() {
   printf '接下来怎么用：\n'
   printf '  1. Miloco 面板： http://127.0.0.1:%s/\n' "$MILOCO_PORT"
   printf '     看设备、摄像头、感知状态、模型配置和备份。\n'
-  printf '  2. OpenClaw Chat： http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
-  printf '     直接问家庭助手，例如：家里有几个摄像头？画面如何？\n'
+  printf '  2. OpenClaw Chat：请双击桌面的 OpenClaw Chat.command；不要直接打开裸端口地址。\n'
+  printf '     它会自动带 token 登录。直接问家庭助手，例如：家里有几个摄像头？画面如何？\n'
   printf '  3. 日常使用优先双击桌面快捷方式，不需要重新运行安装包。\n\n'
 
   printf '日志位置：\n'
   printf '  安装验证：%s\n' "$validation_log"
   printf '  Miloco 后端：%s\n' "$HOME/.openclaw/miloco/log/"
   printf '  OpenClaw：/tmp/openclaw/\n'
+  printf '  OpenClaw 登录信息：%s\n' "$HOME/Desktop/OpenClaw-login-info.txt"
 
   if [ -n "$EXISTING_RESTORE_PACK_PATH" ]; then
     printf '\n旧版已先备份再卸载，恢复包在：\n'
