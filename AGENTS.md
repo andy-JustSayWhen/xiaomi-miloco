@@ -39,6 +39,7 @@
 
 ## 引用的记忆
 - [2026-06-27 AGENTS.md 重读记忆](docs/memorys/2026-06-27-agents-reread.md)
+- [2026-06-29 macOS 可视化部署工作流记忆](docs/memorys/2026-06-29-macos-visual-deployment-workflow.md)
 
 ## 用户手册与知识库
 - 在这里读取和维护用户手册C:\Users\17239\Desktop\easy-miloco\docs
