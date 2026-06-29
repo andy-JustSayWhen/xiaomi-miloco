@@ -8,7 +8,7 @@ export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:$HOME/.cargo/bin:$HOME/.local/
 
 menu() {
   clear
-  printf '米Miloco控制台\n'
+  printf 'miloco控制台\n'
   printf '1. 打开 Miloco 面板\n'
   printf '2. 打开 OpenClaw 对话\n'
   printf '3. 同时打开面板和对话\n'
@@ -143,7 +143,7 @@ while true; do
     7) miloco-cli service stop || true; openclaw gateway stop || true; pause ;;
     8) miloco-cli service status || true; openclaw gateway status || true; pause ;;
     9) printf 'Miloco 日志：%s\n' "$HOME/.openclaw/miloco/log/"; printf 'OpenClaw 日志：%s\n' "$HOME/Library/Logs/openclaw/gateway.log"; open "$HOME/.openclaw/miloco/log/" || true; pause ;;
-    10) printf '【快速使用】\n'; printf '1. miloco控制台。用途：查看状态、重启/关闭服务、打开日志。路径：桌面/米Miloco控制台.command\n'; printf '2. openclaw聊天页。用途：日常使用miloco，自然语言聊天即可。路径：桌面/OpenClaw 对话.command\n\n'; printf '【故障备用】\n'; printf '桌面快捷方式打不开时，再把日志和登录信息发给 Agent 排查；平时不用输入网址。\n'; pause ;;
+    10) printf '【快速使用】\n'; printf '1. miloco控制台。用途：查看状态、重启/关闭服务、打开日志。路径：桌面/miloco控制台.command\n'; printf '2. openclaw聊天页。用途：日常使用miloco，自然语言聊天即可。路径：桌面/OpenClaw 对话.command\n\n'; printf '【故障备用】\n'; printf '桌面快捷方式打不开时，再把日志和登录信息发给 Agent 排查；平时不用输入网址。\n'; pause ;;
     0) exit 0 ;;
     *) printf '未知选项。\n'; sleep 1 ;;
   esac

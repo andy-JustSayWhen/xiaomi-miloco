@@ -229,8 +229,8 @@ flowchart TD
 - 新增根入口 `install.command`，职责只做 Terminal 友好启动、quarantine 提示、当前目录切换、调用 `install.sh`，不要塞复杂业务。
 - `install.command` 必须可执行，文本 LF，避免 macOS Finder 双击失败。
 - 生成桌面入口：
-  - `Miloco 控制台.command`
-  - `OpenClaw 对话入口.command`
+  - `miloco控制台.command`
+  - `OpenClaw 对话.command`
   - `OpenClaw-login-info.txt`
 - 控制台功能对齐 Windows：
   - 重启 OpenClaw

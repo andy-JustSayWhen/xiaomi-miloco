@@ -438,6 +438,7 @@ remove_existing_install() {
     "$HOME/Desktop/OpenClaw Chat.command" \
     "$HOME/Desktop/OpenClaw-login-info.txt" \
     "$HOME/Desktop/Miloco 控制台.command" \
+    "$HOME/Desktop/miloco控制台.command" \
     "$HOME/Desktop/米Miloco控制台.command" \
     "$HOME/Desktop/OpenClaw 对话.command" \
     "$HOME/Desktop/OpenClaw 登录信息.txt" \
@@ -693,7 +694,7 @@ write_openclaw_info_file() {
 install_desktop_helpers() {
   desktop="$HOME/Desktop"
   [ -d "$desktop" ] || return 0
-  console="$desktop/米Miloco控制台.command"
+  console="$desktop/miloco控制台.command"
   openclaw_entry="$desktop/OpenClaw 对话.command"
   info="$desktop/OpenClaw 登录信息.txt"
 
@@ -766,7 +767,7 @@ print_final_usage_screen() {
   fi
 
   printf '【快速使用】\n'
-  printf '1. miloco控制台。用途：查看状态、重启/关闭服务、打开日志。路径：桌面/米Miloco控制台.command\n'
+  printf '1. miloco控制台。用途：查看状态、重启/关闭服务、打开日志。路径：桌面/miloco控制台.command\n'
   printf '2. openclaw聊天页。用途：日常使用miloco，自然语言聊天即可。路径：桌面/OpenClaw 对话.command\n\n'
 
   printf '【故障备用】\n'
@@ -885,7 +886,7 @@ else
   printf '[OK] easy-miloco macOS agent action finished: %s\n' "$ACTION"
   printf 'Miloco: http://127.0.0.1:%s/\n' "$MILOCO_PORT"
   printf 'OpenClaw: http://127.0.0.1:%s/\n' "$OPENCLAW_PORT"
-  printf 'Desktop console: %s\n' "$HOME/Desktop/米Miloco控制台.command"
+  printf 'Desktop console: %s\n' "$HOME/Desktop/miloco控制台.command"
   printf 'OpenClaw chat: %s\n' "$HOME/Desktop/OpenClaw 对话.command"
   printf 'Validation log: %s\n' "$validation_log"
 fi
