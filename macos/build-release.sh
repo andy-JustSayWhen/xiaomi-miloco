@@ -162,6 +162,32 @@ if find "$PACKAGE_ROOT" \( -name '.DS_Store' -o -name '._*' -o -name '__MACOSX' 
   exit 4
 fi
 
+if find "$PACKAGE_ROOT" \( \
+    -path '*/.openclaw/*' -o \
+    -path '*/OpenClaw 登录信息.txt' -o \
+    -path '*/OpenClaw-login-info.txt' -o \
+    -path '*/agents/*' -o \
+    -path '*/workspace/memory/*' -o \
+    -name 'openclaw.sqlite' -o \
+    -name 'openclaw.sqlite-shm' -o \
+    -name 'openclaw.sqlite-wal' -o \
+    -name 'sessions.json' \
+  \) | grep -q .; then
+  printf '[FAIL] package contains local OpenClaw/Miloco runtime state\n' >&2
+  find "$PACKAGE_ROOT" \( \
+    -path '*/.openclaw/*' -o \
+    -path '*/OpenClaw 登录信息.txt' -o \
+    -path '*/OpenClaw-login-info.txt' -o \
+    -path '*/agents/*' -o \
+    -path '*/workspace/memory/*' -o \
+    -name 'openclaw.sqlite' -o \
+    -name 'openclaw.sqlite-shm' -o \
+    -name 'openclaw.sqlite-wal' -o \
+    -name 'sessions.json' \
+  \) >&2
+  exit 4
+fi
+
 rm -f "$ZIP_PATH"
 python3 - "$PACKAGE_ROOT" "$ZIP_PATH" <<'PY'
 import os, stat, sys, zipfile
@@ -201,6 +227,25 @@ with zipfile.ZipFile(zip_path) as zf:
     missing = [x for x in required if x not in names]
     if missing:
         raise SystemExit(f"missing in zip: {missing}")
+    forbidden_parts = [
+        "/.openclaw/",
+        "/agents/",
+        "/workspace/memory/",
+    ]
+    forbidden_names = {
+        "OpenClaw 登录信息.txt",
+        "OpenClaw-login-info.txt",
+        "openclaw.sqlite",
+        "openclaw.sqlite-shm",
+        "openclaw.sqlite-wal",
+        "sessions.json",
+    }
+    leaked = []
+    for name in names:
+        if any(part in name for part in forbidden_parts) or name.rsplit("/", 1)[-1] in forbidden_names:
+            leaked.append(name)
+    if leaked:
+        raise SystemExit(f"local runtime state leaked into zip: {leaked[:20]}")
 print(zip_path)
 PY
 
