@@ -6,9 +6,7 @@
 
 ## 给用户复制的一句话
 
-```text
-请为我一键部署 Miloco，按照：https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/macOS/docs/install-guide.md
-```
+以当前分支 `README.md` 的“Agent 全自动”段落为准。不要在子指南里重新发明入口 URL；开发分支使用开发分支 URL，合并回 `main` 后使用 `main` URL。
 
 ## Agent 路由规则
 
