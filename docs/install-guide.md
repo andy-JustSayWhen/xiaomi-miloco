@@ -1,109 +1,57 @@
+# Miloco 一键部署总入口
 
-## 人设
-你是 Miloco 部署 Agent。你的任务是自动完成miloco部署。
+本文件是给 Agent 读取的唯一总入口。README 里的一句话只指向这里；Agent 进入本文件后，必须先识别目标系统，再跳转到对应子指南，不要把 Windows、macOS、Linux/NAS 的步骤混在一起执行。
 
-部署期间，尽可能地自动推进，不要频繁问用户。为此，遇到错误、依赖缺失、组件不全等问题时，先自动修复。你可以按需读取本地日志和诊断报告，查阅本地代码或云端源码等，更好地定位和解决问题；只有自动修复失败，才告知用户最小必要解决办法。
-
-## 流程概述
-1. 下载最新的 release zip
-2. 解压并通读包内的代码
-3. 按照install.ps1的步骤，代替用户驱动相关脚本等文件推进安装流程
-4. 推进期间遇到任何问题，先读取日志和诊断报告定位问题，根据本地和云端源码尝试自动修复。
-6. 执行完install.ps1脚本指定的所有步骤，告知用户，后续如何即可开始使用miloco。
-
-
-
-## 获取 Release
-
-读取：
+## 给用户复制的一句话
 
 ```text
-https://api.github.com/repos/andy-JustSayWhen/easy-miloco/releases/latest
+请为我一键部署 Miloco，按照：https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/install-guide.md
 ```
 
-按本机系统下载对应release zip更新包。
+## Agent 路由规则
 
-## 下载规则 
-任何时候，如果直连下载速度低于 1MB/s 并持续约 60 秒，立即停止该下载，让用户从夸克网盘下载：
+先判断目标机器系统：
 
 ```text
-https://pan.quark.cn/s/5d839d2f3b0f
+Windows:  powershell.exe / cmd.exe 可用，Miloco 后端必须安装到 WSL2
+macOS:    uname -s 返回 Darwin，Miloco 直接使用 darwin runtime，绝对不要使用 WSL
+Linux/NAS: uname -s 返回 Linux，当前不走一键包，按官方 install.sh 和本仓库 NAS runbook 处理
 ```
 
-用户下载完成后，让用户提供本地 zip 文件路径。拿到路径后继续后续步骤。
+然后只读对应子文档：
 
-## 解压后先读包内代码
+| 目标系统 | 子指南 | 入口类型 |
+| --- | --- | --- |
+| Windows | [windows/agent-install.md](windows/agent-install.md) | Windows + WSL2 Agent 自动部署 |
+| macOS | [macos/agent-install.md](macos/agent-install.md) | macOS Agent 自动部署 |
+| Linux/NAS | [runbooks/nas01-openclaw-miloco-install.md](runbooks/nas01-openclaw-miloco-install.md) | NAS/Linux 经验复盘，非一键包 |
 
-拿到 zip 后：
-2. 解压到桌面。
-3. 读取包内 `manifest.json`、`README.md`、`install.ps1`、`install.bat`。
-4. 从包内 `install.ps1` 的 `param(...)` 和 README 推导当前版本支持的入口、参数和 action。
+## 通用原则
 
-## 运行安装器
+- 不要只看服务是否启动；最终必须区分 `BASIC_READY` 和 `FULL_READY`。
+- 小米账号 OAuth 和 LLM API Key / Base URL 需要用户提供；Agent 负责生成链接、接收 payload、写入配置、验证连通性。
+- 账号和模型配置按顺序处理：先小米账号，再模型配置。
+- 下载低于 1MB/s 并持续约 60 秒时，停止当前下载，改让用户提供本地 release zip 路径或使用镜像/网盘副本。
+- 遇到失败先读日志和诊断报告，不要盲目重装。
+- 摄像头异常按“云端设备 -> LAN 可达 -> scope -> stream connected -> engine active_sources -> OpenClaw 视觉推理”分层定位。
 
-优先在 release 解压目录运行：
+## 交付最低标准
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -PauseOnExit
-```
+基础交付必须报告：
 
+- Miloco 面板 URL。
+- OpenClaw 聊天页 URL 或桌面入口。
+- `BASIC_READY` / `FULL_READY`。
+- 小米账号是否已绑定。
+- 模型 Key、Base URL、模型名是否已配置。
+- 设备列表是否有行。
+- 摄像头 scope 是否可见。
+- 关键日志路径。
 
-如果包内 `install.ps1` 支持 action，可按需运行：
+满血交付还必须验证：
 
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Action Report
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Action BindUrl
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\install.ps1 -Action Finish
-```
+- Miloco 面板概述页能看到摄像头数量。
+- OpenClaw 聊天页能自动登录。
+- 在 OpenClaw 聊天中询问“家里有几个摄像头？画面如何？”，并记录回答是否能描述画面。
 
-具体 action 以当前 release 包内 `install.ps1` 为准。
-
-
-### LLM API
-API Key：
-Base URL：（必须为openAI兼容格式，一般为.../v1结尾）
-
-拿到后，必须做一次连通性测试。
-
-###  每次运行后读日志
-
-每次安装器运行后，读取 release 解压目录中最新的：
-
-```text
-miloco-install-console-*.txt
-miloco-install-inputs-*.txt
-miloco-deploy-report-*.txt
-```
-
-不要只看退出码。根据日志判断下一步。
-
-### 完成安装
-完成安装器内的所有流程后，提醒用户后续如何开始使用miloco（比如桌面有快捷方式）
-
-## 自动修复策略
-到错误、依赖缺失、组件不全等问题时，先自动修复。你可以按需读取本地日志和诊断报告，查阅本地代码或云端源码等，更好地定位和解决问题；只有自动修复失败，才告知用户最小必要解决办法。
-
-
-
-###  失败处理
-
-失败时不要盲目重装。按层定位：
-
-```text
-release 包完整性
-Windows 管理员权限
-WSL / Ubuntu
-WSL 内 bash / curl / tar / python3
-Miloco backend
-OpenClaw CLI / Gateway / 插件
-小米 OAuth
-API Key / Base URL / 模型
-家庭 scope
-摄像头在线和取流
-```
-
-每次修复后，重新运行当前 release 包支持的最小必要 action。若不确定 action，重新读取包内 `install.ps1` 和 README。
-
-## 禁止事项
-- 不要因为 `FULL_READY=no` 就直接判定安装失败。
-- 不要长时间静默等待慢速下载。
+如果 `FULL_READY=no`，只能交付“基础安装完成，缺口如下”，不得宣称满血完成。

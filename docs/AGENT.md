@@ -16,7 +16,7 @@
 
 | 用户说法 | Agent 应读 | Agent 应做 |
 | --- | --- | --- |
-| “部署一下” | [install-guide.md](install-guide.md)、[windows/agent-install.md](windows/agent-install.md) | 预检、安装、配置、授权、验收 |
+| “部署一下” | [install-guide.md](install-guide.md) | 先识别系统，再路由到 Windows 或 macOS 子指南，完成预检、安装、配置、授权、验收 |
 | “摄像头离线/看不到画面” | [cameras.md](cameras.md)、[windows/camera-runbook.md](windows/camera-runbook.md) | 区分云端在线、局域网在线、流连接、OpenClaw 视觉理解四层状态 |
 | “检查更新” | [runbooks/make-release-package.md](runbooks/make-release-package.md) 的版本基准说明 | 读取 GitHub Release，展示更新说明，等待用户确认 |
 | “回滚” | Windows 回滚 runbook，若缺失则先补齐 | 列出项目级快照，按用户选择恢复 |
@@ -30,6 +30,7 @@
 - 发现新的系统兼容边界。
 - 发现新的下载、代理、端口、WSL、OpenClaw 或摄像头问题。
 - 成功跑通一台新的 Windows 机器。
+- 成功跑通一台新的 macOS 机器。
 - release 打包流程新增人工步骤，例如同步夸克网盘副本。
 
 优先沉淀到：
@@ -37,6 +38,7 @@
 ```text
 docs/faq/known-issues.md
 docs/windows/
+docs/macos/
 docs/runbooks/
 docs/releases/
 ```

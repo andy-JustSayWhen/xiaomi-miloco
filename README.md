@@ -2,7 +2,7 @@
 
 本仓库 fork 自 Xiaomi Miloco 官方仓库，核心功能随官方异步更新。本仓库主要做三件事：
 
-1. 提供一键部署包。跟随官方更新，计划适配 Windows、macOS、NAS 和主流云服务器。截至 2026 年 6 月 28 日，已完成 Windows。
+1. 提供一键部署包。跟随官方更新，计划适配 Windows、macOS、NAS 和主流云服务器。截至 2026 年 6 月 29 日，Windows 和 macOS 均已有一键部署路线。
 2. 提供小白友好的教程。帮助小白解决miloco在安装和使用过程中遇到的各类故障问题。
 
 ## 一键部署
@@ -17,11 +17,16 @@
 请为我一键部署 Miloco，按照：https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/install-guide.md
 ```
 
+Agent 只需要先读上面这个总入口；进入后会按当前系统自动路由到 Windows 或 macOS 子指南。
+
 ### 用户自己动
 
 速度最快，适合能按提示处理权限、WSL、网络问题的人。
 
-打开 [GitHub Release](https://github.com/andy-JustSayWhen/easy-miloco/releases)，根据系统类型，下载对应的 `.zip` 一键部署包。下载后，解压，双击文件夹根目录内的 `install.bat`。
+打开 [GitHub Release](https://github.com/andy-JustSayWhen/easy-miloco/releases)，根据系统类型，下载对应的 `.zip` 一键部署包。下载后解压：
+
+- Windows：双击文件夹根目录内的 `install.bat`。
+- macOS：双击文件夹根目录内的 `install.command`。
 
 期间遇到任何问题，请把这句话发给你的agent：
 
@@ -48,10 +53,10 @@
 
 | 依赖                    | 是否需要 | 原因                                                                                                                                               |
 | ----------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 操作系统                | 必须     | 当前一键包先支持 Windows，建议 Windows 11 22H2+；低于该版本不保证完整兼容。macOS、Linux 先走源码/手动安装路线，后续再补一键包                      |
-| 兼容 Ubuntu WSL2        | 必须     | Miloco 当前不作为 Windows 原生后端运行；安装器会复用已存在且通过能力检测的 Ubuntu WSL2，只有没有可用 Ubuntu 时才默认安装 Ubuntu-24.04              |
-| Linux 基础能力          | 必须     | 需要 WSL version 2、glibc >= 2.28、CPU 架构 x86_64/aarch64，并能运行 bash、curl、systemd user 相关命令；Ubuntu 22.04+ 推荐，20.04 允许但会提示风险 |
-| 管理员权限              | 必须     | 首次安装可能需要启用 WSL、VirtualMachinePlatform、Hyper-V 防火墙入站规则                                                                           |
+| 操作系统                | 必须     | Windows 建议 Windows 11 22H2+；macOS 建议 macOS 12+；低于建议版本不保证完整兼容。Linux/NAS 先走官方脚本和 runbook 路线                      |
+| 兼容 Ubuntu WSL2        | Windows 必须 | Miloco 当前不作为 Windows 原生后端运行；Windows 安装器会复用已存在且通过能力检测的 Ubuntu WSL2，只有没有可用 Ubuntu 时才默认安装 Ubuntu-24.04。macOS 不使用 WSL |
+| Linux 基础能力          | Windows/NAS 必须 | Windows 侧需要 WSL version 2、glibc >= 2.28、CPU 架构 x86_64/aarch64，并能运行 bash、curl、systemd user 相关命令；macOS 直接使用 darwin runtime |
+| 管理员权限              | Windows 首次安装可能需要 | Windows 首次安装可能需要启用 WSL、VirtualMachinePlatform、Hyper-V 防火墙入站规则；macOS 通常不需要管理员权限 |
 | 网络访问 GitHub Release | 必须     | 官方版本基准和更新包以 GitHub Release 为准                                                                                                         |
 | 夸克网盘                | 可选     | 中国大陆用户 GitHub 下载慢时使用副本                                                                                                               |
 | 小米账号                | 必须     | 用于绑定米家设备、读取家庭和设备列表                                                                                                               |
@@ -62,7 +67,7 @@
 
 兼容声明：
 
-当前 Windows 一键包只对 Windows 11 22H2 及以上版本提供完整部署保证。低于该版本可能能跑基础服务，但摄像头实时流、WSL 网络、Hyper-V 防火墙、OpenClaw/Miloco 联动都不保证稳定。
+当前 Windows 一键包只对 Windows 11 22H2 及以上版本提供完整部署保证；macOS 一键包优先支持 arm64/x86_64 的 macOS 12+。低于建议版本可能能跑基础服务，但摄像头实时流、系统服务、OpenClaw/Miloco 联动都不保证稳定。
 
 ## 项目说明
 
@@ -136,11 +141,11 @@ easy-miloco-v0.5-windows/
 | `miloco-terminate-task` skill   | ☑️     | ☑️     | 两边均支持终止任务；当前仓库强调审计快照、级联清理和 cron pending 清理。                                                                  |
 | `miloco-notify` skill           | ☑️     | ☑️     | 两边均支持感知异常分级和通知；当前仓库文档补充通知渠道排障路径。                                                                          |
 | `miloco-cli` 服务/设备/配置管理 | ☑️     | ☑️     | 官方 CLI 提供 service、account、config、device、scope 等命令；当前仓库保留并补充 Windows/WSL 验收脚本。                                   |
-| macOS/Linux 安装                  | ☑️     | ☑️     | 官方主线是`install.sh`；当前仓库保留源码和脚本路线，但当前一键 zip 先发 Windows。                                                       |
+| macOS/Linux 安装                  | ☑️     | ☑️     | 官方主线是`install.sh`；当前仓库保留源码和脚本路线，并新增 macOS 一键 zip 与 Agent 部署子指南。                                           |
 | Windows WSL 安装                  | ☑️     | ☑️     | 官方说明 Windows 需 WSL；当前仓库增加 Windows 一键包、预检、安装、后授权、验收和故障矩阵。                                                |
 | Windows 原生后端                  | ❌       | ❌       | 两边都不支持 Windows 原生后端；当前仓库明确用 WSL2 承载 Linux 后端。                                                                      |
-| 一键部署 zip 包                   | ❌       | ☑️     | 当前仓库新增 Windows release 包，用户解压后双击根目录`install.bat` 即可开始安装。                                                       |
-| 桌面控制台菜单                    | ❌       | ☑️     | 当前仓库生成`Miloco 控制台.bat`，提供重启 OpenClaw、重启 Miloco、整套重启、关闭服务、关闭 WSL、接入消息渠道。                           |
+| 一键部署 zip 包                   | ❌       | ☑️     | 当前仓库新增 Windows/macOS release 包，用户解压后分别双击根目录 `install.bat` / `install.command` 即可开始安装。                         |
+| 桌面控制台菜单                    | ❌       | ☑️     | 当前仓库生成 Windows `Miloco 控制台.bat` 和 macOS `米Miloco控制台.command`，提供重启 OpenClaw、重启 Miloco、整套重启、关闭服务、查看日志等入口。 |
 | Windows 诊断/验收脚本             | ❌       | ☑️     | 当前仓库新增`docs/scripts/*` 和 `windows-preflight`/`wsl-miloco-validate`/`win-miloco-workflow`，区分 BASIC_READY 与 FULL_READY。 |
 | 国内下载副本                      | ❌       | ☑️     | GitHub Release 是版本基准；GitHub 慢时可用夸克网盘副本下载。                                                                              |
 | 教程、FAQ、runbook                | ❌       | ☑️     | 当前仓库新增`docs/`，覆盖一键部署、Windows、摄像头、SSH 命令传输、NAS 安装、性能报告等复用经验。                                        |
@@ -157,4 +162,4 @@ easy-miloco-v0.5-windows/
 - 用户问题优先通过诊断报告定位，不盲目重装。
 - 更新前只备份本项目相关状态，不默认导出整个 WSL。
 - 失败经验和成功经验必须沉淀到 `docs/faq/known-issues.md` 或对应 runbook。
-- 当前先保证 Windows 11 22H2+ 的一键部署；macOS、NAS、云服务器等路线等 Windows 包稳定后再展开。
+- 当前优先保证 Windows 11 22H2+ 和 macOS 12+ 的一键部署；NAS、云服务器等路线后续再展开。

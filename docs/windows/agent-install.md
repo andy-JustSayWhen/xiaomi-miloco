@@ -2,6 +2,8 @@
 
 适用场景：目标机器是 Windows，但 Miloco 需要跑在 WSL 内；你希望把安装、排障、验证交给 Agent 通过 SSH 执行。
 
+本文是 [../install-guide.md](../install-guide.md) 路由后的 Windows 子指南。Agent 从 README 的一句话进入总入口后，如果目标系统是 Windows，只读本文继续执行。
+
 状态分支总览见 [Windows部署决策树](decision-tree.md)；遇到具体报错再查 [Windows部署故障排除矩阵](troubleshooting.md)。
 第一次部署先看 [Windows部署总入口](index.md)。
 官方流程核对见 [官方部署流程对齐核查](upstream-deploy-alignment.md)。

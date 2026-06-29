@@ -43,10 +43,14 @@ FAIL_COUNT=0
 - preflight 通过，1810/18789 端口在安装前为空。
 - Miloco 服务启动，/health 返回 {"status":"ok"}，面板 HTTP 200。
 - OpenClaw Gateway 以 LaunchAgent 方式启动，Connectivity probe ok。
-- 桌面入口创建成功：
+- 桌面入口创建成功（当时旧名称，当前包已改为中文入口）：
   ~/Desktop/Miloco Console.command
   ~/Desktop/OpenClaw Chat.command
   ~/Desktop/OpenClaw-login-info.txt
+  当前名称：
+  ~/Desktop/米Miloco控制台.command
+  ~/Desktop/OpenClaw 对话.command
+  ~/Desktop/OpenClaw 登录信息.txt
 - OpenClaw 打开地址带 #token=，不再停在登录页。
 - OpenClaw 主聊天模型同步为 mimo/mimo-v2.5，provider/baseUrl/apiKey/modelRow 均 configured。
 ```
@@ -90,7 +94,7 @@ FULL_FAIL_COUNT=1
 - OAuth 两种提示口径实际可用：浏览器跳到 https://127.0.0.1/?code=...&state=... 后，粘贴完整地址栏可成功授权。
 - 家庭切换到 andy的家。
 - 模型 Key、Base URL、mimo-v2.5 配置成功。
-- 最终 Terminal 屏幕显示桌面入口、Miloco 面板地址、OpenClaw Chat 使用方式和 OpenClaw-login-info.txt。
+- 最终 Terminal 屏幕显示桌面入口、Miloco 面板地址、OpenClaw Chat 使用方式和 OpenClaw-login-info.txt；当前包已收敛为【快速使用】两条入口。
 - Chrome 自动打开 OpenClaw Chat，不再显示登录页；URL 中 token 被页面吸收。
 - Miloco 概述页显示 andy的家、127 件设备、实时画面区域，实时画面显示 2 个在感知，并可见两路画面。
 ```
@@ -142,7 +146,7 @@ OpenClaw Chat 问答证据：
 - 1810 无监听。
 - 18789 无监听。
 - Miloco/OpenClaw/install.command/macos-miloco-validate 无残留进程。
-- 桌面 Miloco Console.command、OpenClaw Chat.command、OpenClaw-login-info.txt 已删除。
+- 桌面旧入口 Miloco Console.command、OpenClaw Chat.command、OpenClaw-login-info.txt 已删除；当前包还会清理/重建中文入口。
 - dist/macos 解包目录 easy-miloco-v0.1-macos-arm64 已删除。
 - 保留正式 zip 与历史 Agent 恢复包作为发布和恢复证据。
 ```

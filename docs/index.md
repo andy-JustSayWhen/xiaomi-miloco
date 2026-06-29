@@ -23,7 +23,9 @@ Agent 必须先读：
 
 常见任务：
 
-- 部署当前机器：读 [windows/agent-install.md](windows/agent-install.md)，按预检、安装、授权、验收顺序推进。
+- 部署当前机器：先读 [install-guide.md](install-guide.md)，按系统路由到 Windows 或 macOS 子指南。
+- Windows Agent 部署：读 [windows/agent-install.md](windows/agent-install.md)，按预检、安装、授权、验收顺序推进。
+- macOS Agent 部署：读 [macos/agent-install.md](macos/agent-install.md)，按 release 包、授权、模型配置、验收顺序推进。
 - 规划 macOS 一键包：读 [macos/macos-adaptation-spec.md](macos/macos-adaptation-spec.md)，先验证 darwin runtime，再做 macOS 分发壳。
 - 手动排障：从 [windows/troubleshooting.md](windows/troubleshooting.md) 和 [faq/known-issues.md](faq/known-issues.md) 开始。
 - 摄像头排障：读 [windows/camera-runbook.md](windows/camera-runbook.md) 和 [cameras.md](cameras.md)。
@@ -39,7 +41,7 @@ Agent 必须先读：
 | 目录 | 用途 |
 | --- | --- |
 | [windows/](windows/index.md) | Windows 安装、预检、故障、验收、<windows-sample-host> 实录 |
-| [macos/](macos/index.md) | macOS 一键包规划、适配 spec 和后续验证记录 |
+| [macos/](macos/index.md) | macOS 一键包、Agent 部署、适配 spec 和验证记录 |
 | [runbooks/](runbooks/change-and-debug-runbook.md) | 变更、排障、发版前检查 |
 | [tests/](tests/test-guide.md) | 测试矩阵和验收清单 |
 | [meta/](meta/source-map.md) | 源码地图和维护日志 |
@@ -48,4 +50,4 @@ Agent 必须先读：
 
 ## v0.2 边界
 
-v0.2 先保证 Windows 11 22H2+ 的一键部署、更新、回滚和诊断路线。低于该版本的 Windows 可能可以运行基础服务，但不保证摄像头实时流、WSL 网络、Hyper-V 防火墙、OpenClaw/Miloco 联动稳定可用。
+Windows 11 22H2+ 和 macOS 12+ 是当前一键部署优先保证范围。低于建议版本可能可以运行基础服务，但不保证摄像头实时流、系统服务、OpenClaw/Miloco 联动稳定可用。
