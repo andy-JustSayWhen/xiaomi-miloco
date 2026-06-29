@@ -11,7 +11,7 @@ BACKUP_DIR="$SCRIPT_DIR/backups"
 ENV_FILE="$SCRIPT_DIR/.env"
 ENV_EXAMPLE="$SCRIPT_DIR/.env.example"
 DOCKER_CMD=()
-DEFAULT_IMAGE="ghcr.io/andy-justsaywhen/easy-miloco-nas:v0.5"
+DEFAULT_IMAGE="docker.io/andywu114/easy-miloco-nas:v0.5"
 
 log() {
   printf '[easy-miloco-nas] %s\n' "$*"

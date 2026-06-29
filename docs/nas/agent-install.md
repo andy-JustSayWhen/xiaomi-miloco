@@ -54,7 +54,10 @@ OMNI_MODEL=<模型名>
 
 ```bash
 # 默认在线镜像
-EASY_MILOCO_IMAGE=ghcr.io/andy-justsaywhen/easy-miloco-nas:v0.5 ./manage.sh start
+EASY_MILOCO_IMAGE=docker.io/andywu114/easy-miloco-nas:v0.5 ./manage.sh start
+
+# 国内 NAS 可用毫秒镜像 Docker Hub 通道
+EASY_MILOCO_IMAGE=docker.1ms.run/andywu114/easy-miloco-nas:v0.5 ./manage.sh start
 
 # 如果有可达镜像仓库或内网镜像
 EASY_MILOCO_IMAGE=<registry>/<repo>/easy-miloco-nas:v0.5 ./manage.sh start

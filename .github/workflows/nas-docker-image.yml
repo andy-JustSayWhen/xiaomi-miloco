@@ -18,7 +18,8 @@ permissions:
   packages: write
 
 env:
-  IMAGE_NAME: ghcr.io/andy-justsaywhen/easy-miloco-nas
+  GHCR_IMAGE: ghcr.io/andy-justsaywhen/easy-miloco-nas
+  DOCKERHUB_IMAGE: docker.io/andywu114/easy-miloco-nas
 
 jobs:
   build:
@@ -36,6 +37,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
       - name: Build and push
         uses: docker/build-push-action@v6
         with:
@@ -44,8 +51,10 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ${{ env.IMAGE_NAME }}:${{ inputs.version || 'v0.5' }}
-            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.GHCR_IMAGE }}:${{ inputs.version || 'v0.5' }}
+            ${{ env.GHCR_IMAGE }}:latest
+            ${{ env.DOCKERHUB_IMAGE }}:${{ inputs.version || 'v0.5' }}
+            ${{ env.DOCKERHUB_IMAGE }}:latest
           labels: |
             org.opencontainers.image.source=https://github.com/andy-JustSayWhen/easy-miloco
             org.opencontainers.image.description=easy-miloco NAS Docker image
