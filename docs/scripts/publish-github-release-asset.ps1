@@ -2,8 +2,8 @@
 param(
   [string]$Owner = "",
   [string]$Repo = "andy-JustSayWhen/easy-miloco",
-  [string]$Tag = "v0.2",
-  [string]$AssetPath = "dist/windows/easy-miloco-v0.2-windows.zip",
+  [string]$Tag = "v0.5",
+  [string]$AssetPath = "dist/windows/easy-miloco-v0.5-windows.zip",
   [string]$ProxyUrl = "http://127.0.0.1:7897",
   [int]$UploadTimeoutSeconds = 240,
   [int]$MaxAttempts = 2,

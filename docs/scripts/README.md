@@ -77,13 +77,13 @@ powershell.exe -ExecutionPolicy Bypass -File .\win-miloco-workflow.ps1 -Action R
 对本地解压目录或 zip 做三段式验证：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\windows-release-validate.ps1 -PackagePath .\dist\windows\easy-miloco-v0.2-windows.zip
+powershell.exe -ExecutionPolicy Bypass -File .\windows-release-validate.ps1 -PackagePath .\dist\windows\easy-miloco-v0.5-windows.zip
 ```
 
 只看包结构和安装烟测，不碰本机运行态：
 
 ```powershell
-powershell.exe -ExecutionPolicy Bypass -File .\windows-release-validate.ps1 -PackagePath .\dist\windows\easy-miloco-v0.2-windows.zip -SkipRuntime
+powershell.exe -ExecutionPolicy Bypass -File .\windows-release-validate.ps1 -PackagePath .\dist\windows\easy-miloco-v0.5-windows.zip -SkipRuntime
 ```
 
 ## Windows 侧运行

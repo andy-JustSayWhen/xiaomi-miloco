@@ -66,7 +66,7 @@ Windows 用户先从 [Windows部署总入口](index.md) 开始。该入口会引
 ### 方式二：Windows Release 包
 
 ```text
-打开 GitHub Release -> 下载 easy-miloco-v0.2-windows.zip -> 解压 -> 双击根目录 install.bat
+打开 GitHub Release -> 下载 easy-miloco-v0.5-windows.zip -> 解压 -> 双击根目录 install.bat
 ```
 
 普通 Windows 用户优先走 release zip。包内 `install.ps1` 是 `install.bat` 调用的实现和维护者备用入口。

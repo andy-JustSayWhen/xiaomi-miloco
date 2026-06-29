@@ -43,11 +43,11 @@ function Require-File {
 
 function Get-DefaultPackagePath {
   $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-  $dir = Join-Path $repoRoot "dist\windows\easy-miloco-v0.2-windows"
+  $dir = Join-Path $repoRoot "dist\windows\easy-miloco-v0.5-windows"
   if (Test-Path -LiteralPath $dir) {
     return $dir
   }
-  return (Join-Path $repoRoot "dist\windows\easy-miloco-v0.2-windows.zip")
+  return (Join-Path $repoRoot "dist\windows\easy-miloco-v0.5-windows.zip")
 }
 
 function Resolve-PackageRoot {

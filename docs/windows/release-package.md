@@ -1,6 +1,6 @@
 # Windows 部署资料包发布清单
 
-> 更新日期：2026-06-24
+> 更新日期：2026-06-29
 > 用途：记录当前 Windows GitHub Release zip 的内容、生成方式和验收口径。
 > 关联：[Windows部署总入口](index.md)、[Windows部署教程-独立分发版](standalone-package.md)、[Windows部署资料包验收记录](validation-record.md)
 
@@ -9,7 +9,7 @@
 GitHub Release 是唯一版本基准。当前 Windows 一键包：
 
 ```text
-dist/windows/easy-miloco-v0.2-windows.zip
+dist/windows/easy-miloco-v0.5-windows.zip
 ```
 
 普通用户拿到 zip 后，只需要解压并双击根目录的 `install.bat`。`install.ps1` 是 `install.bat` 调用的实现和维护者备用入口，不作为普通用户优先入口。
@@ -17,7 +17,7 @@ dist/windows/easy-miloco-v0.2-windows.zip
 ## 包内结构
 
 ```text
-easy-miloco-v0.2-windows.zip
+easy-miloco-v0.5-windows.zip
 ├── README.md
 ├── install.bat
 ├── install.ps1
@@ -40,13 +40,13 @@ easy-miloco-v0.2-windows.zip
 ## 构建命令
 
 ```powershell
-.\windows\build-release.ps1 -Version v0.2 -Channel stable
+.\windows\build-release.ps1 -Version v0.5 -Channel stable
 ```
 
 已存在 Linux 构建产物、只重打 Windows release zip 时：
 
 ```powershell
-.\windows\build-release.ps1 -Version v0.2 -Channel stable -SkipBuild
+.\windows\build-release.ps1 -Version v0.5 -Channel stable -SkipBuild
 ```
 
 ## 自测口径
@@ -66,5 +66,5 @@ easy-miloco-v0.2-windows.zip
 可以对用户说：
 
 ```text
-请从 GitHub Release 下载 easy-miloco-v0.2-windows.zip，解压后双击根目录 install.bat。安装器需要你处理时会用中文提示；安装完成后会在桌面生成 Miloco 控制台。
+请从 GitHub Release 下载 easy-miloco-v0.5-windows.zip，解压后双击根目录 install.bat。安装器需要你处理时会用中文提示；安装完成后会在桌面生成 Miloco 控制台。
 ```

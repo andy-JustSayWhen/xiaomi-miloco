@@ -1,5 +1,5 @@
 ﻿param(
-  [string]$Version = "v0.2",
+  [string]$Version = "v0.5",
   [string]$ArtifactVersion = "",
   [ValidateSet("stable", "preview")]
   [string]$Channel = "stable",

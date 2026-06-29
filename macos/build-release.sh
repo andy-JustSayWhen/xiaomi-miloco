@@ -8,7 +8,7 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_ROOT="$REPO_ROOT/dist"
 DIST_DIR="$DIST_ROOT/macos"
 STAGE_ROOT="$DIST_ROOT/stage"
-VERSION="v0.1"
+VERSION="v0.5"
 ARTIFACT_VERSION=""
 ARCH="$(uname -m)"
 SKIP_BUILD=0
@@ -18,7 +18,7 @@ usage() {
 Usage: macos/build-release.sh [options]
 
 Options:
-  --version <vX>              Package version, default v0.1
+  --version <vX>              Package version, default v0.5
   --artifact-version <ver>    Runtime artifact version, default date
   --arch <arm64|x86_64>       macOS target architecture, default current arch
   --skip-build                Reuse existing dist/install.sh and darwin bundle
