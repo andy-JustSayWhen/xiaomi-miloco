@@ -65,7 +65,7 @@ ports:
 
 Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 默认 `OPENCLAW_BIND=auto`，适配 Docker 端口转发。如果只允许 NAS 本机访问，把 `.env` 里的 `OPENCLAW_BIND` 改成 `loopback`。
 
-NAS 默认 `OPENCLAW_AUTH=token`。如果 NAS 快速访问打开后要求网关令牌，运行 `./manage.sh urls`，使用里面的“OpenClaw 直达地址”；该地址会自动带上 token，不需要用户猜。容器启动时会把当前 NAS 的 HTTP 地址加入 OpenClaw `gateway.controlUi.allowedOrigins`，并开启局域网 HTTP 访问所需的 `gateway.controlUi.allowInsecureAuth`。
+NAS 默认 `OPENCLAW_AUTH=token`。如果 NAS 快速访问打开后要求网关令牌，运行 `./manage.sh urls`，使用里面的“OpenClaw 直达地址”；该地址会自动带上 token，不需要用户猜。容器启动时会把当前 NAS 的 HTTP 地址加入 OpenClaw `gateway.controlUi.allowedOrigins`，并为局域网 HTTP 访问开启 `gateway.controlUi.allowInsecureAuth` 和 `gateway.controlUi.dangerouslyDisableDeviceAuth`，避免普通用户停在安全上下文/设备身份页面。
 
 如果拉镜像很慢或失败，不要反复重跑 `start`。优先处理以下三种：
 

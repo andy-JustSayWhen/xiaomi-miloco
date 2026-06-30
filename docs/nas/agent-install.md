@@ -81,7 +81,7 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 - `1810`：Miloco 面板
 - `18789`：OpenClaw 对话页
 
-NAS 默认 `OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=token`。Agent 必须用 `./manage.sh urls` 交付可直接使用的 OpenClaw 直达 URL；不要让普通用户手动猜网关 token。
+NAS 默认 `OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=token`。Agent 必须用 `./manage.sh urls` 交付可直接使用的 OpenClaw 直达 URL；不要让普通用户手动猜网关 token，也不要只给裸 `18789` 地址。局域网 HTTP 部署必须确认 OpenClaw Control UI 已配置 `allowedOrigins`、`allowInsecureAuth` 和 `dangerouslyDisableDeviceAuth`，否则浏览器会停在安全上下文/设备身份页面。
 
 ## 交付口径
 

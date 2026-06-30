@@ -139,7 +139,7 @@ from pathlib import Path
 path = Path(sys.argv[1])
 if not path.is_file():
     raise SystemExit(1)
-print(json.loads(path.read_text(encoding="utf-8")).get("version", "0.0.0"))
+print(json.loads(path.read_text(encoding="utf-8-sig")).get("version", "0.0.0"))
 PY
   )"
   if [ -z "$version" ]; then
@@ -269,6 +269,7 @@ if auth == "token" and not auth_config.get("token"):
 
 control_ui = gateway.setdefault("controlUi", {})
 control_ui["allowInsecureAuth"] = True
+control_ui["dangerouslyDisableDeviceAuth"] = True
 
 origins = set(control_ui.get("allowedOrigins") or [])
 origins.update({
