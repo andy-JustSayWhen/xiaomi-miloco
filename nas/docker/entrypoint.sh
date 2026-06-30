@@ -395,6 +395,8 @@ const token = process.env.OPENCLAW_PROXY_TOKEN || "";
 function proxyHeaders(headers) {
   const out = { ...headers };
   out.host = `${targetHost}:${targetPort}`;
+  if (out.origin) out.origin = `http://${targetHost}:${targetPort}`;
+  if (out.referer) out.referer = String(out.referer).replace(`:${publicPort}`, `:${targetPort}`);
   return out;
 }
 
