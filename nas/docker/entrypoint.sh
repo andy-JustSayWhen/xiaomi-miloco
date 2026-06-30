@@ -33,7 +33,6 @@ warn() {
 
 stop_services() {
   set +e
-  openclaw gateway stop >/dev/null 2>&1 || true
   miloco-cli service stop >/dev/null 2>&1 || true
 }
 
@@ -123,6 +122,38 @@ print(f"extracted {copied} payload file(s) to {out_dir}")
 PY
 }
 
+prime_payload_cache() {
+  local bundle version cache
+  bundle="$(find "$RUNTIME_DIR" -maxdepth 1 -type f -name "miloco-linux-*.tar.gz" | head -n 1 || true)"
+  if [ -z "$bundle" ]; then
+    warn "No local Miloco runtime bundle found in $RUNTIME_DIR; installer may download it."
+    return
+  fi
+
+  version="$(
+    python3 - "$RUNTIME_DIR/manifest.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+if not path.is_file():
+    raise SystemExit(1)
+print(json.loads(path.read_text(encoding="utf-8")).get("version", "0.0.0"))
+PY
+  )"
+  if [ -z "$version" ]; then
+    warn "Cannot read payload manifest version; installer may download runtime bundle."
+    return
+  fi
+
+  cache="$MILOCO_HOME/.install-cache/$version"
+  log "Priming local Miloco runtime cache: $cache"
+  rm -rf "$cache"
+  mkdir -p "$cache"
+  tar -xzf "$bundle" -C "$cache"
+}
+
 select_release_zip_url() {
   python3 - "$RELEASE_API" <<'PY'
 import json
@@ -209,8 +240,13 @@ start_runtime() {
   miloco-cli service start >/tmp/easy-miloco-service-start.log 2>&1 || miloco-cli service restart >/tmp/easy-miloco-service-restart.log 2>&1 || true
 
   log "Starting OpenClaw gateway"
-  openclaw gateway --dev --bind "$OPENCLAW_BIND" --auth "$OPENCLAW_AUTH" --port "$OPENCLAW_PORT" install --port "$OPENCLAW_PORT" >/tmp/easy-miloco-openclaw-install.log 2>&1 || true
-  openclaw gateway restart >/tmp/easy-miloco-openclaw-restart.log 2>&1 || openclaw gateway start >/tmp/easy-miloco-openclaw-start.log 2>&1 || true
+  nohup openclaw gateway \
+    --dev \
+    --force \
+    --bind "$OPENCLAW_BIND" \
+    --auth "$OPENCLAW_AUTH" \
+    --port "$OPENCLAW_PORT" \
+    run >/tmp/easy-miloco-openclaw-run.log 2>&1 &
 }
 
 validate_runtime() {
@@ -249,6 +285,7 @@ main() {
   mkdir -p "$STATE_DIR" "$MILOCO_HOME" "$HOME/.local/bin" "$HOME/.openclaw"
   normalize_env
   download_runtime_files
+  prime_payload_cache
   run_agent_prepare_once
   run_agent_finish_if_ready
   configure_runtime_ports
