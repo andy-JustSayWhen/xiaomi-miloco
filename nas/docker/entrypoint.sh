@@ -6,7 +6,7 @@ export MILOCO_HOME="${MILOCO_HOME:-/data/miloco}"
 export MILOCO_PORT="${MILOCO_PORT:-1810}"
 export OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
 export OPENCLAW_GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-$OPENCLAW_PORT}"
-export OPENCLAW_BIND="${OPENCLAW_BIND:-lan}"
+export OPENCLAW_BIND="${OPENCLAW_BIND:-auto}"
 export OPENCLAW_AUTH="${OPENCLAW_AUTH:-token}"
 export MILOCO_SERVER__HOST="${MILOCO_SERVER__HOST:-0.0.0.0}"
 export MILOCO_SERVER__PORT="${MILOCO_SERVER__PORT:-$MILOCO_PORT}"
@@ -235,11 +235,84 @@ configure_runtime_ports() {
   fi
 }
 
+nas_host_hint() {
+  if [ -n "${NAS_HOST:-}" ]; then
+    printf '%s' "$NAS_HOST"
+    return
+  fi
+  if command -v ip >/dev/null 2>&1; then
+    ip -4 route get 1.1.1.1 2>/dev/null | awk '{for (i=1;i<=NF;i++) if ($i=="src") {print $(i+1); exit}}'
+  elif command -v hostname >/dev/null 2>&1; then
+    hostname -I 2>/dev/null | awk '{print $1}'
+  fi
+}
+
+configure_openclaw_gateway() {
+  python3 - "$OPENCLAW_BIND" "$OPENCLAW_AUTH" "$OPENCLAW_PORT" "$(nas_host_hint)" <<'PY'
+import json
+import secrets
+import sys
+from pathlib import Path
+
+bind, auth, port, host = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4].strip()
+path = Path.home() / ".openclaw" / "openclaw.json"
+data = json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
+
+gateway = data.setdefault("gateway", {})
+gateway["mode"] = "local"
+gateway["bind"] = bind
+gateway["port"] = port
+auth_config = gateway.setdefault("auth", {})
+auth_config["mode"] = auth
+if auth == "token" and not auth_config.get("token"):
+    auth_config["token"] = secrets.token_hex(24)
+
+control_ui = gateway.setdefault("controlUi", {})
+control_ui["allowInsecureAuth"] = True
+
+origins = set(control_ui.get("allowedOrigins") or [])
+origins.update({
+    f"http://localhost:{port}",
+    f"http://127.0.0.1:{port}",
+})
+if host:
+    origins.add(f"http://{host}:{port}")
+control_ui["allowedOrigins"] = sorted(origins)
+
+path.parent.mkdir(parents=True, exist_ok=True)
+path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+openclaw_dashboard_url() {
+  python3 - "$OPENCLAW_PORT" "$(nas_host_hint)" <<'PY'
+import json
+import sys
+from pathlib import Path
+from urllib.parse import quote
+
+port, host = int(sys.argv[1]), sys.argv[2].strip() or "127.0.0.1"
+path = Path.home() / ".openclaw" / "openclaw.json"
+token = ""
+if path.exists():
+    data = json.loads(path.read_text(encoding="utf-8"))
+    auth = data.get("gateway", {}).get("auth", {})
+    if auth.get("mode") == "token":
+        token = auth.get("token") or ""
+
+url = f"http://{host}:{port}/chat?session=main"
+if token:
+    url += "#token=" + quote(token, safe="")
+print(url)
+PY
+}
+
 start_runtime() {
   log "Starting Miloco service"
   miloco-cli service start >/tmp/easy-miloco-service-start.log 2>&1 || miloco-cli service restart >/tmp/easy-miloco-service-restart.log 2>&1 || true
 
   log "Starting OpenClaw gateway"
+  configure_openclaw_gateway
   nohup openclaw gateway \
     --dev \
     --force \
@@ -261,6 +334,7 @@ print_usage() {
 == easy-miloco NAS Docker ==
 Miloco 面板:   http://127.0.0.1:${MILOCO_PORT}/
 OpenClaw 对话: http://127.0.0.1:${OPENCLAW_PORT}/
+OpenClaw 直达: $(openclaw_dashboard_url)
 配置目录:      ${MILOCO_HOME}
 持久数据:      /data
 运行载荷:      ${RUNTIME_DIR}

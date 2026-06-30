@@ -55,6 +55,8 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 - `1810`：Miloco 面板
 - `18789`：OpenClaw 对话页
 
+NAS 默认把 OpenClaw 配成容器端口转发入口：`OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=token`。如果快速访问打开后要求网关令牌，运行 `./manage.sh urls`，使用里面的“OpenClaw 直达地址”。
+
 也可以直接运行：
 
 ```bash

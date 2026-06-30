@@ -81,6 +81,8 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 - `1810`：Miloco 面板
 - `18789`：OpenClaw 对话页
 
+NAS 默认 `OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=token`。Agent 必须用 `./manage.sh urls` 交付可直接使用的 OpenClaw 直达 URL；不要让普通用户手动猜网关 token。
+
 ## 交付口径
 
 必须报告：

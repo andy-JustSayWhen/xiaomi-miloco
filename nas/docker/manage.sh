@@ -127,6 +127,7 @@ print_urls() {
 
   local miloco_url="http://${host}:${miloco_port}/"
   local openclaw_url="http://${host}:${openclaw_port}/"
+  local openclaw_direct_url=""
   local generated_openclaw_url=""
   if command -v docker >/dev/null 2>&1; then
     generated_openclaw_url="$(compose exec -T "$SERVICE_NAME" bash -lc 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/root/.local/bin:$PATH"; timeout 10 openclaw dashboard --no-open --yes 2>/dev/null || true' 2>/dev/null | grep -Eo 'https?://[^[:space:]]+' | tail -n 1 || true)"
@@ -134,6 +135,30 @@ print_urls() {
       openclaw_url="$(printf '%s' "$generated_openclaw_url" | sed -E "s#://(127\\.0\\.0\\.1|localhost)(:[0-9]+)?/#://${host}\\2/#")"
     fi
   fi
+  openclaw_direct_url="$(
+    compose exec -T "$SERVICE_NAME" bash -lc 'python3 - "$OPENCLAW_PORT" "$1" <<'"'"'PY'"'"'
+import json
+import sys
+from pathlib import Path
+from urllib.parse import quote
+
+port = int(sys.argv[1] or "18789")
+host = sys.argv[2] or "127.0.0.1"
+path = Path.home() / ".openclaw" / "openclaw.json"
+token = ""
+if path.exists():
+    data = json.loads(path.read_text(encoding="utf-8"))
+    auth = data.get("gateway", {}).get("auth", {})
+    if auth.get("mode") == "token":
+        token = auth.get("token") or ""
+
+url = f"http://{host}:{port}/chat?session=main"
+if token:
+    url += "#token=" + quote(token, safe="")
+print(url)
+PY' _ "$host" 2>/dev/null || true
+  )"
+  [ -n "$openclaw_direct_url" ] || openclaw_direct_url="http://${host}:${openclaw_port}/chat?session=main"
 
   cat <<EOF
 【快速使用】
@@ -143,7 +168,8 @@ print_urls() {
 
 2. OpenClaw 对话页
    用途：日常使用 Miloco，自然语言聊天即可。
-   地址：$openclaw_url
+   快速访问：$openclaw_url
+   直达地址：$openclaw_direct_url
 
 3. 日志
    命令：./manage.sh logs
