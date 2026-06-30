@@ -364,6 +364,14 @@ print(url)
 PY
 }
 
+public_host_hint() {
+  if [ -n "${NAS_HOST:-}" ]; then
+    printf '%s' "$NAS_HOST"
+  else
+    printf '<NAS-IP>'
+  fi
+}
+
 openclaw_token() {
   python3 - <<'PY'
 import json
@@ -460,6 +468,23 @@ JS
     node "$proxy_file" >/tmp/easy-miloco-openclaw-proxy.log 2>&1 &
 }
 
+ensure_openclaw_gateway() {
+  local probe
+  for _ in $(seq 1 60); do
+    probe="$(curl -fsS -m 2 "http://127.0.0.1:${OPENCLAW_PORT}/health" 2>/dev/null || true)"
+    if [ -n "$probe" ]; then
+      log "OpenClaw gateway is healthy"
+      return 0
+    fi
+    sleep 1
+  done
+
+  warn "OpenClaw gateway did not become healthy; continuing so logs stay available."
+  tail -n 80 /tmp/easy-miloco-openclaw-run.log 2>/dev/null || true
+  tail -n 80 /tmp/easy-miloco-openclaw-proxy.log 2>/dev/null || true
+  return 0
+}
+
 start_runtime() {
   log "Starting Miloco service"
   ensure_miloco_service
@@ -474,6 +499,7 @@ start_runtime() {
     --port "$OPENCLAW_INTERNAL_PORT" \
     run >/tmp/easy-miloco-openclaw-run.log 2>&1 &
   start_openclaw_proxy
+  ensure_openclaw_gateway
 }
 
 ensure_miloco_service() {
@@ -501,26 +527,71 @@ ensure_miloco_service() {
 }
 
 validate_runtime() {
-  if [ -x "$VALIDATE_SH" ]; then
-    MILOCO_PORT="$MILOCO_PORT" OPENCLAW_PORT="$OPENCLAW_PORT" bash "$VALIDATE_SH" || true
+  local pass=0 warn_count=0 fail=0 http_code
+  printf '== easy-miloco NAS Docker validation ==\n'
+
+  if curl -fsS -m 5 "http://127.0.0.1:${MILOCO_PORT}/health" >/tmp/easy-miloco-health.json 2>/dev/null; then
+    printf '[PASS] miloco.health %s\n' "$(cat /tmp/easy-miloco-health.json)"
+    pass=$((pass + 1))
+  else
+    printf '[FAIL] miloco.health\n'
+    fail=$((fail + 1))
   fi
+
+  if curl -fsS -m 5 "http://127.0.0.1:${OPENCLAW_PORT}/health" >/tmp/easy-openclaw-health.json 2>/dev/null; then
+    printf '[PASS] openclaw.proxy %s\n' "$(cat /tmp/easy-openclaw-health.json)"
+    pass=$((pass + 1))
+  else
+    printf '[FAIL] openclaw.proxy\n'
+    fail=$((fail + 1))
+  fi
+
+  http_code="$(curl -sS -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:${OPENCLAW_PORT}/chat?session=main" 2>/dev/null || true)"
+  if [ "$http_code" = "200" ]; then
+    printf '[PASS] openclaw.chat HTTP %s\n' "$http_code"
+    pass=$((pass + 1))
+  else
+    printf '[FAIL] openclaw.chat HTTP %s\n' "${http_code:-none}"
+    fail=$((fail + 1))
+  fi
+
+  if [ -s "$MILOCO_HOME/models/det_4C.onnx" ] && [ -s "$MILOCO_HOME/models/human_body_reid_v2.onnx" ]; then
+    printf '[PASS] miloco.models %s files in %s\n' "$(find "$MILOCO_HOME/models" -maxdepth 1 -type f | wc -l | tr -d ' ')" "$MILOCO_HOME/models"
+    pass=$((pass + 1))
+  else
+    printf '[FAIL] miloco.models required perception models missing in %s\n' "$MILOCO_HOME/models"
+    fail=$((fail + 1))
+  fi
+
+  if [ -z "${MILOCO_ACCOUNT_AUTH:-}" ] || [ -z "${OMNI_API_KEY:-}" ] || [ -z "${OMNI_BASE_URL:-}" ] || [ -z "${OMNI_MODEL:-}" ]; then
+    printf '[WARN] agent.finish.env incomplete; existing persisted config may still be usable\n'
+    warn_count=$((warn_count + 1))
+  fi
+
+  if [ "$fail" -eq 0 ]; then
+    printf 'BASIC_READY=yes\n'
+  else
+    printf 'BASIC_READY=no\n'
+  fi
+  printf 'PASS_COUNT=%s\nWARN_COUNT=%s\nFAIL_COUNT=%s\n' "$pass" "$warn_count" "$fail"
 }
 
 print_usage() {
+  local public_host
+  public_host="$(public_host_hint)"
   cat <<EOF
 
 == easy-miloco NAS Docker ==
-Miloco 面板:   http://127.0.0.1:${MILOCO_PORT}/
-OpenClaw 对话: http://127.0.0.1:${OPENCLAW_PORT}/
-OpenClaw 直达: $(openclaw_dashboard_url)
+Miloco 面板:   http://${public_host}:${MILOCO_PORT}/
+OpenClaw 对话: http://${public_host}:${OPENCLAW_PORT}/  （自动带网关令牌）
 配置目录:      ${MILOCO_HOME}
 持久数据:      /data
 运行载荷:      ${RUNTIME_DIR}
 OpenClaw bind: ${OPENCLAW_BIND}
 OpenClaw 内部: http://127.0.0.1:${OPENCLAW_INTERNAL_PORT}/
 
-如果这是 NAS 主机，请把 127.0.0.1 替换为 NAS 的局域网 IP。
-如果 FULL_READY 还不是 yes，补齐 .env 后执行: ./manage.sh restart
+如果日志里显示 <NAS-IP>，请在浏览器里替换成 NAS 的局域网 IP。
+如需写入账号/模型环境变量，补齐 .env 后执行: ./manage.sh restart
 常用入口: ./manage.sh urls | ./manage.sh status | ./manage.sh logs
 
 EOF

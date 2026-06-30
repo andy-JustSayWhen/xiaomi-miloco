@@ -241,7 +241,7 @@ stop() {
 
 status() {
   compose ps
-  compose exec -T "$SERVICE_NAME" bash -lc 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/root/.local/bin:$PATH"; printf "\n== Miloco ==\n"; miloco-cli service status 2>&1 || true; printf "\n== OpenClaw ==\n"; openclaw gateway status 2>&1 || true'
+  compose exec -T "$SERVICE_NAME" bash -lc 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/root/.local/bin:$PATH"; printf "\n== Miloco ==\n"; miloco-cli service status 2>&1 || true; printf "\n== OpenClaw ==\n"; curl -fsS "http://127.0.0.1:${OPENCLAW_PORT:-18789}/health" 2>&1 || true; printf "\n"; ss -ltnp | grep -E ":(1810|${OPENCLAW_PORT:-18789}|${OPENCLAW_INTERNAL_PORT:-18790})" || true'
 }
 
 logs() {
@@ -249,7 +249,7 @@ logs() {
 }
 
 validate() {
-  compose exec -T "$SERVICE_NAME" bash -lc 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/root/.local/bin:$PATH"; MILOCO_PORT="${MILOCO_PORT:-1810}" OPENCLAW_PORT="${OPENCLAW_PORT:-18789}" bash /data/wsl-miloco-validate.sh'
+  compose exec -T "$SERVICE_NAME" bash -lc 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/root/.local/bin:$PATH"; pass=0; fail=0; warn=0; printf "== easy-miloco NAS Docker validation ==\n"; if curl -fsS -m 5 "http://127.0.0.1:${MILOCO_PORT:-1810}/health" >/tmp/easy-miloco-health.json 2>/dev/null; then printf "[PASS] miloco.health %s\n" "$(cat /tmp/easy-miloco-health.json)"; pass=$((pass+1)); else printf "[FAIL] miloco.health\n"; fail=$((fail+1)); fi; if curl -fsS -m 5 "http://127.0.0.1:${OPENCLAW_PORT:-18789}/health" >/tmp/easy-openclaw-health.json 2>/dev/null; then printf "[PASS] openclaw.proxy %s\n" "$(cat /tmp/easy-openclaw-health.json)"; pass=$((pass+1)); else printf "[FAIL] openclaw.proxy\n"; fail=$((fail+1)); fi; code="$(curl -sS -o /dev/null -w "%{http_code}" -m 5 "http://127.0.0.1:${OPENCLAW_PORT:-18789}/chat?session=main" 2>/dev/null || true)"; if [ "$code" = 200 ]; then printf "[PASS] openclaw.chat HTTP %s\n" "$code"; pass=$((pass+1)); else printf "[FAIL] openclaw.chat HTTP %s\n" "${code:-none}"; fail=$((fail+1)); fi; if [ -s "${MILOCO_HOME:-/data/miloco}/models/det_4C.onnx" ] && [ -s "${MILOCO_HOME:-/data/miloco}/models/human_body_reid_v2.onnx" ]; then printf "[PASS] miloco.models %s files in %s\n" "$(find "${MILOCO_HOME:-/data/miloco}/models" -maxdepth 1 -type f | wc -l | tr -d " ")" "${MILOCO_HOME:-/data/miloco}/models"; pass=$((pass+1)); else printf "[FAIL] miloco.models required perception models missing\n"; fail=$((fail+1)); fi; if [ -z "${MILOCO_ACCOUNT_AUTH:-}" ] || [ -z "${OMNI_API_KEY:-}" ] || [ -z "${OMNI_BASE_URL:-}" ]; then printf "[WARN] agent.finish.env incomplete; existing persisted config may still be usable\n"; warn=$((warn+1)); fi; [ "$fail" -eq 0 ] && printf "BASIC_READY=yes\n" || printf "BASIC_READY=no\n"; printf "PASS_COUNT=%s\nWARN_COUNT=%s\nFAIL_COUNT=%s\n" "$pass" "$warn" "$fail"; exit "$fail"'
 }
 
 update() {
