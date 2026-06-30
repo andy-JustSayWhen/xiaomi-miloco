@@ -63,9 +63,9 @@ ports:
 - `1810`：Miloco 面板
 - `18789`：OpenClaw 对话页
 
-Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 默认 `OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=none`，适配 Docker 端口转发和 NAS 面板快速访问。如果只允许 NAS 本机访问，把 `.env` 里的 `OPENCLAW_BIND` 改成 `loopback`。
+Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 网关默认在容器内部 `18790` 以 `OPENCLAW_AUTH=token` 启动，公开的 `18789` 是容器内代理入口。NAS 面板快速访问打开 `18789` 时，代理会自动跳到带 token 的 OpenClaw 对话页，用户不需要猜登录凭证。
 
-NAS 默认不启用 OpenClaw 网关令牌，用户点 `18789` 快速访问应直接进入对话页。需要令牌保护时，把 `.env` 里的 `OPENCLAW_AUTH` 改成 `token`，再运行 `./manage.sh urls` 获取带 token 的“OpenClaw 直达地址”。容器启动时会为局域网 HTTP 访问开启 `gateway.controlUi.allowInsecureAuth`、`gateway.controlUi.dangerouslyDisableDeviceAuth` 和 Host header 同源回退，避免普通用户停在安全上下文/设备身份页面。
+不要把内部 `18790` 映射到 NAS；只映射 `18789`。容器启动时会为局域网 HTTP 访问开启 `gateway.controlUi.allowInsecureAuth`、`gateway.controlUi.dangerouslyDisableDeviceAuth` 和 Host header 同源回退，避免普通用户停在安全上下文/设备身份页面。
 
 NAS 镜像从 `v0.5` 起应内置 Miloco Linux runtime payload 和感知模型文件。正常情况下，首次启动只从镜像内置文件初始化 `/data/runtime`，并同步模型到 `/data/miloco/models`，不再在容器启动时访问 GitHub Release。若日志出现 `Downloading release payload`，说明正在使用旧镜像、内置 payload 缺失，或显式设置了 `MILOCO_RELEASE_ZIP_URL` / `MILOCO_FORCE_DOWNLOAD=1`。当前自包含镜像先发布 `linux/amd64`，arm64 NAS 需要等待 NAS/Linux arm64 payload 进入 release 后再支持。
 
@@ -104,7 +104,7 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 
 补齐 `.env` 后，执行 `./manage.sh restart`。入口脚本有安装标记，不会在普通重启时无脑重复安装。
 
-`./manage.sh urls` 会输出 Miloco 面板和 OpenClaw 对话页；如果你显式启用了 `OPENCLAW_AUTH=token`，它会额外生成带 token 的直达地址。
+`./manage.sh urls` 会输出 Miloco 面板和 OpenClaw 对话页；OpenClaw 直达地址会带 token。
 
 更新或卸载前：
 

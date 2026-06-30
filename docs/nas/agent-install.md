@@ -74,14 +74,14 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 ./manage.sh urls
 ```
 
-`./manage.sh urls` 必须作为交付地址来源；默认裸 `18789` 就应可直接进入 OpenClaw 对话页。如果部署方显式启用了 `OPENCLAW_AUTH=token`，`./manage.sh urls` 会生成带 token 的直达地址，避免让用户猜登录凭证。
+`./manage.sh urls` 必须作为交付地址来源；裸 `18789` 是公开代理入口，应自动跳转到带 token 的 OpenClaw 对话页，避免让用户猜登录凭证。
 
 容器列表中应看到容器名 `miloco`；快速访问里应出现两个端口：
 
 - `1810`：Miloco 面板
 - `18789`：OpenClaw 对话页
 
-NAS 默认 `OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=none`，目标是让 NAS 面板快速访问的裸 `18789` 直接可用。只有用户明确要求网关认证时，才改成 `OPENCLAW_AUTH=token`，并必须交付 `./manage.sh urls` 里的带 token 直达 URL。局域网 HTTP 部署必须确认 OpenClaw Control UI 已配置 `allowInsecureAuth`、`dangerouslyDisableDeviceAuth` 和 Host header 同源回退，否则浏览器会停在安全上下文/设备身份页面。
+NAS 默认 `OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=token`、`OPENCLAW_INTERNAL_PORT=18790`。公开端口 `18789` 由容器内代理接管，自动跳转到带 token 的 OpenClaw 对话页；不要把 `18790` 映射给普通用户。局域网 HTTP 部署必须确认 OpenClaw Control UI 已配置 `allowInsecureAuth`、`dangerouslyDisableDeviceAuth` 和 Host header 同源回退，否则浏览器会停在安全上下文/设备身份页面。
 
 ## 交付口径
 

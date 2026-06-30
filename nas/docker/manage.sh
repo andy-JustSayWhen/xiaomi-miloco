@@ -128,13 +128,6 @@ print_urls() {
   local miloco_url="http://${host}:${miloco_port}/"
   local openclaw_url="http://${host}:${openclaw_port}/"
   local openclaw_direct_url=""
-  local generated_openclaw_url=""
-  if command -v docker >/dev/null 2>&1; then
-    generated_openclaw_url="$(compose exec -T "$SERVICE_NAME" bash -lc 'set +e; export PATH="$HOME/.openclaw/bin:$HOME/.local/bin:/root/.local/bin:$PATH"; timeout 10 openclaw dashboard --no-open --yes 2>/dev/null || true' 2>/dev/null | grep -Eo 'https?://[^[:space:]]+' | tail -n 1 || true)"
-    if [ -n "$generated_openclaw_url" ]; then
-      openclaw_url="$(printf '%s' "$generated_openclaw_url" | sed -E "s#://(127\\.0\\.0\\.1|localhost)(:[0-9]+)?/#://${host}\\2/#")"
-    fi
-  fi
   openclaw_direct_url="$(
     compose exec -T "$SERVICE_NAME" bash -lc 'python3 - "$OPENCLAW_PORT" "$1" <<'"'"'PY'"'"'
 import json

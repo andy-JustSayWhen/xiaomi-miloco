@@ -5,9 +5,10 @@ export HOME="${HOME:-/data}"
 export MILOCO_HOME="${MILOCO_HOME:-/data/miloco}"
 export MILOCO_PORT="${MILOCO_PORT:-1810}"
 export OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
-export OPENCLAW_GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-$OPENCLAW_PORT}"
+export OPENCLAW_INTERNAL_PORT="${OPENCLAW_INTERNAL_PORT:-$((OPENCLAW_PORT + 1))}"
+export OPENCLAW_GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-$OPENCLAW_INTERNAL_PORT}"
 export OPENCLAW_BIND="${OPENCLAW_BIND:-auto}"
-export OPENCLAW_AUTH="${OPENCLAW_AUTH:-none}"
+export OPENCLAW_AUTH="${OPENCLAW_AUTH:-token}"
 export MILOCO_SERVER__HOST="${MILOCO_SERVER__HOST:-0.0.0.0}"
 export MILOCO_SERVER__PORT="${MILOCO_SERVER__PORT:-$MILOCO_PORT}"
 export MILOCO_SERVER__URL="${MILOCO_SERVER__URL:-http://127.0.0.1:${MILOCO_PORT}}"
@@ -302,7 +303,7 @@ nas_host_hint() {
 }
 
 configure_openclaw_gateway() {
-  python3 - "$OPENCLAW_BIND" "$OPENCLAW_AUTH" "$OPENCLAW_PORT" "$(nas_host_hint)" <<'PY'
+  python3 - "$OPENCLAW_BIND" "$OPENCLAW_AUTH" "$OPENCLAW_INTERNAL_PORT" "$(nas_host_hint)" <<'PY'
 import json
 import secrets
 import sys
@@ -363,6 +364,100 @@ print(url)
 PY
 }
 
+openclaw_token() {
+  python3 - <<'PY'
+import json
+from pathlib import Path
+
+path = Path.home() / ".openclaw" / "openclaw.json"
+if not path.exists():
+    raise SystemExit(0)
+data = json.loads(path.read_text(encoding="utf-8"))
+auth = data.get("gateway", {}).get("auth", {})
+if auth.get("mode") == "token":
+    print(auth.get("token") or "")
+PY
+}
+
+start_openclaw_proxy() {
+  local token proxy_file
+  token="$(openclaw_token)"
+  proxy_file="/tmp/easy-miloco-openclaw-proxy.js"
+  cat >"$proxy_file" <<'JS'
+const http = require("http");
+const net = require("net");
+
+const publicPort = Number(process.env.OPENCLAW_PUBLIC_PORT || "18789");
+const targetPort = Number(process.env.OPENCLAW_INTERNAL_PORT || "18790");
+const targetHost = "127.0.0.1";
+const token = process.env.OPENCLAW_PROXY_TOKEN || "";
+
+function proxyHeaders(headers) {
+  const out = { ...headers };
+  out.host = `${targetHost}:${targetPort}`;
+  return out;
+}
+
+const server = http.createServer((req, res) => {
+  if (token && (req.url === "/" || req.url.startsWith("/?"))) {
+    const host = req.headers.host || `127.0.0.1:${publicPort}`;
+    const location = `http://${host}/chat?session=main#token=${encodeURIComponent(token)}`;
+    res.writeHead(302, { Location: location, "Cache-Control": "no-store" });
+    res.end();
+    return;
+  }
+
+  const upstream = http.request(
+    {
+      hostname: targetHost,
+      port: targetPort,
+      method: req.method,
+      path: req.url,
+      headers: proxyHeaders(req.headers),
+    },
+    (upstreamRes) => {
+      res.writeHead(upstreamRes.statusCode || 502, upstreamRes.headers);
+      upstreamRes.pipe(res);
+    },
+  );
+  upstream.on("error", (err) => {
+    res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8" });
+    res.end(`OpenClaw gateway proxy error: ${err.message}\n`);
+  });
+  req.pipe(upstream);
+});
+
+server.on("upgrade", (req, socket, head) => {
+  const upstream = net.connect(targetPort, targetHost, () => {
+    upstream.write(`${req.method} ${req.url} HTTP/${req.httpVersion}\r\n`);
+    const headers = proxyHeaders(req.headers);
+    for (const [key, value] of Object.entries(headers)) {
+      if (Array.isArray(value)) {
+        for (const row of value) upstream.write(`${key}: ${row}\r\n`);
+      } else if (value !== undefined) {
+        upstream.write(`${key}: ${value}\r\n`);
+      }
+    }
+    upstream.write("\r\n");
+    if (head && head.length) upstream.write(head);
+    socket.pipe(upstream);
+    upstream.pipe(socket);
+  });
+  upstream.on("error", () => socket.destroy());
+  socket.on("error", () => upstream.destroy());
+});
+
+server.listen(publicPort, "0.0.0.0", () => {
+  console.log(`OpenClaw proxy listening on 0.0.0.0:${publicPort}, upstream ${targetHost}:${targetPort}`);
+});
+JS
+  nohup env \
+    OPENCLAW_PUBLIC_PORT="$OPENCLAW_PORT" \
+    OPENCLAW_INTERNAL_PORT="$OPENCLAW_INTERNAL_PORT" \
+    OPENCLAW_PROXY_TOKEN="$token" \
+    node "$proxy_file" >/tmp/easy-miloco-openclaw-proxy.log 2>&1 &
+}
+
 start_runtime() {
   log "Starting Miloco service"
   miloco-cli service start >/tmp/easy-miloco-service-start.log 2>&1 || miloco-cli service restart >/tmp/easy-miloco-service-restart.log 2>&1 || true
@@ -374,8 +469,9 @@ start_runtime() {
     --force \
     --bind "$OPENCLAW_BIND" \
     --auth "$OPENCLAW_AUTH" \
-    --port "$OPENCLAW_PORT" \
+    --port "$OPENCLAW_INTERNAL_PORT" \
     run >/tmp/easy-miloco-openclaw-run.log 2>&1 &
+  start_openclaw_proxy
 }
 
 validate_runtime() {
@@ -395,6 +491,7 @@ OpenClaw 直达: $(openclaw_dashboard_url)
 持久数据:      /data
 运行载荷:      ${RUNTIME_DIR}
 OpenClaw bind: ${OPENCLAW_BIND}
+OpenClaw 内部: http://127.0.0.1:${OPENCLAW_INTERNAL_PORT}/
 
 如果这是 NAS 主机，请把 127.0.0.1 替换为 NAS 的局域网 IP。
 如果 FULL_READY 还不是 yes，补齐 .env 后执行: ./manage.sh restart

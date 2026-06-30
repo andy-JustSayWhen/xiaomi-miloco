@@ -55,7 +55,7 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 - `1810`：Miloco 面板
 - `18789`：OpenClaw 对话页
 
-NAS 默认把 OpenClaw 配成容器端口转发入口：`OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=none`。快速访问 `18789` 应直接进入 OpenClaw 对话页，不需要用户猜网关令牌。需要令牌保护时，把 `.env` 里的 `OPENCLAW_AUTH` 改成 `token`，再运行 `./manage.sh urls` 使用带 token 的“OpenClaw 直达地址”。容器会为局域网 HTTP 访问配置 OpenClaw Control UI，避免停在安全上下文/设备身份页面。
+NAS 默认把 OpenClaw 网关放在容器内部 `18790`，公开的 `18789` 是容器内代理入口。快速访问 `18789` 会自动跳转到带 token 的 OpenClaw 对话页，不需要用户猜网关令牌。不要把内部 `18790` 映射到 NAS。容器会为局域网 HTTP 访问配置 OpenClaw Control UI，避免停在安全上下文/设备身份页面。
 
 当前镜像应内置 Miloco Linux runtime payload 和感知模型文件。正常首次启动只从镜像本地文件初始化 `/data/runtime`，并同步模型到 `/data/miloco/models`，不会再到 GitHub Release 下载 zip。若日志出现 `Downloading release payload`，请先确认拉到的是最新镜像。当前自包含镜像先发布 `linux/amd64`，arm64 NAS 需要等待 NAS/Linux arm64 payload 进入 release 后再支持。OpenClaw Control UI 会开启 Host header 同源回退，避免容器只能识别 Docker 内网 IP 时拦截 NAS 局域网访问。
 
@@ -65,7 +65,7 @@ NAS 默认把 OpenClaw 配成容器端口转发入口：`OPENCLAW_BIND=auto`、`
 ./manage.sh urls
 ```
 
-`./manage.sh urls` 会输出 Miloco 面板和 OpenClaw 对话页；如果你显式启用了 `OPENCLAW_AUTH=token`，它会额外生成带 token 的直达地址。
+`./manage.sh urls` 会输出 Miloco 面板和带 token 的 OpenClaw 对话页。
 
 ## 数据目录
 
