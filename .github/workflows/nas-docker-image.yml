@@ -48,8 +48,10 @@ jobs:
         with:
           context: nas/docker
           file: nas/docker/Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64
           push: true
+          build-args: |
+            MILOCO_RELEASE_ZIP_URL=https://github.com/andy-JustSayWhen/easy-miloco/releases/download/${{ inputs.version || 'v0.5' }}/easy-miloco-${{ inputs.version || 'v0.5' }}-windows.zip
           tags: |
             ${{ env.GHCR_IMAGE }}:${{ inputs.version || 'v0.5' }}
             ${{ env.GHCR_IMAGE }}:latest

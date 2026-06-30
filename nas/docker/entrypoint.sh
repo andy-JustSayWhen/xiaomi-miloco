@@ -22,6 +22,8 @@ RELEASE_API="${MILOCO_RELEASE_API:-https://api.github.com/repos/andy-JustSayWhen
 RELEASE_ZIP_URL="${MILOCO_RELEASE_ZIP_URL:-}"
 VALIDATE_URL="${MILOCO_VALIDATE_URL:-https://raw.githubusercontent.com/andy-JustSayWhen/easy-miloco/main/docs/scripts/wsl-miloco-validate.sh}"
 VALIDATE_SH="${EASY_MILOCO_VALIDATE_SH:-/data/wsl-miloco-validate.sh}"
+BUNDLED_RUNTIME_DIR="${EASY_MILOCO_BUNDLED_RUNTIME_DIR:-/opt/easy-miloco/runtime}"
+BUNDLED_VALIDATE_SH="${EASY_MILOCO_BUNDLED_VALIDATE_SH:-/opt/easy-miloco/wsl-miloco-validate.sh}"
 
 log() {
   printf '[easy-miloco-nas] %s\n' "$*"
@@ -39,15 +41,45 @@ stop_services() {
 trap 'stop_services; exit 0' INT TERM
 
 need_download() {
-  [ "${MILOCO_FORCE_INSTALL:-0}" = "1" ] && return 0
+  [ "${MILOCO_FORCE_DOWNLOAD:-0}" = "1" ] && return 0
   [ ! -s "$INSTALL_SH" ] && return 0
   [ ! -s "$VALIDATE_SH" ] && return 0
   return 1
 }
 
+has_bundled_runtime() {
+  [ -s "$BUNDLED_RUNTIME_DIR/install.sh" ] \
+    && [ -s "$BUNDLED_RUNTIME_DIR/manifest.json" ] \
+    && find "$BUNDLED_RUNTIME_DIR" -maxdepth 1 -type f -name "miloco-linux-*.tar.gz" | grep -q .
+}
+
+seed_bundled_runtime() {
+  if ! has_bundled_runtime; then
+    return
+  fi
+
+  mkdir -p "$RUNTIME_DIR" "$STATE_DIR" "$MILOCO_HOME"
+  if [ "${MILOCO_FORCE_INSTALL:-0}" = "1" ] || [ ! -s "$INSTALL_SH" ] || [ ! -s "$RUNTIME_DIR/manifest.json" ] || ! find "$RUNTIME_DIR" -maxdepth 1 -type f -name "miloco-linux-*.tar.gz" | grep -q .; then
+    log "Using bundled Miloco runtime payload"
+    rm -rf "$RUNTIME_DIR"
+    mkdir -p "$RUNTIME_DIR"
+    cp -a "$BUNDLED_RUNTIME_DIR"/. "$RUNTIME_DIR"/
+    chmod +x "$INSTALL_SH" 2>/dev/null || true
+  fi
+
+  if [ -s "$BUNDLED_VALIDATE_SH" ] && { [ "${MILOCO_FORCE_INSTALL:-0}" = "1" ] || [ ! -s "$VALIDATE_SH" ]; }; then
+    cp "$BUNDLED_VALIDATE_SH" "$VALIDATE_SH"
+    chmod +x "$VALIDATE_SH" 2>/dev/null || true
+  fi
+}
+
 download_runtime_files() {
   mkdir -p "$(dirname "$INSTALL_SH")" "$STATE_DIR" "$MILOCO_HOME" "$RUNTIME_DIR"
+  seed_bundled_runtime
   if need_download; then
+    if has_bundled_runtime && [ -z "$INSTALL_URL" ] && [ -z "$RELEASE_ZIP_URL" ]; then
+      warn "Bundled payload was present but runtime files are incomplete; falling back to online download."
+    fi
     if [ -n "$INSTALL_URL" ]; then
       log "Downloading Miloco installer"
       curl -fL --retry 3 --connect-timeout 20 -o "$INSTALL_SH" "$INSTALL_URL"
