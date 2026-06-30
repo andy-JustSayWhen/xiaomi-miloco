@@ -11,6 +11,10 @@ on:
         description: "Docker platform"
         required: true
         default: "linux/amd64"
+  push:
+    branches: [NAS]
+    paths:
+      - ".github/workflows/nas-offline-package.yml"
 
 permissions:
   contents: read
@@ -28,8 +32,8 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
-          version="${{ inputs.version }}"
-          platform="${{ inputs.platform }}"
+          version="${{ inputs.version || 'v0.5' }}"
+          platform="${{ inputs.platform || 'linux/amd64' }}"
           arch="${platform#linux/}"
           out="easy-miloco-nas-offline-${version}-${arch}"
           mkdir -p "$out"
@@ -70,6 +74,6 @@ jobs:
       - name: Upload offline package
         uses: actions/upload-artifact@v4
         with:
-          name: easy-miloco-nas-offline-${{ inputs.version }}-${{ inputs.platform == 'linux/amd64' && 'amd64' || 'arm64' }}
-          path: easy-miloco-nas-offline-${{ inputs.version }}-*.tar.gz
+          name: easy-miloco-nas-offline-${{ inputs.version || 'v0.5' }}-${{ (inputs.platform || 'linux/amd64') == 'linux/amd64' && 'amd64' || 'arm64' }}
+          path: easy-miloco-nas-offline-${{ inputs.version || 'v0.5' }}-*.tar.gz
           if-no-files-found: error
