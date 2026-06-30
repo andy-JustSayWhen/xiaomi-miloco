@@ -1,8 +1,10 @@
 services:
   miloco:
     image: "${EASY_MILOCO_IMAGE:-docker.io/andywu114/easy-miloco-nas:v0.5}"
-    container_name: easy-miloco-nas
-    network_mode: host
+    container_name: miloco
+    ports:
+      - "${MILOCO_PORT:-1810}:${MILOCO_PORT:-1810}"
+      - "${OPENCLAW_PORT:-18789}:${OPENCLAW_PORT:-18789}"
     restart: unless-stopped
     env_file:
       - path: .env.example

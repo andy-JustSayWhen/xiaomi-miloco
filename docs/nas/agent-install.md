@@ -4,7 +4,7 @@
 
 ## 硬规则
 
-1. 默认使用 Docker Compose + host 网络，不走裸装，不走 bridge 网络。
+1. 默认使用 Docker Compose bridge 网络并映射 `1810`、`18789`，让 NAS 面板快速访问能列出 Miloco 面板和 OpenClaw 对话页。
 2. 先预检，再启动；不要重复开多个安装容器。
 3. 不把 `.env`、授权 payload、API Key、日志、`data/`、`backups/` 写进 git。
 4. 账号授权和模型配置缺失时，只能报告基础安装就绪，不能报告 FULL_READY。
@@ -75,6 +75,11 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 ```
 
 `./manage.sh urls` 必须作为交付地址来源；它会优先生成 OpenClaw 可直接打开的登录入口，避免只给裸地址让用户猜登录凭证。
+
+容器列表中应看到容器名 `miloco`；快速访问里应出现两个端口：
+
+- `1810`：Miloco 面板
+- `18789`：OpenClaw 对话页
 
 ## 交付口径
 

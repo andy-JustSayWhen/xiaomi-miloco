@@ -4,7 +4,7 @@ set -Eeuo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-PROJECT_NAME="${COMPOSE_PROJECT_NAME:-easy-miloco-nas}"
+PROJECT_NAME="${COMPOSE_PROJECT_NAME:-miloco}"
 SERVICE_NAME="${MILOCO_SERVICE_NAME:-miloco}"
 DATA_DIR="$SCRIPT_DIR/data"
 BACKUP_DIR="$SCRIPT_DIR/backups"

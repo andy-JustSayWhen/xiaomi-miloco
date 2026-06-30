@@ -47,15 +47,21 @@ cd nas/docker
 - Miloco 面板：`http://<NAS-IP>:1810/`
 - OpenClaw 对话：`http://<NAS-IP>:18789/`
 
-## 网络规则
+## 网络和快捷访问
 
 默认使用：
 
 ```yaml
-network_mode: host
+container_name: miloco
+ports:
+  - "1810:1810"
+  - "18789:18789"
 ```
 
-这是摄像头场景的默认选择。不要先改成 bridge 网络；如果改成 bridge 后摄像头实时画面或持续感知不可用，先恢复 host 网络再排查。
+这是 NAS 图形界面的默认选择：容器列表中显示一个容器 `miloco`，快速访问里列出两个入口。
+
+- `1810`：Miloco 面板
+- `18789`：OpenClaw 对话页
 
 Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 默认 `OPENCLAW_BIND=lan`。如果只允许 NAS 本机访问，把 `.env` 里的 `OPENCLAW_BIND` 改成 `loopback`。
 
