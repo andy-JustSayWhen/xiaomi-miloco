@@ -230,7 +230,10 @@ normalize_env() {
 
 run_agent_prepare_once() {
   if [ -f "$STATE_DIR/agent-prepare.done" ] && [ "${MILOCO_FORCE_INSTALL:-0}" != "1" ]; then
-    return
+    if command -v miloco-cli >/dev/null 2>&1; then
+      return
+    fi
+    warn "agent prepare marker exists but miloco-cli is missing; rerunning prepare for this container."
   fi
 
   log "Running agent prepare"
