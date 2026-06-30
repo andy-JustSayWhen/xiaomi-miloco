@@ -1,6 +1,6 @@
 services:
   miloco:
-    image: docker.io/andywu114/easy-miloco-nas:v0.5@sha256:9790f00cc511ab9a4132c8650150b27807fa5292e17c47354f9cfc484ab58370
+    image: docker.io/andywu114/easy-miloco-nas:v0.5@sha256:c131a55b92718bcf693ecaf39dca8067ad2ee3c45b0e2a7c53a90fcd21efb166
     container_name: miloco
     restart: unless-stopped
 
