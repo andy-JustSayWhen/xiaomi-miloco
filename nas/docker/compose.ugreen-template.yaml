@@ -38,4 +38,5 @@ services:
       OPENCLAW_CHAT_API_KEY: "填你的 API Key"  ## 注意保留双引号
 
     volumes:
-      - /volume1/docker/miloco:/data
+      # 容器数据目录。右侧 /data 不要改。
+      - /volume1/docker/miloco:/data  ## 容器数据路径，可以自定义，复制文件夹地址，粘贴替换即可
