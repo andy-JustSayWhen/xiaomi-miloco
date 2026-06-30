@@ -56,6 +56,9 @@ OMNI_MODEL=<模型名>
 # 默认在线镜像
 EASY_MILOCO_IMAGE=docker.io/andywu114/easy-miloco-nas:v0.5 ./manage.sh start
 
+# v0.5 首包优先用 digest，避免 NAS 镜像源缓存旧 tag
+EASY_MILOCO_IMAGE=docker.io/andywu114/easy-miloco-nas:v0.5@sha256:f61c3e3b2f8edc1a675fcffe78761750831e61b205071d9a31660e9281c35096 ./manage.sh start
+
 # 国内 NAS 可用毫秒镜像 Docker Hub 通道
 EASY_MILOCO_IMAGE=docker.1ms.run/andywu114/easy-miloco-nas:v0.5 ./manage.sh start
 
@@ -75,6 +78,8 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 ```
 
 `./manage.sh urls` 必须作为交付地址来源；裸 `18789` 是公开代理入口，应自动跳转到带 token 的 OpenClaw 对话页，避免让用户猜登录凭证。
+
+如果 `docker compose pull` 成功但日志仍出现旧的 `WSL Miloco validation`、`OpenClaw 直达: http://172...` 或模型缺失，说明 NAS 镜像源命中了旧 tag 缓存。立即切换到上面的 digest 镜像，不要继续重复拉裸 `v0.5` tag。
 
 容器列表中应看到容器名 `miloco`；快速访问里应出现两个端口：
 

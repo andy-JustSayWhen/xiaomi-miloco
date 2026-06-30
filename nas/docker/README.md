@@ -23,6 +23,12 @@ cd nas/docker
 ./manage.sh start
 ```
 
+如果 NAS 镜像源缓存了旧的 `v0.5` tag，改用 v0.5 digest 固定镜像：
+
+```bash
+EASY_MILOCO_IMAGE=docker.io/andywu114/easy-miloco-nas:v0.5@sha256:f61c3e3b2f8edc1a675fcffe78761750831e61b205071d9a31660e9281c35096 ./manage.sh start
+```
+
 维护者调试才使用：
 
 ```bash
