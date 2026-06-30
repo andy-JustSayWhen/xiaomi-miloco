@@ -267,8 +267,8 @@ run_agent_finish_if_ready() {
   fi
 
   if [ -z "${MILOCO_ACCOUNT_AUTH:-}" ] || [ -z "${OMNI_API_KEY:-}" ] || [ -z "${OMNI_BASE_URL:-}" ] || [ -z "${OMNI_MODEL:-}" ]; then
-    warn "Account/model env is incomplete; container will start basic services only."
-    warn "Set MILOCO_ACCOUNT_AUTH, OMNI_API_KEY, OMNI_BASE_URL and OMNI_MODEL in .env, then restart the container."
+    log "No account/model env supplied; keeping existing persisted Miloco config if present."
+    log "To overwrite it, set MILOCO_ACCOUNT_AUTH, OMNI_API_KEY, OMNI_BASE_URL and OMNI_MODEL in .env, then restart."
     return
   fi
 
@@ -561,11 +561,6 @@ validate_runtime() {
   else
     printf '[FAIL] miloco.models required perception models missing in %s\n' "$MILOCO_HOME/models"
     fail=$((fail + 1))
-  fi
-
-  if [ -z "${MILOCO_ACCOUNT_AUTH:-}" ] || [ -z "${OMNI_API_KEY:-}" ] || [ -z "${OMNI_BASE_URL:-}" ] || [ -z "${OMNI_MODEL:-}" ]; then
-    printf '[WARN] agent.finish.env incomplete; existing persisted config may still be usable\n'
-    warn_count=$((warn_count + 1))
   fi
 
   if [ "$fail" -eq 0 ]; then
