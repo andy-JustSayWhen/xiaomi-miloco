@@ -460,7 +460,7 @@ JS
 
 start_runtime() {
   log "Starting Miloco service"
-  miloco-cli service start >/tmp/easy-miloco-service-start.log 2>&1 || miloco-cli service restart >/tmp/easy-miloco-service-restart.log 2>&1 || true
+  ensure_miloco_service
 
   log "Starting OpenClaw gateway"
   configure_openclaw_gateway
@@ -472,6 +472,30 @@ start_runtime() {
     --port "$OPENCLAW_INTERNAL_PORT" \
     run >/tmp/easy-miloco-openclaw-run.log 2>&1 &
   start_openclaw_proxy
+}
+
+ensure_miloco_service() {
+  local attempt probe
+  for attempt in 1 2 3; do
+    miloco-cli service start >/tmp/easy-miloco-service-start.log 2>&1 \
+      || miloco-cli service restart >/tmp/easy-miloco-service-restart.log 2>&1 \
+      || true
+
+    for _ in $(seq 1 30); do
+      probe="$(curl -fsS -m 2 "http://127.0.0.1:${MILOCO_PORT}/health" 2>/dev/null || true)"
+      if [ -n "$probe" ]; then
+        log "Miloco service is healthy"
+        return 0
+      fi
+      sleep 1
+    done
+
+    warn "Miloco service did not become healthy on attempt $attempt; retrying."
+    miloco-cli service restart >/tmp/easy-miloco-service-retry.log 2>&1 || true
+  done
+
+  warn "Miloco service is not healthy after retries; continuing so logs stay available."
+  return 0
 }
 
 validate_runtime() {
