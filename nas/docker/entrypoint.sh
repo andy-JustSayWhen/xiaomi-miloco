@@ -7,7 +7,7 @@ export MILOCO_PORT="${MILOCO_PORT:-1810}"
 export OPENCLAW_PORT="${OPENCLAW_PORT:-18789}"
 export OPENCLAW_GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-$OPENCLAW_PORT}"
 export OPENCLAW_BIND="${OPENCLAW_BIND:-auto}"
-export OPENCLAW_AUTH="${OPENCLAW_AUTH:-token}"
+export OPENCLAW_AUTH="${OPENCLAW_AUTH:-none}"
 export MILOCO_SERVER__HOST="${MILOCO_SERVER__HOST:-0.0.0.0}"
 export MILOCO_SERVER__PORT="${MILOCO_SERVER__PORT:-$MILOCO_PORT}"
 export MILOCO_SERVER__URL="${MILOCO_SERVER__URL:-http://127.0.0.1:${MILOCO_PORT}}"
@@ -51,6 +51,25 @@ has_bundled_runtime() {
   [ -s "$BUNDLED_RUNTIME_DIR/install.sh" ] \
     && [ -s "$BUNDLED_RUNTIME_DIR/manifest.json" ] \
     && find "$BUNDLED_RUNTIME_DIR" -maxdepth 1 -type f -name "miloco-linux-*.tar.gz" | grep -q .
+}
+
+sync_bundled_models() {
+  local src="$BUNDLED_RUNTIME_DIR/models"
+  local dst="$MILOCO_HOME/models"
+  if [ ! -d "$src" ]; then
+    warn "Bundled perception models are missing from image; Miloco panel may report model files missing."
+    return
+  fi
+
+  mkdir -p "$dst"
+  cp -f "$src"/* "$dst"/
+  for name in det_4C.onnx human_body_reid_v2.onnx; do
+    if [ ! -s "$dst/$name" ]; then
+      warn "Required perception model is still missing after sync: $dst/$name"
+      return
+    fi
+  done
+  log "Perception models synced to $dst ($(find "$dst" -maxdepth 1 -type f | wc -l | tr -d ' ') files)"
 }
 
 seed_bundled_runtime() {
@@ -397,6 +416,7 @@ main() {
   normalize_env
   download_runtime_files
   prime_payload_cache
+  sync_bundled_models
   run_agent_prepare_once
   run_agent_finish_if_ready
   configure_runtime_ports

@@ -8,7 +8,7 @@
 
 | 档位 | 条件 | 结果 |
 | --- | --- | --- |
-| 基础一键 | 粘贴 YAML 或运行 `./manage.sh start` | 拉取在线镜像、自动创建容器、下载安装器、安装 Miloco/OpenClaw、启动基础服务 |
+| 基础一键 | 粘贴 YAML 或运行 `./manage.sh start` | 拉取在线镜像、自动创建容器、从镜像内置载荷安装 Miloco/OpenClaw、启动基础服务 |
 | 完整一键 | `.env` 已有 `MILOCO_ACCOUNT_AUTH`、`OMNI_API_KEY`、`OMNI_BASE_URL`、`OMNI_MODEL` | 自动完成账号、模型、插件、服务启动和基础验收 |
 
 YAML 不能公开内置小米账号授权和模型 API Key；这些只能由用户或 Agent 写入本机 `.env`。
@@ -63,11 +63,11 @@ ports:
 - `1810`：Miloco 面板
 - `18789`：OpenClaw 对话页
 
-Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 默认 `OPENCLAW_BIND=auto`，适配 Docker 端口转发。如果只允许 NAS 本机访问，把 `.env` 里的 `OPENCLAW_BIND` 改成 `loopback`。
+Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 默认 `OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=none`，适配 Docker 端口转发和 NAS 面板快速访问。如果只允许 NAS 本机访问，把 `.env` 里的 `OPENCLAW_BIND` 改成 `loopback`。
 
-NAS 默认 `OPENCLAW_AUTH=token`。如果 NAS 快速访问打开后要求网关令牌，运行 `./manage.sh urls`，使用里面的“OpenClaw 直达地址”；该地址会自动带上 token，不需要用户猜。容器启动时会把当前 NAS 的 HTTP 地址加入 OpenClaw `gateway.controlUi.allowedOrigins`，并为局域网 HTTP 访问开启 `gateway.controlUi.allowInsecureAuth` 和 `gateway.controlUi.dangerouslyDisableDeviceAuth`，避免普通用户停在安全上下文/设备身份页面。
+NAS 默认不启用 OpenClaw 网关令牌，用户点 `18789` 快速访问应直接进入对话页。需要令牌保护时，把 `.env` 里的 `OPENCLAW_AUTH` 改成 `token`，再运行 `./manage.sh urls` 获取带 token 的“OpenClaw 直达地址”。容器启动时会为局域网 HTTP 访问开启 `gateway.controlUi.allowInsecureAuth`、`gateway.controlUi.dangerouslyDisableDeviceAuth` 和 Host header 同源回退，避免普通用户停在安全上下文/设备身份页面。
 
-NAS 镜像从 `v0.5` 起应内置 Miloco Linux runtime payload。正常情况下，首次启动只从镜像内置文件初始化 `/data/runtime`，不再在容器启动时访问 GitHub Release。若日志出现 `Downloading release payload`，说明正在使用旧镜像、内置 payload 缺失，或显式设置了 `MILOCO_RELEASE_ZIP_URL` / `MILOCO_FORCE_DOWNLOAD=1`。当前自包含镜像先发布 `linux/amd64`，arm64 NAS 需要等待 NAS/Linux arm64 payload 进入 release 后再支持。OpenClaw Control UI 会开启 Host header 同源回退，避免容器只能识别 Docker 内网 IP 时拦截 NAS 局域网访问。
+NAS 镜像从 `v0.5` 起应内置 Miloco Linux runtime payload 和感知模型文件。正常情况下，首次启动只从镜像内置文件初始化 `/data/runtime`，并同步模型到 `/data/miloco/models`，不再在容器启动时访问 GitHub Release。若日志出现 `Downloading release payload`，说明正在使用旧镜像、内置 payload 缺失，或显式设置了 `MILOCO_RELEASE_ZIP_URL` / `MILOCO_FORCE_DOWNLOAD=1`。当前自包含镜像先发布 `linux/amd64`，arm64 NAS 需要等待 NAS/Linux arm64 payload 进入 release 后再支持。
 
 如果拉镜像很慢或失败，不要反复重跑 `start`。优先处理以下三种：
 
@@ -104,7 +104,7 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 
 补齐 `.env` 后，执行 `./manage.sh restart`。入口脚本有安装标记，不会在普通重启时无脑重复安装。
 
-`./manage.sh urls` 会优先从容器里的 OpenClaw 生成可直接打开的登录入口；如果 OpenClaw 还没启动，才显示普通地址。
+`./manage.sh urls` 会输出 Miloco 面板和 OpenClaw 对话页；如果你显式启用了 `OPENCLAW_AUTH=token`，它会额外生成带 token 的直达地址。
 
 更新或卸载前：
 
