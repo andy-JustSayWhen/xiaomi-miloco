@@ -57,7 +57,7 @@ OMNI_MODEL=<模型名>
 EASY_MILOCO_IMAGE=docker.io/andywu114/easy-miloco-nas:v0.5 ./manage.sh start
 
 # v0.5 首包优先用 digest，避免 NAS 镜像源缓存旧 tag
-EASY_MILOCO_IMAGE=docker.io/andywu114/easy-miloco-nas:v0.5@sha256:c131a55b92718bcf693ecaf39dca8067ad2ee3c45b0e2a7c53a90fcd21efb166 ./manage.sh start
+EASY_MILOCO_IMAGE=docker.1ms.run/andywu114/easy-miloco-nas:v0.5@sha256:c131a55b92718bcf693ecaf39dca8067ad2ee3c45b0e2a7c53a90fcd21efb166 ./manage.sh start
 
 # 国内 NAS 可用毫秒镜像 Docker Hub 通道
 EASY_MILOCO_IMAGE=docker.1ms.run/andywu114/easy-miloco-nas:v0.5 ./manage.sh start
