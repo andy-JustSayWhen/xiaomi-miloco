@@ -302,6 +302,7 @@ if auth == "token" and not auth_config.get("token"):
 control_ui = gateway.setdefault("controlUi", {})
 control_ui["allowInsecureAuth"] = True
 control_ui["dangerouslyDisableDeviceAuth"] = True
+control_ui["dangerouslyAllowHostHeaderOriginFallback"] = True
 
 origins = set(control_ui.get("allowedOrigins") or [])
 origins.update({

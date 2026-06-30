@@ -57,7 +57,7 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 
 NAS 默认把 OpenClaw 配成容器端口转发入口：`OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=token`。如果快速访问打开后要求网关令牌，运行 `./manage.sh urls`，使用里面的“OpenClaw 直达地址”。容器会为局域网 HTTP 访问配置 OpenClaw Control UI，避免停在安全上下文/设备身份页面。
 
-当前镜像应内置 Miloco Linux runtime payload。正常首次启动只从镜像本地文件初始化 `/data/runtime`，不会再到 GitHub Release 下载 zip。若日志出现 `Downloading release payload`，请先确认拉到的是最新镜像。当前自包含镜像先发布 `linux/amd64`，arm64 NAS 需要等待 NAS/Linux arm64 payload 进入 release 后再支持。
+当前镜像应内置 Miloco Linux runtime payload。正常首次启动只从镜像本地文件初始化 `/data/runtime`，不会再到 GitHub Release 下载 zip。若日志出现 `Downloading release payload`，请先确认拉到的是最新镜像。当前自包含镜像先发布 `linux/amd64`，arm64 NAS 需要等待 NAS/Linux arm64 payload 进入 release 后再支持。OpenClaw Control UI 会开启 Host header 同源回退，避免容器只能识别 Docker 内网 IP 时拦截 NAS 局域网访问。
 
 也可以直接运行：
 
