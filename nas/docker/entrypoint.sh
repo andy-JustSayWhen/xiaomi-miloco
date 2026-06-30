@@ -248,6 +248,17 @@ normalize_env() {
   export OMNI_MODEL="${OMNI_MODEL:-xiaomi/mimo-v2.5}"
 }
 
+is_placeholder_value() {
+  case "${1:-}" in
+    ""|"填你的 API Key"|"填你的 MiMo API Key"|"YOUR_API_KEY"|"your-api-key"|"sk-xxxxx")
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 run_agent_prepare_once() {
   if [ -f "$STATE_DIR/agent-prepare.done" ] && [ "${MILOCO_FORCE_INSTALL:-0}" != "1" ]; then
     if command -v miloco-cli >/dev/null 2>&1; then
@@ -338,6 +349,100 @@ control_ui["allowedOrigins"] = sorted(origins)
 
 path.parent.mkdir(parents=True, exist_ok=True)
 path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+PY
+}
+
+configure_openclaw_chat_model() {
+  local provider="${OPENCLAW_CHAT_PROVIDER:-}"
+  local model="${OPENCLAW_CHAT_MODEL:-}"
+  local base_url="${OPENCLAW_CHAT_BASE_URL:-}"
+  local api_key="${OPENCLAW_CHAT_API_KEY:-}"
+
+  if [ -z "$provider$model$base_url$api_key" ]; then
+    log "No OpenClaw chat model env supplied; keeping existing OpenClaw agent model config if present."
+    return
+  fi
+
+  if is_placeholder_value "$api_key" || [ -z "$provider" ] || [ -z "$model" ] || [ -z "$base_url" ]; then
+    warn "OpenClaw chat model env is incomplete; set OPENCLAW_CHAT_PROVIDER, OPENCLAW_CHAT_MODEL, OPENCLAW_CHAT_BASE_URL and OPENCLAW_CHAT_API_KEY."
+    return
+  fi
+
+  python3 - "$provider" "$model" "$base_url" "$api_key" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+provider_id = sys.argv[1].strip()
+model_id = sys.argv[2].strip()
+base_url = sys.argv[3].strip()
+api_key = sys.argv[4].strip()
+
+if "/" in model_id:
+    prefix, rest = model_id.split("/", 1)
+    if not provider_id:
+        provider_id = prefix
+    model_id = rest
+
+chat_ref = f"{provider_id}/{model_id}"
+home = Path.home()
+openclaw_config = home / ".openclaw" / "openclaw.json"
+agent_models = home / ".openclaw" / "agents" / "main" / "agent" / "models.json"
+
+def load_json(path):
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+def as_dict(parent, key):
+    value = parent.get(key)
+    if not isinstance(value, dict):
+        value = {}
+        parent[key] = value
+    return value
+
+def provider_payload():
+    return {
+        "baseUrl": base_url,
+        "apiKey": api_key,
+        "api": "openai-completions",
+        "timeoutSeconds": 300,
+        "contextWindow": 1000000,
+        "contextTokens": 1000000,
+        "models": [
+            {
+                "id": model_id,
+                "name": model_id,
+                "input": ["text", "image"],
+                "contextWindow": 1000000,
+                "contextTokens": 1000000,
+                "maxTokens": 8192,
+            }
+        ],
+    }
+
+data = load_json(openclaw_config)
+defaults = as_dict(as_dict(data, "agents"), "defaults")
+as_dict(defaults, "model")["primary"] = chat_ref
+agent_row = as_dict(as_dict(defaults, "models"), chat_ref)
+as_dict(agent_row, "params")["maxTokens"] = 8192
+
+models = as_dict(data, "models")
+models["mode"] = "merge"
+as_dict(models, "providers")[provider_id] = provider_payload()
+
+openclaw_config.parent.mkdir(parents=True, exist_ok=True)
+openclaw_config.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+agent_data = load_json(agent_models)
+agent_data.setdefault("providers", {})[provider_id] = provider_payload()
+agent_models.parent.mkdir(parents=True, exist_ok=True)
+agent_models.write_text(json.dumps(agent_data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+print(f"[OK] OpenClaw chat model configured: primary={chat_ref}")
 PY
 }
 
@@ -490,6 +595,7 @@ start_runtime() {
   ensure_miloco_service
 
   log "Starting OpenClaw gateway"
+  configure_openclaw_chat_model
   configure_openclaw_gateway
   nohup openclaw gateway \
     --dev \
@@ -561,6 +667,53 @@ validate_runtime() {
   else
     printf '[FAIL] miloco.models required perception models missing in %s\n' "$MILOCO_HOME/models"
     fail=$((fail + 1))
+  fi
+
+  if [ -n "${OPENCLAW_CHAT_PROVIDER:-}" ] || [ -n "${OPENCLAW_CHAT_MODEL:-}" ] || [ -n "${OPENCLAW_CHAT_BASE_URL:-}" ] || [ -n "${OPENCLAW_CHAT_API_KEY:-}" ]; then
+    if is_placeholder_value "${OPENCLAW_CHAT_API_KEY:-}"; then
+      printf '[FAIL] openclaw.chat_model OPENCLAW_CHAT_API_KEY is missing or placeholder\n'
+      fail=$((fail + 1))
+    elif python3 - "${OPENCLAW_CHAT_PROVIDER:-}" "${OPENCLAW_CHAT_MODEL:-}" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+provider = sys.argv[1].strip()
+model = sys.argv[2].strip()
+if "/" in model:
+    prefix, rest = model.split("/", 1)
+    provider = provider or prefix
+    model = rest
+expected = f"{provider}/{model}"
+
+cfg = Path.home() / ".openclaw" / "openclaw.json"
+agent = Path.home() / ".openclaw" / "agents" / "main" / "agent" / "models.json"
+data = json.loads(cfg.read_text(encoding="utf-8"))
+agent_data = json.loads(agent.read_text(encoding="utf-8"))
+primary = data.get("agents", {}).get("defaults", {}).get("model", {}).get("primary")
+provider_data = data.get("models", {}).get("providers", {}).get(provider)
+agent_provider = agent_data.get("providers", {}).get(provider)
+if primary != expected:
+    raise SystemExit(f"primary={primary!r}, expected={expected!r}")
+if not isinstance(provider_data, dict) or not provider_data.get("apiKey") or not provider_data.get("baseUrl"):
+    raise SystemExit("global provider missing apiKey/baseUrl")
+if not isinstance(agent_provider, dict) or not agent_provider.get("apiKey") or not agent_provider.get("baseUrl"):
+    raise SystemExit("agent provider missing apiKey/baseUrl")
+rows = provider_data.get("models") or []
+if not any(isinstance(row, dict) and row.get("id") == model for row in rows):
+    raise SystemExit("model row missing")
+print(expected)
+PY
+    then
+      printf '[PASS] openclaw.chat_model %s/%s\n' "${OPENCLAW_CHAT_PROVIDER:-}" "${OPENCLAW_CHAT_MODEL:-}"
+      pass=$((pass + 1))
+    else
+      printf '[FAIL] openclaw.chat_model config missing or invalid\n'
+      fail=$((fail + 1))
+    fi
+  else
+    printf '[WARN] openclaw.chat_model OPENCLAW_CHAT_* not supplied\n'
+    warn_count=$((warn_count + 1))
   fi
 
   if [ "$fail" -eq 0 ]; then

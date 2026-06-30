@@ -1,0 +1,41 @@
+services:
+  miloco:
+    image: docker.io/andywu114/easy-miloco-nas:v0.5@sha256:9790f00cc511ab9a4132c8650150b27807fa5292e17c47354f9cfc484ab58370
+    container_name: miloco
+    restart: unless-stopped
+
+    ports:
+      - "1810:1810"
+      - "18789:18789"
+
+    environment:
+      TZ: Asia/Shanghai
+
+      MILOCO_PORT: "1810"
+      MILOCO_SERVER__HOST: "0.0.0.0"
+      MILOCO_SERVER__PORT: "1810"
+      MILOCO_SERVER__URL: "http://127.0.0.1:1810"
+
+      OPENCLAW_PORT: "18789"
+      OPENCLAW_INTERNAL_PORT: "18790"
+      OPENCLAW_GATEWAY_PORT: "18790"
+      OPENCLAW_BIND: "auto"
+      OPENCLAW_AUTH: "token"
+
+      MILOCO_HOME: "/data/miloco"
+      MILOCO_FORCE_INSTALL: "0"
+      MILOCO_AGENT__WEBHOOK_URL: "http://127.0.0.1:18789/miloco/webhook"
+
+      # Miloco 感知模型配置。用于直接处理摄像头画面。
+      OMNI_MODEL: "xiaomi/mimo-v2.5"  ## 格式厂商+模型名称，比如"xiaomi/mimo-v2.5"
+      OMNI_BASE_URL: "https://token-plan-sgp.xiaomimimo.com/v1"  ## 注意保留双引号
+      OMNI_API_KEY: "填你的 API Key"  ## 注意保留双引号
+
+      # OpenClaw 聊天模型配置。用于 OpenClaw 对话页。容器启动脚本会读取这里并写入 main agent。
+      OPENCLAW_CHAT_PROVIDER: "xiaomi-token-plan"  ## 模型厂商名称，需要区分按量计费或Token plan。示例："xiaomi-token-plan"
+      OPENCLAW_CHAT_MODEL: "mimo-v2.5-pro"  ## 注意保留双引号
+      OPENCLAW_CHAT_BASE_URL: "https://token-plan-sgp.xiaomimimo.com/v1"  ## 注意保留双引号
+      OPENCLAW_CHAT_API_KEY: "填你的 API Key"  ## 注意保留双引号
+
+    volumes:
+      - /volume1/docker/miloco:/data
