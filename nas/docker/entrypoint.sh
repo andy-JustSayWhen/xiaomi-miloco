@@ -666,6 +666,50 @@ const targetPort = Number(process.env.OPENCLAW_INTERNAL_PORT || "18790");
 const targetHost = "127.0.0.1";
 const token = process.env.OPENCLAW_PROXY_TOKEN || "";
 
+function respondStarting(req, res, message) {
+  const isHealth = req.url === "/health" || req.url.startsWith("/health?");
+  if (isHealth) {
+    res.writeHead(503, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    });
+    res.end(JSON.stringify({ ok: false, status: "starting", message }));
+    return;
+  }
+
+  const body = `<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="refresh" content="8" />
+  <title>OpenClaw 正在启动</title>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; background: #111827; color: #f9fafb; }
+    main { min-height: 100vh; display: grid; place-items: center; padding: 24px; box-sizing: border-box; }
+    section { width: min(520px, 100%); border: 1px solid #374151; border-radius: 8px; padding: 24px; background: #1f2937; }
+    h1 { margin: 0 0 12px; font-size: 22px; line-height: 1.3; }
+    p { margin: 8px 0; color: #d1d5db; line-height: 1.7; }
+    code { color: #bfdbfe; }
+  </style>
+</head>
+<body>
+  <main>
+    <section>
+      <h1>OpenClaw 正在启动</h1>
+      <p>Docker 项目已经开始运行，OpenClaw 网关还在初始化。页面会自动刷新。</p>
+      <p>首次部署或刚重建项目时通常需要再等 <code>1-2 分钟</code>。如果一直停在这里，请查看 Docker 日志。</p>
+    </section>
+  </main>
+</body>
+</html>`;
+  res.writeHead(503, {
+    "Content-Type": "text/html; charset=utf-8",
+    "Cache-Control": "no-store",
+  });
+  res.end(body);
+}
+
 function proxyHeaders(headers) {
   const out = { ...headers };
   out.host = `${targetHost}:${targetPort}`;
@@ -714,8 +758,7 @@ const server = http.createServer((req, res) => {
     },
   );
   upstream.on("error", (err) => {
-    res.writeHead(502, { "Content-Type": "text/plain; charset=utf-8" });
-    res.end(`OpenClaw gateway proxy error: ${err.message}\n`);
+    respondStarting(req, res, `OpenClaw gateway is starting: ${err.message}`);
   });
   req.pipe(upstream);
 });
@@ -751,6 +794,13 @@ JS
     node "$proxy_file" >/tmp/easy-miloco-openclaw-proxy.log 2>&1 &
 }
 
+prepare_openclaw_public_proxy() {
+  log "Preparing OpenClaw public proxy"
+  configure_openclaw_chat_model
+  configure_openclaw_gateway
+  start_openclaw_proxy
+}
+
 ensure_openclaw_gateway() {
   local probe
   for _ in $(seq 1 60); do
@@ -773,8 +823,6 @@ start_runtime() {
   ensure_miloco_service
 
   log "Starting OpenClaw gateway"
-  configure_openclaw_chat_model
-  configure_openclaw_gateway
   nohup openclaw gateway \
     --dev \
     --force \
@@ -782,7 +830,6 @@ start_runtime() {
     --auth "$OPENCLAW_AUTH" \
     --port "$OPENCLAW_INTERNAL_PORT" \
     run >/tmp/easy-miloco-openclaw-run.log 2>&1 &
-  start_openclaw_proxy
   ensure_openclaw_gateway
 }
 
@@ -1036,6 +1083,7 @@ main() {
   download_runtime_files
   prime_payload_cache
   sync_bundled_models
+  prepare_openclaw_public_proxy
   run_agent_prepare_once
   configure_miloco_model_config
   run_agent_finish_if_ready
