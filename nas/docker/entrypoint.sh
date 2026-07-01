@@ -9,6 +9,7 @@ export OPENCLAW_INTERNAL_PORT="${OPENCLAW_INTERNAL_PORT:-$((OPENCLAW_PORT + 1))}
 export OPENCLAW_GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-$OPENCLAW_INTERNAL_PORT}"
 export OPENCLAW_BIND="${OPENCLAW_BIND:-auto}"
 export OPENCLAW_AUTH="${OPENCLAW_AUTH:-token}"
+export OPENCLAW_CHAT_API="${OPENCLAW_CHAT_API:-}"
 export OPENCLAW_CHAT_MAX_TOKENS="${OPENCLAW_CHAT_MAX_TOKENS:-2048}"
 export OPENCLAW_CHAT_TIMEOUT_SECONDS="${OPENCLAW_CHAT_TIMEOUT_SECONDS:-180}"
 export OPENCLAW_CHAT_CONTEXT_WINDOW="${OPENCLAW_CHAT_CONTEXT_WINDOW:-262144}"
@@ -429,7 +430,8 @@ configure_openclaw_chat_model() {
   local model="${OPENCLAW_CHAT_MODEL:-}"
   local base_url="${OPENCLAW_CHAT_BASE_URL:-}"
   local api_key="${OPENCLAW_CHAT_API_KEY:-}"
-  local explicit_chat_env="${OPENCLAW_CHAT_PROVIDER:-}${OPENCLAW_CHAT_MODEL:-}${OPENCLAW_CHAT_BASE_URL:-}${OPENCLAW_CHAT_API_KEY:-}"
+  local api="${OPENCLAW_CHAT_API:-}"
+  local explicit_chat_env="${OPENCLAW_CHAT_PROVIDER:-}${OPENCLAW_CHAT_MODEL:-}${OPENCLAW_CHAT_BASE_URL:-}${OPENCLAW_CHAT_API_KEY:-}${OPENCLAW_CHAT_API:-}"
 
   if [ -z "$explicit_chat_env" ]; then
     log "No OpenClaw chat model env supplied; keeping existing OpenClaw agent model config if present."
@@ -437,11 +439,11 @@ configure_openclaw_chat_model() {
   fi
 
   if is_placeholder_value "$api_key" || [ -z "$model" ] || [ -z "$base_url" ]; then
-    warn "OpenClaw chat model env is incomplete; set OPENCLAW_CHAT_MODEL, OPENCLAW_CHAT_BASE_URL and OPENCLAW_CHAT_API_KEY. OPENCLAW_CHAT_PROVIDER is optional."
+    warn "OpenClaw chat model env is incomplete; set OPENCLAW_CHAT_MODEL, OPENCLAW_CHAT_BASE_URL and OPENCLAW_CHAT_API_KEY. OPENCLAW_CHAT_PROVIDER and OPENCLAW_CHAT_API are optional."
     return
   fi
 
-  python3 - "$provider" "$model" "$base_url" "$api_key" "$OPENCLAW_CHAT_MAX_TOKENS" "$OPENCLAW_CHAT_TIMEOUT_SECONDS" "$OPENCLAW_CHAT_CONTEXT_WINDOW" <<'PY'
+  python3 - "$provider" "$model" "$base_url" "$api_key" "$api" "$OPENCLAW_CHAT_MAX_TOKENS" "$OPENCLAW_CHAT_TIMEOUT_SECONDS" "$OPENCLAW_CHAT_CONTEXT_WINDOW" <<'PY'
 import json
 import re
 import sys
@@ -452,9 +454,10 @@ provider_arg = sys.argv[1].strip()
 model_arg = sys.argv[2].strip()
 base_url = sys.argv[3].strip()
 api_key = sys.argv[4].strip()
-max_tokens = int(sys.argv[5])
-timeout_seconds = int(sys.argv[6])
-context_window = int(sys.argv[7])
+api_arg = sys.argv[5].strip()
+max_tokens = int(sys.argv[6])
+timeout_seconds = int(sys.argv[7])
+context_window = int(sys.argv[8])
 
 def split_model(value: str) -> tuple[str, str]:
     value = (value or "").strip()
@@ -469,9 +472,26 @@ def normalize_provider(value: str, base_url: str, model_id: str) -> str:
         return "xiaomi-token-plan" if "token-plan" in f"{base_url} {model_id}".lower() else "xiaomi"
     if low in {"deepseek-api", "deepseek-chat"}:
         return "deepseek"
+    if low in {"sense", "sensetime", "sensenova", "sense-nova"}:
+        return "sensenova"
     if low:
         return low
     return ""
+
+def normalize_api(value: str) -> str:
+    low = (value or "").strip().lower().replace("_", "-")
+    aliases = {
+        "openai": "openai-completions",
+        "openai-chat": "openai-completions",
+        "chat-completions": "openai-completions",
+        "openai-completions": "openai-completions",
+        "anthropic": "anthropic-messages",
+        "claude": "anthropic-messages",
+        "anthropic-messages": "anthropic-messages",
+        "responses": "openai-responses",
+        "openai-responses": "openai-responses",
+    }
+    return aliases.get(low, low)
 
 def infer_provider(explicit: str, model_prefix: str, base_url: str, model_id: str) -> str:
     text = f"{base_url} {model_prefix} {model_id}".lower()
@@ -491,6 +511,8 @@ def infer_provider(explicit: str, model_prefix: str, base_url: str, model_id: st
         return "deepseek"
     if "minimaxi" in text or "minimax" in text:
         return "minimax"
+    if "sensenova" in text or "sensetime" in text:
+        return "sensenova"
     if "moonshot" in text or "kimi" in text:
         return "moonshot"
     if "dashscope" in text or "qwen" in text or "aliyuncs" in text:
@@ -499,8 +521,23 @@ def infer_provider(explicit: str, model_prefix: str, base_url: str, model_id: st
     safe = re.sub(r"[^a-z0-9-]+", "-", host.lower()).strip("-")
     return safe or "openai-compatible"
 
+def infer_api(explicit: str, provider_id: str, base_url: str) -> str:
+    api = normalize_api(explicit)
+    if api:
+        return api
+    parsed = urlparse(base_url)
+    text = f"{provider_id} {parsed.netloc} {parsed.path}".lower()
+    if "anthropic" in text:
+        return "anthropic-messages"
+    if provider_id == "minimax" and "minimax" in text:
+        return "anthropic-messages"
+    if provider_id == "sensenova" and "sensenova" in text:
+        return "anthropic-messages"
+    return "openai-completions"
+
 model_prefix, model_id = split_model(model_arg)
 provider_id = infer_provider(provider_arg, model_prefix, base_url, model_id)
+api = infer_api(api_arg, provider_id, base_url)
 
 chat_ref = f"{provider_id}/{model_id}"
 home = Path.home()
@@ -526,7 +563,7 @@ def provider_payload():
     return {
         "baseUrl": base_url,
         "apiKey": api_key,
-        "api": "openai-completions",
+        "api": api,
         "timeoutSeconds": timeout_seconds,
         "contextWindow": context_window,
         "contextTokens": context_window,
@@ -787,11 +824,11 @@ validate_runtime() {
     fail=$((fail + 1))
   fi
 
-  if [ -n "${OPENCLAW_CHAT_PROVIDER:-}" ] || [ -n "${OPENCLAW_CHAT_MODEL:-}" ] || [ -n "${OPENCLAW_CHAT_BASE_URL:-}" ] || [ -n "${OPENCLAW_CHAT_API_KEY:-}" ]; then
+  if [ -n "${OPENCLAW_CHAT_PROVIDER:-}" ] || [ -n "${OPENCLAW_CHAT_MODEL:-}" ] || [ -n "${OPENCLAW_CHAT_BASE_URL:-}" ] || [ -n "${OPENCLAW_CHAT_API_KEY:-}" ] || [ -n "${OPENCLAW_CHAT_API:-}" ]; then
     if is_placeholder_value "${OPENCLAW_CHAT_API_KEY:-}"; then
       printf '[FAIL] openclaw.chat_model OPENCLAW_CHAT_API_KEY is missing or placeholder\n'
       fail=$((fail + 1))
-    elif python3 - "${OPENCLAW_CHAT_PROVIDER:-}" "${OPENCLAW_CHAT_MODEL:-}" "${OPENCLAW_CHAT_BASE_URL:-}" <<'PY'
+    elif python3 - "${OPENCLAW_CHAT_PROVIDER:-}" "${OPENCLAW_CHAT_MODEL:-}" "${OPENCLAW_CHAT_BASE_URL:-}" "${OPENCLAW_CHAT_API:-}" <<'PY'
 import json
 import re
 import sys
@@ -801,6 +838,7 @@ from pathlib import Path
 provider_arg = sys.argv[1].strip()
 model_arg = sys.argv[2].strip()
 base_url = sys.argv[3].strip()
+api_arg = sys.argv[4].strip()
 
 def split_model(value):
     if "/" not in value:
@@ -814,7 +852,24 @@ def normalize_provider(value, base_url, model):
         return "xiaomi-token-plan" if "token-plan" in f"{base_url} {model}".lower() else "xiaomi"
     if low in {"deepseek-api", "deepseek-chat"}:
         return "deepseek"
+    if low in {"sense", "sensetime", "sensenova", "sense-nova"}:
+        return "sensenova"
     return low
+
+def normalize_api(value):
+    low = (value or "").strip().lower().replace("_", "-")
+    aliases = {
+        "openai": "openai-completions",
+        "openai-chat": "openai-completions",
+        "chat-completions": "openai-completions",
+        "openai-completions": "openai-completions",
+        "anthropic": "anthropic-messages",
+        "claude": "anthropic-messages",
+        "anthropic-messages": "anthropic-messages",
+        "responses": "openai-responses",
+        "openai-responses": "openai-responses",
+    }
+    return aliases.get(low, low)
 
 def infer_provider(explicit, prefix, base_url, model):
     text = f"{base_url} {prefix} {model}".lower()
@@ -830,6 +885,8 @@ def infer_provider(explicit, prefix, base_url, model):
         return "deepseek"
     if "minimaxi" in text or "minimax" in text:
         return "minimax"
+    if "sensenova" in text or "sensetime" in text:
+        return "sensenova"
     if "moonshot" in text or "kimi" in text:
         return "moonshot"
     if "dashscope" in text or "qwen" in text or "aliyuncs" in text:
@@ -837,8 +894,23 @@ def infer_provider(explicit, prefix, base_url, model):
     host = urlparse(base_url).hostname or "openai-compatible"
     return re.sub(r"[^a-z0-9-]+", "-", host.lower()).strip("-") or "openai-compatible"
 
+def infer_api(explicit, provider, base_url):
+    api = normalize_api(explicit)
+    if api:
+        return api
+    parsed = urlparse(base_url)
+    text = f"{provider} {parsed.netloc} {parsed.path}".lower()
+    if "anthropic" in text:
+        return "anthropic-messages"
+    if provider == "minimax" and "minimax" in text:
+        return "anthropic-messages"
+    if provider == "sensenova" and "sensenova" in text:
+        return "anthropic-messages"
+    return "openai-completions"
+
 prefix, model = split_model(model_arg)
 provider = infer_provider(provider_arg, prefix, base_url, model)
+api = infer_api(api_arg, provider, base_url)
 expected = f"{provider}/{model}"
 
 cfg = Path.home() / ".openclaw" / "openclaw.json"
@@ -854,6 +926,8 @@ if not isinstance(provider_data, dict) or not provider_data.get("apiKey") or not
     raise SystemExit("global provider missing apiKey/baseUrl")
 if not isinstance(agent_provider, dict) or not agent_provider.get("apiKey") or not agent_provider.get("baseUrl"):
     raise SystemExit("agent provider missing apiKey/baseUrl")
+if provider_data.get("api") != api or agent_provider.get("api") != api:
+    raise SystemExit("provider api mismatch")
 rows = provider_data.get("models") or []
 if not any(isinstance(row, dict) and row.get("id") == model for row in rows):
     raise SystemExit("model row missing")
