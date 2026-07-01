@@ -63,7 +63,7 @@ cd nas/docker
 - Miloco 面板：`http://<NAS-IP>:1810/`
 - OpenClaw 对话：`http://<NAS-IP>:18789/`
 
-Docker 项目显示 running 后，容器里的 Web 服务可能还需要几十秒完成二阶段启动；如果刚点开 `1810` 或 `18789` 出现连接拒绝，等 1-2 分钟再刷新。
+Docker 项目显示 running 后，容器里的 Web 服务可能还需要 1-2 分钟完成二阶段启动；如果刚点开 `1810` 或 `18789` 出现连接拒绝，等 1-2 分钟再刷新。
 
 ## 网络和快捷访问
 
@@ -81,7 +81,7 @@ ports:
 - `1810`：Miloco 面板
 - `18789`：OpenClaw 对话页
 
-Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 网关默认在容器内部 `18790` 以 `OPENCLAW_AUTH=token` 启动，公开的 `18789` 是容器内代理入口。NAS 面板快速访问打开 `18789` 时，代理会自动跳到带 token 的 OpenClaw 对话页，用户不需要猜登录凭证。
+Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 网关默认在容器内部 `18790` 以 `OPENCLAW_AUTH=token` 启动，公开的 `18789` 是容器内代理入口。NAS 面板快速访问打开 `18789` 时，代理会自动跳到带 token 的 OpenClaw 对话页；浏览器历史里的裸 `/chat?session=main` 深链也会被补上 token，用户不需要猜登录凭证。
 
 不要把内部 `18790` 映射到 NAS；只映射 `18789`。容器启动时会为局域网 HTTP 访问开启 `gateway.controlUi.allowInsecureAuth`、`gateway.controlUi.dangerouslyDisableDeviceAuth` 和 Host header 同源回退，避免普通用户停在安全上下文/设备身份页面。
 

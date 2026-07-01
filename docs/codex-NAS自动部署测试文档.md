@@ -44,6 +44,16 @@
 7. Miloco 面板可打开，显示米家未连接和家里暂无摄像头；未见模型“未配置”占位。
 8. OpenClaw 自动打开聊天页，模型栏显示 `mimo-v2.5-pro · Off`；发送“请用一句话回复：部署测试。”后约 `11.8s` 完成回复。
 
+### 新镜像回归复测
+
+1. `0a2058c` 推送后，GitHub Actions run `28547124904` 成功，耗时 `2m42s`，重新发布 GHCR / Docker Hub / 华为 SWR 镜像。
+2. 从零清理：删除 `miloco` 项目、关联镜像和 `/volume1/docker/miloco` 后，确认本地镜像不存在、旧 Compose 文件不存在。
+3. 再次使用 SWR `v0.5` 冷拉：镜像出现在 NAS 本地镜像列表用时 `118.1s`；项目 running 用时 `122.3s`。
+4. running 后两个 Web 端口又等待 `108.7s` 才都可访问；从创建项目到 `1810` / `18789` 都能打开，用户可感知总耗时约 `231.1s`。
+5. Miloco 面板首页打开正常，显示米家未连接、设备为空；模型页显示 `xiaomi/mimo-v2.5`、Base URL 和已遮蔽 API Key，未再出现“未配置”占位。
+6. Miloco 模型页在视觉上有一处小问题：列表行里的“当前模型”和“删除”靠得较近，自动化读取时像“当前模型删除”；不影响配置生效，但后续 UI 可优化间距。
+7. OpenClaw 使用 MIMO 时显示 `mimo-v2.5-pro · Off`，发送“请用一句话回复：新镜像部署测试。”约 `18.2s` 回复。
+
 ## UI 操作注意
 
 - 项目运行中时，“删除”菜单项不可用，需要先点“停止”。
@@ -55,11 +65,12 @@
 - UGREEN 的部署弹窗会显示进度，但尾部可能长时间不刷新；不要在 1 分钟内贸然取消。
 - UGREEN 从本地文件导入 YAML 偶发超时或沿用上一份内容；切换供应商测试时，更稳的方式是导入后检查编辑器里的 `OPENCLAW_CHAT_*` 行，必要时直接在编辑器内覆盖 YAML。
 - 复用旧项目路径时，UGREEN 可能提示路径已存在；需要确认“导入该配置/覆盖”后再部署，否则按钮状态和实际 Compose 内容容易不同步。
-- OpenClaw 请打开根地址 `http://<NAS-IP>:18789/`。直接打开历史里的 `/chat?session=main` 深链可能缺少当前 token，出现“认证不匹配”或“无法连接”。
+- 旧镜像里 OpenClaw 请打开根地址 `http://<NAS-IP>:18789/`；直接打开历史里的 `/chat?session=main` 深链可能缺少当前 token，出现“认证不匹配”或“无法连接”。当前源码已补 `/chat` 深链自动加 token，发布新镜像后应复测。
 - OpenClaw 会话会记住旧模型；换供应商重新部署后，应点“+ 新会话”确认新默认模型，不要只看旧 `main` 会话底部模型栏。
 - OpenClaw 模型栏里的 `Off` / `Adaptive` 是思考/推理模式状态，不是“模型关闭”或“未配置”。
 - UGREEN 显示 Docker 项目 running 后，容器内部服务可能还有二阶段启动；本轮多次观察到 `1810` / `18789` 在 `66.5s`、`78.6s`、`82.6s`、`82.7s` 后才全部恢复。
 - OpenClaw 新会话按钮点击后可能仍出现 `GatewayRequestError: unknown parent session: agent:main:main` 的历史提示，但新对话仍可继续发送；普通用户会被这个英文错误干扰。
+- UGREEN App 存在状态不同步：项目列表可显示 `miloco` running，但详情页或无障碍树仍残留“未运行/处理中”。测试时以项目列表、端口探测和页面打开结果综合判断，不只看单个详情面板。
 
 ## LLM 供应商切换测试
 
@@ -80,6 +91,14 @@ NAS 只换 YAML、不拉新镜像的结果：
 - 商汤科技/SenseNova，自动推断旧逻辑：保留镜像，重建到 running `7.0s`；端口 `82.6s` 后全部恢复。OpenClaw 显示 `deepseek-v4-flash · Off`，但请求约 `107s` 后失败，页面显示 `LLM request failed`。
 - 商汤科技/SenseNova，显式 `OPENCLAW_CHAT_API="openai-completions"`：保留镜像，重建到 running `5.2s`；端口 `82.7s` 后全部恢复。OpenClaw 发送 `请只回复：OK-SENSE`，约 `12.8s` 返回 `OK-SENSE`。
 
+新镜像只换 YAML、不拉新镜像的结果：
+
+- DeepSeek：保留镜像，删除项目 `8.4s`，重建到 running `5.2s`；端口 `84.6s` 后全部恢复。OpenClaw 显示 `deepseek-v4-flash · Off`，发送 `请只回复：OK-DEEPSEEK-NEW`，约 `11.8s` 返回。
+- MiniMax：保留镜像，删除项目 `8.4s`，重建到 running `6.7s`；端口 `22.2s` 后全部恢复。OpenClaw 显示 `MiniMax-M3 · Adaptive`，发送 `请只回复：OK-MINIMAX-NEW`，约 `10.9s` 返回。
+- 商汤科技/SenseNova，`OPENCLAW_CHAT_API` 留空自动推断：保留镜像，删除项目 `7.4s`，重建到 running `6.5s`；端口 `84.7s` 后全部恢复。OpenClaw 显示 `deepseek-v4-flash · Off`，发送 `请只回复：OK-SENSE-AUTO`，约 `10.1s` 返回。
+- Chrome 本机扩展偶发对 `192.168.31.225:18789` 新标签报 `ERR_BLOCKED_BY_CLIENT`；重开同一地址可恢复，这不是 NAS 服务失败。
+- 复测时直接打开 `/chat?session=main` 仍进入网关认证页，根地址 `/` 能自动带 token。已在源码修复代理逻辑：`/` 和裸 `/chat` 都会跳到带 `easy_miloco_token=1#token=...` 的地址，避免用户从历史记录进入认证页。
+
 本轮代码侧处理：
 
 - `OPENCLAW_CHAT_*` 与 `OMNI_*` 完全分离，不复用。
@@ -90,7 +109,7 @@ NAS 只换 YAML、不拉新镜像的结果：
 
 ## 当前结论
 
-- 首次部署真正耗时主要在 SWR 冷拉，约 `87s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `5-7s`。
-- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 端口还要 `60-85s` 才恢复；文档和 UI 提示都应明确“等 1-2 分钟再刷新”。
+- 首次部署真正耗时主要在 SWR 冷拉，本轮两次实测为 `87.0s` 和 `118.1s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `5-7s`。
+- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 端口还要 `22-109s` 才恢复；文档和 UI 提示都应明确“等 1-2 分钟再刷新”。
 - OpenClaw provider 注释足够清楚的最低标准：只强调 `MODEL`、`BASE_URL`、`API_KEY` 三项必填；`PROVIDER` 和 `API` 是排障字段；`Off/Adaptive` 不是模型未配置。
-- 当前代码已修正 SenseNova 自动 API 形状。当前已部署的旧镜像可用 workaround：在 YAML 中显式写 `OPENCLAW_CHAT_API: "openai-completions"`。
+- 当前代码已修正 SenseNova 自动 API 形状，并已修正 OpenClaw `/chat` 深链缺 token 的问题。旧镜像可用 workaround：商汤 YAML 显式写 `OPENCLAW_CHAT_API: "openai-completions"`，OpenClaw 从根地址 `http://<NAS-IP>:18789/` 进入。

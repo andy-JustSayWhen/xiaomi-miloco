@@ -617,7 +617,7 @@ if path.exists():
     if auth.get("mode") == "token":
         token = auth.get("token") or ""
 
-url = f"http://{host}:{port}/chat?session=main"
+url = f"http://{host}:{port}/chat?session=main&easy_miloco_token=1"
 if token:
     url += "#token=" + quote(token, safe="")
 print(url)
@@ -668,10 +668,27 @@ function proxyHeaders(headers) {
   return out;
 }
 
+function tokenRedirectUrl(req) {
+  if (!token) return "";
+  const host = req.headers.host || `127.0.0.1:${publicPort}`;
+  const parsed = new URL(req.url || "/", `http://${host}`);
+  const path = parsed.pathname || "/";
+  const isRoot = path === "/";
+  const isChat = path === "/chat" || path === "/chat/";
+  if (!isRoot && !isChat) return "";
+  if (parsed.searchParams.get("easy_miloco_token") === "1") return "";
+  if (isRoot) {
+    parsed.pathname = "/chat";
+    if (!parsed.searchParams.get("session")) parsed.searchParams.set("session", "main");
+  }
+  parsed.searchParams.set("easy_miloco_token", "1");
+  parsed.hash = `token=${encodeURIComponent(token)}`;
+  return parsed.toString();
+}
+
 const server = http.createServer((req, res) => {
-  if (token && (req.url === "/" || req.url.startsWith("/?"))) {
-    const host = req.headers.host || `127.0.0.1:${publicPort}`;
-    const location = `http://${host}/chat?session=main#token=${encodeURIComponent(token)}`;
+  const location = tokenRedirectUrl(req);
+  if (location) {
     res.writeHead(302, { Location: location, "Cache-Control": "no-store" });
     res.end();
     return;
@@ -807,7 +824,7 @@ validate_runtime() {
     fail=$((fail + 1))
   fi
 
-  http_code="$(curl -sS -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:${OPENCLAW_PORT}/chat?session=main" 2>/dev/null || true)"
+  http_code="$(curl -sSL -o /dev/null -w '%{http_code}' -m 5 "http://127.0.0.1:${OPENCLAW_PORT}/chat?session=main" 2>/dev/null || true)"
   if [ "$http_code" = "200" ]; then
     printf '[PASS] openclaw.chat HTTP %s\n' "$http_code"
     pass=$((pass + 1))
