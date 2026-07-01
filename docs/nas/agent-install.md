@@ -56,6 +56,7 @@ OPENCLAW_CHAT_API=
 ```
 
 容器会按 URL/模型名自动推断 provider。只有排障或明确接入特殊 OpenClaw provider 时，才手动填 `OPENCLAW_CHAT_PROVIDER`，例如 `deepseek`、`minimax`、`xiaomi-token-plan`。
+自动推断会优先看 `BASE_URL` 域名，再看模型名；例如商汤/SenseNova 使用 `deepseek-v4-flash` 这类模型名时，只要 `BASE_URL` 是 `https://token.sensenova.cn/v1`，也会按 SenseNova 处理。
 `OPENCLAW_CHAT_API` 同样只在排障时填写。正常情况下 DeepSeek、MiniMax、商汤日日新/SenseNova 都能自动推断；SenseNova 的 `https://token.sensenova.cn/v1` 会走 `openai-completions`。
 OpenClaw 模型栏里模型名后面的 `Off` / `Adaptive` 是思考/推理模式状态，不是“模型关闭”或“未配置”。
 

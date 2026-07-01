@@ -25,6 +25,7 @@ OPENCLAW_CHAT_API_KEY=<API Key>
 `OPENCLAW_CHAT_PROVIDER` 可留空，容器会按 URL 和模型名自动推断。只有排障或接入特殊 OpenClaw provider 时才手动填，例如 `deepseek`、`minimax`、`xiaomi-token-plan`。
 它不是账号类型、计费类型或 Token Plan 类型；普通用户不需要理解或填写它。
 从 CC Switch 复制时，把 `ANTHROPIC_MODEL`、`ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN` 分别填到 `OPENCLAW_CHAT_MODEL`、`OPENCLAW_CHAT_BASE_URL`、`OPENCLAW_CHAT_API_KEY`，Base URL 原样复制，不要自行补 `/v1` 或 `/anthropic`。
+自动推断会优先看 `BASE_URL` 域名，再看模型名；例如商汤/SenseNova 使用 `deepseek-v4-flash` 这类模型名时，只要 `BASE_URL` 是 `https://token.sensenova.cn/v1`，也会按 SenseNova 处理。
 `OPENCLAW_CHAT_API` 也是排障字段，普通用户留空。DeepSeek、MiniMax、商汤日日新/SenseNova 会自动按 URL/provider 选择请求形状；SenseNova 的 `https://token.sensenova.cn/v1` 默认走 `openai-completions`。
 OpenClaw 模型栏里模型名后面的 `Off` / `Adaptive` 是思考/推理模式状态，不是“模型关闭”或“未配置”。
 

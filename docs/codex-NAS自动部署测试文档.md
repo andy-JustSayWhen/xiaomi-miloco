@@ -136,9 +136,31 @@ OpenClaw 启动等待页复测：
 - DeepSeek/MiniMax 的 `/anthropic` URL 自动走 `anthropic-messages`。
 - SenseNova 的 `https://token.sensenova.cn/v1` 自动走 `openai-completions`，避免 Anthropic adapter 使用 `x-api-key` 导致 401。
 
+当前 NAS 分支 payload 镜像复测：
+
+- `72c0a22` 将 NAS 镜像 workflow 改为先构建当前分支 runtime payload，再把 payload 放进 Docker build context；Actions run `28551588527` 成功，耗时 `3m37s`，日志显示 `Using prebuilt Miloco runtime payload from Docker build context`。
+- 首次只删项目和本地镜像、不删 `/volume1/docker/miloco` 时，NAS 确实拉到了新镜像，但容器复用了旧 `/data/runtime`，Miloco 模型页仍是旧前端。结论：验证新 payload 时必须删除 `/volume1/docker/miloco`，或显式设置 `MILOCO_FORCE_INSTALL=1`。
+- 真正从零清理项目、镜像和 `/volume1/docker/miloco` 后，用商汤三字段 YAML 从 SWR 冷拉：镜像出现 `84.6s`，项目 running `89.1s`；项目 running 后 Miloco `44.8s` 可打开，OpenClaw shell `100.4s` 可打开。
+- Miloco 模型页显示 `xiaomi/mimo-v2.5`、Base URL、遮蔽 API Key，没有“未配置”占位；运行时 JS 已包含 `inline-flex items-center justify-end gap-3`，不再使用旧的 `mr-3`，视觉上“当前模型”和“删除”已分开。
+- 商汤三字段配置发 `请只回复：OK-CLEAN-SENSE-2`，约 `7.1s` 返回，截图保存在 ignored 的 `env/nas-audit/34-openclaw-sensetime-clean-currentpayload-reply.png`。
+
+三字段 provider 推断最终修复：
+
+- 从 CC Switch 重新提取 DeepSeek、MiniMax、商汤科技配置到 ignored 的 `env/llm-providers.env`，三份测试 YAML 都只填写 `OPENCLAW_CHAT_MODEL`、`OPENCLAW_CHAT_BASE_URL`、`OPENCLAW_CHAT_API_KEY`，`OPENCLAW_CHAT_PROVIDER` 和 `OPENCLAW_CHAT_API` 均留空。
+- 复测发现商汤使用 `deepseek-v4-flash` 模型名时，旧推断逻辑会先按模型名里的 `deepseek` 误判为 DeepSeek。`82ecd46` 已修正为显式 `PROVIDER` 最高优先级；未填写时先看 `BASE_URL` 域名，再看模型前缀/模型名。
+- `82ecd46` 的 Actions run `28552930564` 成功，耗时 `3m52s`；SWR `v0.5/latest` digest 为 `sha256:9fa5f80e64a14db5d53dc05a501c464727c75e83de0ae7f7fb70f8c5f3fdd769`。
+- 删除旧项目和本地镜像后，用商汤三字段 YAML 冷拉 `82ecd46` 新镜像：镜像出现 `84.7s`，项目 running `93.5s`；项目 running 后 Miloco `51.8s` 可打开，OpenClaw `105.4s` 可打开；日志为 `primary=sensenova/deepseek-v4-flash`，发 `OK-SENSE-URLFIX` 约 `10.1s` 返回。
+
+最新镜像只换 YAML、不拉新镜像的最终结果：
+
+- DeepSeek：保留镜像，删除项目 `8.4s`，重建到 running `5.2s`；项目 running 后 Miloco `55.3s`、OpenClaw `108.5s` 可打开；日志 `primary=deepseek/deepseek-v4-flash`，发 `OK-DEEPSEEK-LATEST82` 约 `9.1s` 返回。
+- MiniMax：保留镜像，删除项目 `8.3s`，重建到 running `6.8s`；项目 running 后 Miloco `51.9s`、OpenClaw `105.2s` 可打开；日志 `primary=minimax/MiniMax-M3`，发 `OK-MINIMAX-LATEST82` 约 `18.1s` 返回。
+- 商汤科技/SenseNova：保留镜像，删除项目 `8.4s`，重建到 running `4.6s`；项目 running 后 Miloco `55.1s`、OpenClaw `107.9s` 可打开；日志 `primary=sensenova/deepseek-v4-flash`，发 `OK-SENSE-LATEST82` 约 `10.1s` 返回。
+- 结论：普通用户只填 `MODEL`、`BASE_URL`、`API_KEY` 可以覆盖这三家；`PROVIDER` 和 `API` 继续作为排障字段，不需要让小白理解计费类型、Token Plan 或 API 形状。
+
 ## 当前结论
 
-- 首次部署真正耗时主要在 SWR 冷拉，本轮多次实测为 `84.9s`、`85.0s`、`87.0s`、`105.6s`、`118.1s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `5-7s`。
-- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 服务还有二阶段启动。最新镜像中 `18789` 会在 warm redeploy 后约 `9.1s` 出现中文等待页，但完整 OpenClaw shell 仍可能到 `125.3s` 才可用；文档和 UI 提示都应明确“看到等待页就不要反复重部署，等 1-2 分钟自动刷新”。
-- OpenClaw provider 注释足够清楚的最低标准：只强调 `MODEL`、`BASE_URL`、`API_KEY` 三项必填；`PROVIDER` 和 `API` 是排障字段；`Off/Adaptive` 不是模型未配置。
-- 当前代码已修正 SenseNova 自动 API 形状，并已修正 OpenClaw `/chat` 深链缺 token 的问题。旧镜像可用 workaround：商汤 YAML 显式写 `OPENCLAW_CHAT_API: "openai-completions"`，OpenClaw 从根地址 `http://<NAS-IP>:18789/` 进入。
+- 首次部署真正耗时主要在 SWR 冷拉，本轮多次实测为 `84.6s`、`84.7s`、`84.9s`、`85.0s`、`87.0s`、`105.6s`、`118.1s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `4.6-6.8s`。
+- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 服务还有二阶段启动。最新镜像中 OpenClaw shell 仍常在 running 后约 `105-108s` 才可用；文档和 UI 提示都应明确“看到等待页就不要反复重部署，等 1-2 分钟自动刷新”。
+- OpenClaw provider 注释足够清楚的最低标准：只强调 `MODEL`、`BASE_URL`、`API_KEY` 三项必填；自动推断优先看 `BASE_URL` 域名；`PROVIDER` 和 `API` 是排障字段；`Off/Adaptive` 不是模型未配置。
+- 当前代码已修正 SenseNova 自动 API 形状、OpenClaw `/chat` 深链缺 token、以及商汤 `deepseek-v4-flash` 模型名误导 provider 推断的问题。旧镜像可用 workaround：商汤 YAML 显式写 `OPENCLAW_CHAT_PROVIDER: "sensenova"` 或 `OPENCLAW_CHAT_API: "openai-completions"`，OpenClaw 从根地址 `http://<NAS-IP>:18789/` 进入。

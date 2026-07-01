@@ -37,6 +37,7 @@ services:
       # PROVIDER 不是账号类型、计费类型或 Token Plan 类型；普通用户不要填，只有自动推断失败时才排障手填。
       # 如果从 CC Switch 复制配置：ANTHROPIC_MODEL 填到 MODEL，ANTHROPIC_BASE_URL 原样填到 BASE_URL，ANTHROPIC_AUTH_TOKEN 填到 API_KEY。
       # BASE_URL 不需要自己补 /v1 或 /anthropic；从服务商控制台/CC Switch 看到什么就先原样复制。
+      # 自动推断会优先看 BASE_URL 域名，再看模型名；例如商汤 BASE_URL 即使用 deepseek-v4-flash 模型名，也会按 SenseNova 处理。
       # 如果换供应商后重新部署，OpenClaw 旧会话可能仍显示旧模型；请点“+ 新会话”检查新默认模型。
       # OpenClaw 模型栏里的 Off/Adaptive 是思考/推理模式状态，不是“模型关闭”或“未配置”。
       # 常见示例：
