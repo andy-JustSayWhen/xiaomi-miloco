@@ -54,19 +54,20 @@ jobs:
           HUAWEI_SWR_PASSWORD: ${{ secrets.HUAWEI_SWR_PASSWORD }}
         run: |
           swr_enabled=false
+          swr_image=
+          if [ -n "${HUAWEI_SWR_REGISTRY}" ] && [ -n "${HUAWEI_SWR_NAMESPACE}" ] && [ -n "${HUAWEI_SWR_REPOSITORY}" ] && [ -n "${HUAWEI_SWR_USERNAME}" ] && [ -n "${HUAWEI_SWR_PASSWORD}" ]; then
+            swr_image="${HUAWEI_SWR_REGISTRY}/${HUAWEI_SWR_NAMESPACE}/${HUAWEI_SWR_REPOSITORY}"
+            swr_enabled=true
+          fi
           {
             echo "tags<<EOF"
             echo "${GHCR_IMAGE}:${VERSION}"
             echo "${GHCR_IMAGE}:latest"
             echo "${DOCKERHUB_IMAGE}:${VERSION}"
             echo "${DOCKERHUB_IMAGE}:latest"
-            if [ -n "${HUAWEI_SWR_REGISTRY}" ] && [ -n "${HUAWEI_SWR_NAMESPACE}" ] && [ -n "${HUAWEI_SWR_REPOSITORY}" ] && [ -n "${HUAWEI_SWR_USERNAME}" ] && [ -n "${HUAWEI_SWR_PASSWORD}" ]; then
-              echo "${HUAWEI_SWR_REGISTRY}/${HUAWEI_SWR_NAMESPACE}/${HUAWEI_SWR_REPOSITORY}:${VERSION}"
-              echo "${HUAWEI_SWR_REGISTRY}/${HUAWEI_SWR_NAMESPACE}/${HUAWEI_SWR_REPOSITORY}:latest"
-              swr_enabled=true
-            fi
             echo "EOF"
             echo "swr_enabled=${swr_enabled}"
+            echo "swr_image=${swr_image}"
           } >> "${GITHUB_OUTPUT}"
 
       - uses: docker/login-action@v3
@@ -86,6 +87,24 @@ jobs:
           build-args: |
             MILOCO_RELEASE_ZIP_URL=https://github.com/andy-JustSayWhen/easy-miloco/releases/download/${{ inputs.version || 'v0.5' }}/easy-miloco-${{ inputs.version || 'v0.5' }}-windows.zip
           tags: ${{ steps.image_tags.outputs.tags }}
+          provenance: false
+          sbom: false
           labels: |
             org.opencontainers.image.source=https://github.com/andy-JustSayWhen/easy-miloco
             org.opencontainers.image.description=easy-miloco NAS Docker image
+
+      - name: Build and push SWR
+        if: steps.image_tags.outputs.swr_enabled == 'true'
+        env:
+          VERSION: ${{ inputs.version || 'v0.5' }}
+          SWR_IMAGE: ${{ steps.image_tags.outputs.swr_image }}
+        run: |
+          docker build \
+            --platform linux/amd64 \
+            --build-arg MILOCO_RELEASE_ZIP_URL=https://github.com/andy-JustSayWhen/easy-miloco/releases/download/${VERSION}/easy-miloco-${VERSION}-windows.zip \
+            --file nas/docker/Dockerfile \
+            --tag "${SWR_IMAGE}:${VERSION}" \
+            --tag "${SWR_IMAGE}:latest" \
+            nas/docker
+          docker push "${SWR_IMAGE}:${VERSION}"
+          docker push "${SWR_IMAGE}:latest"
