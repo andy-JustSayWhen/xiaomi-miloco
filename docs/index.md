@@ -21,6 +21,7 @@ Agent 先读 [AGENT.md](AGENT.md)，再按系统进入：
 - NAS Agent Docker 部署：[nas/agent-install.md](nas/agent-install.md)
 - NAS 硬门槛：[nas/index.md](nas/index.md)
 - NAS Docker 部署：[nas/docker-deploy.md](nas/docker-deploy.md)
+- 华为 SWR 镜像上传/管理：[huawei-swr-docker-image-runbook.md](huawei-swr-docker-image-runbook.md)
 - Release 打包：[runbooks/make-release-package.md](runbooks/make-release-package.md)
 - 变更排障：[runbooks/change-and-debug-runbook.md](runbooks/change-and-debug-runbook.md)
 
