@@ -372,26 +372,28 @@ export function UsageOmniConfig() {
                             {p.has_key ? p.api_key_masked : t("usage.notConfigured")}
                           </td>
                           <td className="px-5 md:px-6 py-2.5 text-right whitespace-nowrap">
-                            {p.active ? (
-                              <span className="inline-block rounded-md px-2.5 py-1 bg-brand-primary text-white align-middle mr-3">
-                                {t("usage.currentModel")}
-                              </span>
-                            ) : (
+                            <div className="inline-flex items-center justify-end gap-3">
+                              {p.active ? (
+                                <span className="inline-flex rounded-md px-2.5 py-1 bg-brand-primary text-white">
+                                  {t("usage.currentModel")}
+                                </span>
+                              ) : (
+                                <button
+                                  type="button"
+                                  onClick={() => onActivate(p)}
+                                  className="hover:bg-brand-soft text-brand-primary border border-brand-primary rounded-md px-2.5 py-1"
+                                >
+                                  {t("usage.activate")}
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={() => onActivate(p)}
-                                className="hover:bg-brand-soft text-brand-primary border border-brand-primary rounded-md px-2.5 py-1 mr-3"
+                                onClick={() => onDelete(p)}
+                                className="rounded-md px-2.5 py-1 text-text-tertiary hover:bg-bg-primary hover:text-error"
                               >
-                                {t("usage.activate")}
+                                {t("usage.delete")}
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => onDelete(p)}
-                              className="text-text-tertiary hover:text-error"
-                            >
-                              {t("usage.delete")}
-                            </button>
+                            </div>
                           </td>
                         </tr>
                       ))
