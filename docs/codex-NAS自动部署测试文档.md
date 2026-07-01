@@ -114,6 +114,20 @@ NAS 只换 YAML、不拉新镜像的结果：
 - 但 NAS 实测没有证明该优化生效：`d653957` 冷拉镜像出现 `105.6s`、project running `110.9s`、端口可用 `204.5s`；随后不删镜像/不删数据 warm redeploy，project running `4.6s`、端口可用 `102.7s`。
 - warm redeploy 日志仍出现 `agent prepare marker exists but miloco-cli is missing; rerunning prepare for this container.`，且 Python 路径仍显示 `/root/.local/share/uv/tools/miloco/bin/python`。因此“running 后还要等约 1-2 分钟”仍未解决，只能作为已知 UX 提示保留；后续若继续优化，需要能直接检查容器内 `/root/.local` 与 `/data/.local` 的真实文件系统状态。
 
+OpenClaw 启动等待页复测：
+
+- `e131500` 把 OpenClaw 公开代理提前到 agent prepare 前启动，并在内部网关未就绪时返回中文启动等待页；Actions run `28550598300` 成功，耗时 `2m46s`。
+- 从零清理项目和本地镜像后，用商汤 YAML 从 SWR 冷拉：镜像出现 `84.9s`，项目 running `89.4s`，`18789` 首次有 HTTP 响应 `91.6s`，两个端口全部可用 `155.8s`。
+- 不删镜像、不删 `/volume1/docker/miloco` 数据的 warm redeploy：项目 running `4.9s`，`18789` 在 `9.1s` 返回中文启动等待页，OpenClaw shell 在 `125.3s` 可用。
+- 结论：`18789` 不再长时间表现为 connection refused；用户在 Docker running 后几秒能看到“OpenClaw 正在启动”的解释页并自动刷新。`1810` 和 OpenClaw 内部网关仍可能继续初始化约 1-2 分钟。
+
+最终用户视角复测：
+
+- Chrome 打开 `http://192.168.31.225:1810/` 正常进入 Miloco 首页，显示米家未连接、暂无摄像头；进入“模型”页可见 `xiaomi/mimo-v2.5`、Base URL 和遮蔽 API Key，没有“未配置”占位。
+- Chrome 打开 `http://192.168.31.225:18789/chat?session=main` 会自动补上 `easy_miloco_token=1` 并进入聊天页；页面模型栏显示 `deepseek-v4-flash · Off`。
+- 发送 `请只回复：OK-FINAL-VISUAL` 后，页面先显示发送中，再返回 `OK-FINAL-VISUAL`，随后恢复“发送”按钮；本机轮询确认回复到达。
+- 截图证据保存在 ignored 的 `env/nas-audit/26-miloco-final-visual.png`、`27-openclaw-final-visual.png`、`29-openclaw-final-reply.png`、`30-miloco-model-final-visual.png`。
+
 本轮代码侧处理：
 
 - `OPENCLAW_CHAT_*` 与 `OMNI_*` 完全分离，不复用。
@@ -124,7 +138,7 @@ NAS 只换 YAML、不拉新镜像的结果：
 
 ## 当前结论
 
-- 首次部署真正耗时主要在 SWR 冷拉，本轮三次实测为 `85.0s`、`87.0s` 和 `118.1s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `5-7s`。
-- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 端口还要 `22-109s` 才恢复；最新实测从 project running 到两个端口可访问约 `93.6s`。文档和 UI 提示都应明确“等 1-2 分钟再刷新”。
+- 首次部署真正耗时主要在 SWR 冷拉，本轮多次实测为 `84.9s`、`85.0s`、`87.0s`、`105.6s`、`118.1s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `5-7s`。
+- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 服务还有二阶段启动。最新镜像中 `18789` 会在 warm redeploy 后约 `9.1s` 出现中文等待页，但完整 OpenClaw shell 仍可能到 `125.3s` 才可用；文档和 UI 提示都应明确“看到等待页就不要反复重部署，等 1-2 分钟自动刷新”。
 - OpenClaw provider 注释足够清楚的最低标准：只强调 `MODEL`、`BASE_URL`、`API_KEY` 三项必填；`PROVIDER` 和 `API` 是排障字段；`Off/Adaptive` 不是模型未配置。
 - 当前代码已修正 SenseNova 自动 API 形状，并已修正 OpenClaw `/chat` 深链缺 token 的问题。旧镜像可用 workaround：商汤 YAML 显式写 `OPENCLAW_CHAT_API: "openai-completions"`，OpenClaw 从根地址 `http://<NAS-IP>:18789/` 进入。

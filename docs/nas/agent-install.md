@@ -95,6 +95,7 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 
 `./manage.sh urls` 必须作为交付地址来源；裸 `18789` 是公开代理入口，应自动跳转到带 token 的 OpenClaw 对话页。浏览器历史里的裸 `/chat?session=main` 深链也应被补上 token，避免让用户猜登录凭证。
 Docker 项目显示 running 后，`1810` / `18789` 可能还需要 1-2 分钟恢复访问；这段时间看到连接拒绝不等于部署失败。
+如果 `18789` 返回“OpenClaw 正在启动”等待页，说明公开入口已经可访问，但 OpenClaw 内部网关还未完成初始化；继续轮询，不要把它判定为失败或重复重部署。只有进入聊天页并能发送消息后，才算 OpenClaw 验收完成。
 
 如果 `docker compose pull` 成功但日志仍出现旧的 `WSL Miloco validation`、`OpenClaw 直达: http://172...` 或模型缺失，说明 NAS 镜像源命中了旧 tag 缓存。优先切到华为 SWR 固定版本 tag 或等待维护者发布新 tag，不要反复重复拉同一个旧 tag。
 
@@ -104,6 +105,7 @@ Docker 项目显示 running 后，`1810` / `18789` 可能还需要 1-2 分钟恢
 - `18789`：OpenClaw 对话页
 
 NAS 默认 `OPENCLAW_BIND=auto`、`OPENCLAW_AUTH=token`、`OPENCLAW_INTERNAL_PORT=18790`。公开端口 `18789` 由容器内代理接管，自动跳转到带 token 的 OpenClaw 对话页，并兜底修复裸 `/chat` 深链；不要把 `18790` 映射给普通用户。局域网 HTTP 部署必须确认 OpenClaw Control UI 已配置 `allowInsecureAuth`、`dangerouslyDisableDeviceAuth` 和 Host header 同源回退，否则浏览器会停在安全上下文/设备身份页面。
+`18789` 的中文启动等待页只表示 `BASIC_READY` 的入口反馈改善，不代表 `FULL_READY=yes`。
 
 ## 交付口径
 

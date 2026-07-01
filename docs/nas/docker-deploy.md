@@ -64,6 +64,7 @@ cd nas/docker
 - OpenClaw 对话：`http://<NAS-IP>:18789/`
 
 Docker 项目显示 running 后，容器里的 Web 服务可能还需要 1-2 分钟完成二阶段启动；如果刚点开 `1810` 或 `18789` 出现连接拒绝，等 1-2 分钟再刷新。
+新镜像中 `18789` 可能先显示“OpenClaw 正在启动”等待页，这表示公开入口已经起来、内部网关仍在初始化；页面会自动刷新，不要因此反复删除项目或重部署。
 
 ## 网络和快捷访问
 
@@ -84,6 +85,7 @@ ports:
 Miloco 后端在容器内默认监听 `0.0.0.0:1810`；OpenClaw 网关默认在容器内部 `18790` 以 `OPENCLAW_AUTH=token` 启动，公开的 `18789` 是容器内代理入口。NAS 面板快速访问打开 `18789` 时，代理会自动跳到带 token 的 OpenClaw 对话页；浏览器历史里的裸 `/chat?session=main` 深链也会被补上 token，用户不需要猜登录凭证。
 
 不要把内部 `18790` 映射到 NAS；只映射 `18789`。容器启动时会为局域网 HTTP 访问开启 `gateway.controlUi.allowInsecureAuth`、`gateway.controlUi.dangerouslyDisableDeviceAuth` 和 Host header 同源回退，避免普通用户停在安全上下文/设备身份页面。
+如果 `18789` 先进入“OpenClaw 正在启动”页，说明代理已接管入口；继续等待自动刷新到聊天页即可。
 
 NAS 镜像从 `v0.5` 起应内置 Miloco Linux runtime payload 和感知模型文件。正常情况下，首次启动只从镜像内置文件初始化 `/data/runtime`，并同步模型到 `/data/miloco/models`，不再在容器启动时访问 GitHub Release。若日志出现 `Downloading release payload`，说明正在使用旧镜像、内置 payload 缺失，或显式设置了 `MILOCO_RELEASE_ZIP_URL` / `MILOCO_FORCE_DOWNLOAD=1`。当前自包含镜像先发布 `linux/amd64`，arm64 NAS 需要等待 NAS/Linux arm64 payload 进入 release 后再支持。
 
