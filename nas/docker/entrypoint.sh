@@ -9,6 +9,9 @@ export OPENCLAW_INTERNAL_PORT="${OPENCLAW_INTERNAL_PORT:-$((OPENCLAW_PORT + 1))}
 export OPENCLAW_GATEWAY_PORT="${OPENCLAW_GATEWAY_PORT:-$OPENCLAW_INTERNAL_PORT}"
 export OPENCLAW_BIND="${OPENCLAW_BIND:-auto}"
 export OPENCLAW_AUTH="${OPENCLAW_AUTH:-token}"
+export OPENCLAW_CHAT_MAX_TOKENS="${OPENCLAW_CHAT_MAX_TOKENS:-2048}"
+export OPENCLAW_CHAT_TIMEOUT_SECONDS="${OPENCLAW_CHAT_TIMEOUT_SECONDS:-180}"
+export OPENCLAW_CHAT_CONTEXT_WINDOW="${OPENCLAW_CHAT_CONTEXT_WINDOW:-262144}"
 export MILOCO_SERVER__HOST="${MILOCO_SERVER__HOST:-0.0.0.0}"
 export MILOCO_SERVER__PORT="${MILOCO_SERVER__PORT:-$MILOCO_PORT}"
 export MILOCO_SERVER__URL="${MILOCO_SERVER__URL:-http://127.0.0.1:${MILOCO_PORT}}"
@@ -272,14 +275,83 @@ run_agent_prepare_once() {
   date -Is >"$STATE_DIR/agent-prepare.done"
 }
 
+configure_miloco_model_config() {
+  local label="${OMNI_LABEL:-${OMNI_MODEL:-} @ ${OMNI_BASE_URL:-}}"
+
+  if [ -z "${OMNI_API_KEY:-}${OMNI_BASE_URL:-}" ]; then
+    log "No Miloco Omni model env supplied; keeping existing persisted Miloco model config if present."
+    return
+  fi
+
+  if is_placeholder_value "${OMNI_API_KEY:-}" || [ -z "${OMNI_BASE_URL:-}" ] || [ -z "${OMNI_MODEL:-}" ]; then
+    warn "Miloco Omni model env is incomplete; set OMNI_API_KEY, OMNI_BASE_URL and OMNI_MODEL."
+    return
+  fi
+
+  log "Writing Miloco Omni model config"
+  miloco-cli config set \
+    model.omni.model "$OMNI_MODEL" \
+    model.omni.base_url "$OMNI_BASE_URL" \
+    model.omni.api_key "$OMNI_API_KEY" \
+    --no-restart >/dev/null 2>&1 || warn "miloco-cli config set failed; writing Miloco model config directly."
+
+  OMNI_LABEL="$label" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+path = Path(os.environ.get("MILOCO_HOME", "~/.openclaw/miloco")).expanduser() / "config.json"
+try:
+    data = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+except (json.JSONDecodeError, OSError):
+    data = {}
+if not isinstance(data, dict):
+    data = {}
+
+model = data.setdefault("model", {})
+if not isinstance(model, dict):
+    model = {}
+    data["model"] = model
+
+entry = {
+    "label": os.environ["OMNI_LABEL"],
+    "model": os.environ["OMNI_MODEL"],
+    "base_url": os.environ["OMNI_BASE_URL"],
+    "api_key": os.environ["OMNI_API_KEY"],
+}
+model["omni"] = entry
+
+profiles = model.get("omni_profiles")
+if not isinstance(profiles, list):
+    profiles = []
+for idx, item in enumerate(profiles):
+    if isinstance(item, dict) and item.get("label") == entry["label"]:
+        profiles[idx] = entry
+        break
+else:
+    profiles.append(entry)
+model["omni_profiles"] = profiles
+
+path.parent.mkdir(parents=True, exist_ok=True)
+tmp = path.with_suffix(".tmp")
+tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+tmp.replace(path)
+print(f"[OK] Miloco Omni model config written: {entry['label']}")
+PY
+}
+
 run_agent_finish_if_ready() {
   if [ -f "$STATE_DIR/agent-finish.done" ] && [ "${MILOCO_FORCE_INSTALL:-0}" != "1" ]; then
     return
   fi
 
-  if [ -z "${MILOCO_ACCOUNT_AUTH:-}" ] || [ -z "${OMNI_API_KEY:-}" ] || [ -z "${OMNI_BASE_URL:-}" ] || [ -z "${OMNI_MODEL:-}" ]; then
-    log "No account/model env supplied; keeping existing persisted Miloco config if present."
-    log "To overwrite it, set MILOCO_ACCOUNT_AUTH, OMNI_API_KEY, OMNI_BASE_URL and OMNI_MODEL in .env, then restart."
+  if [ -z "${MILOCO_ACCOUNT_AUTH:-}" ]; then
+    log "No account auth env supplied; skip Xiaomi account binding. Miloco model config is handled separately."
+    return
+  fi
+
+  if is_placeholder_value "${OMNI_API_KEY:-}" || [ -z "${OMNI_BASE_URL:-}" ] || [ -z "${OMNI_MODEL:-}" ]; then
+    warn "Account auth was supplied, but Omni model env is incomplete; skip agent finish until OMNI_API_KEY, OMNI_BASE_URL and OMNI_MODEL are set."
     return
   fi
 
@@ -354,35 +426,82 @@ PY
 
 configure_openclaw_chat_model() {
   local provider="${OPENCLAW_CHAT_PROVIDER:-}"
-  local model="${OPENCLAW_CHAT_MODEL:-}"
-  local base_url="${OPENCLAW_CHAT_BASE_URL:-}"
-  local api_key="${OPENCLAW_CHAT_API_KEY:-}"
+  local model="${OPENCLAW_CHAT_MODEL:-${OMNI_MODEL:-}}"
+  local base_url="${OPENCLAW_CHAT_BASE_URL:-${OMNI_BASE_URL:-}}"
+  local api_key="${OPENCLAW_CHAT_API_KEY:-${OMNI_API_KEY:-}}"
+  local explicit_chat_env="${OPENCLAW_CHAT_PROVIDER:-}${OPENCLAW_CHAT_MODEL:-}${OPENCLAW_CHAT_BASE_URL:-}${OPENCLAW_CHAT_API_KEY:-}"
+  local explicit_omni_env="${OMNI_BASE_URL:-}${OMNI_API_KEY:-}"
 
-  if [ -z "$provider$model$base_url$api_key" ]; then
+  if [ -z "$explicit_chat_env$explicit_omni_env" ]; then
     log "No OpenClaw chat model env supplied; keeping existing OpenClaw agent model config if present."
     return
   fi
 
-  if is_placeholder_value "$api_key" || [ -z "$provider" ] || [ -z "$model" ] || [ -z "$base_url" ]; then
-    warn "OpenClaw chat model env is incomplete; set OPENCLAW_CHAT_PROVIDER, OPENCLAW_CHAT_MODEL, OPENCLAW_CHAT_BASE_URL and OPENCLAW_CHAT_API_KEY."
+  if is_placeholder_value "$api_key" || [ -z "$model" ] || [ -z "$base_url" ]; then
+    warn "OpenClaw chat model env is incomplete; set OPENCLAW_CHAT_MODEL, OPENCLAW_CHAT_BASE_URL and OPENCLAW_CHAT_API_KEY. OPENCLAW_CHAT_PROVIDER is optional."
     return
   fi
 
-  python3 - "$provider" "$model" "$base_url" "$api_key" <<'PY'
+  python3 - "$provider" "$model" "$base_url" "$api_key" "$OPENCLAW_CHAT_MAX_TOKENS" "$OPENCLAW_CHAT_TIMEOUT_SECONDS" "$OPENCLAW_CHAT_CONTEXT_WINDOW" <<'PY'
 import json
+import re
 import sys
+from urllib.parse import urlparse
 from pathlib import Path
 
-provider_id = sys.argv[1].strip()
-model_id = sys.argv[2].strip()
+provider_arg = sys.argv[1].strip()
+model_arg = sys.argv[2].strip()
 base_url = sys.argv[3].strip()
 api_key = sys.argv[4].strip()
+max_tokens = int(sys.argv[5])
+timeout_seconds = int(sys.argv[6])
+context_window = int(sys.argv[7])
 
-if "/" in model_id:
-    prefix, rest = model_id.split("/", 1)
-    if not provider_id:
-        provider_id = prefix
-    model_id = rest
+def split_model(value: str) -> tuple[str, str]:
+    value = (value or "").strip()
+    if "/" not in value:
+        return "", value
+    prefix, rest = value.split("/", 1)
+    return prefix.strip(), rest.strip()
+
+def normalize_provider(value: str, base_url: str, model_id: str) -> str:
+    low = (value or "").strip().lower().replace("_", "-")
+    if low in {"mimo", "xiaomi-mimo", "xiaomi-tokenplan", "xiaomi-token-plan"}:
+        return "xiaomi-token-plan" if "token-plan" in f"{base_url} {model_id}".lower() else "xiaomi"
+    if low in {"deepseek-api", "deepseek-chat"}:
+        return "deepseek"
+    if low:
+        return low
+    return ""
+
+def infer_provider(explicit: str, model_prefix: str, base_url: str, model_id: str) -> str:
+    text = f"{base_url} {model_prefix} {model_id}".lower()
+    explicit = normalize_provider(explicit, base_url, model_id)
+    prefix = normalize_provider(model_prefix, base_url, model_id)
+    if explicit:
+        if explicit == "xiaomi" and "token-plan" in text:
+            return "xiaomi-token-plan"
+        return explicit
+    if prefix:
+        if prefix == "xiaomi" and "token-plan" in text:
+            return "xiaomi-token-plan"
+        return prefix
+    if "xiaomimimo" in text or model_id.startswith(("mimo-", "mimo_")):
+        return "xiaomi-token-plan" if "token-plan" in text else "xiaomi"
+    if "deepseek" in text:
+        return "deepseek"
+    if "minimaxi" in text or "minimax" in text:
+        return "minimax"
+    if "moonshot" in text or "kimi" in text:
+        return "moonshot"
+    if "dashscope" in text or "qwen" in text or "aliyuncs" in text:
+        return "qwen"
+    host = urlparse(base_url).hostname or "openai-compatible"
+    safe = re.sub(r"[^a-z0-9-]+", "-", host.lower()).strip("-")
+    return safe or "openai-compatible"
+
+model_prefix, model_id = split_model(model_arg)
+provider_id = infer_provider(provider_arg, model_prefix, base_url, model_id)
 
 chat_ref = f"{provider_id}/{model_id}"
 home = Path.home()
@@ -409,17 +528,17 @@ def provider_payload():
         "baseUrl": base_url,
         "apiKey": api_key,
         "api": "openai-completions",
-        "timeoutSeconds": 300,
-        "contextWindow": 1000000,
-        "contextTokens": 1000000,
+        "timeoutSeconds": timeout_seconds,
+        "contextWindow": context_window,
+        "contextTokens": context_window,
         "models": [
             {
                 "id": model_id,
                 "name": model_id,
-                "input": ["text", "image"],
-                "contextWindow": 1000000,
-                "contextTokens": 1000000,
-                "maxTokens": 8192,
+                "input": ["text"],
+                "contextWindow": context_window,
+                "contextTokens": context_window,
+                "maxTokens": max_tokens,
             }
         ],
     }
@@ -428,7 +547,7 @@ data = load_json(openclaw_config)
 defaults = as_dict(as_dict(data, "agents"), "defaults")
 as_dict(defaults, "model")["primary"] = chat_ref
 agent_row = as_dict(as_dict(defaults, "models"), chat_ref)
-as_dict(agent_row, "params")["maxTokens"] = 8192
+as_dict(agent_row, "params")["maxTokens"] = max_tokens
 
 models = as_dict(data, "models")
 models["mode"] = "merge"
@@ -669,21 +788,58 @@ validate_runtime() {
     fail=$((fail + 1))
   fi
 
-  if [ -n "${OPENCLAW_CHAT_PROVIDER:-}" ] || [ -n "${OPENCLAW_CHAT_MODEL:-}" ] || [ -n "${OPENCLAW_CHAT_BASE_URL:-}" ] || [ -n "${OPENCLAW_CHAT_API_KEY:-}" ]; then
-    if is_placeholder_value "${OPENCLAW_CHAT_API_KEY:-}"; then
+  if [ -n "${OPENCLAW_CHAT_PROVIDER:-}" ] || [ -n "${OPENCLAW_CHAT_MODEL:-}" ] || [ -n "${OPENCLAW_CHAT_BASE_URL:-}" ] || [ -n "${OPENCLAW_CHAT_API_KEY:-}" ] || [ -n "${OMNI_BASE_URL:-}" ] || [ -n "${OMNI_API_KEY:-}" ]; then
+    if is_placeholder_value "${OPENCLAW_CHAT_API_KEY:-${OMNI_API_KEY:-}}"; then
       printf '[FAIL] openclaw.chat_model OPENCLAW_CHAT_API_KEY is missing or placeholder\n'
       fail=$((fail + 1))
-    elif python3 - "${OPENCLAW_CHAT_PROVIDER:-}" "${OPENCLAW_CHAT_MODEL:-}" <<'PY'
+    elif python3 - "${OPENCLAW_CHAT_PROVIDER:-}" "${OPENCLAW_CHAT_MODEL:-${OMNI_MODEL:-}}" "${OPENCLAW_CHAT_BASE_URL:-${OMNI_BASE_URL:-}}" <<'PY'
 import json
+import re
 import sys
+from urllib.parse import urlparse
 from pathlib import Path
 
-provider = sys.argv[1].strip()
-model = sys.argv[2].strip()
-if "/" in model:
-    prefix, rest = model.split("/", 1)
-    provider = provider or prefix
-    model = rest
+provider_arg = sys.argv[1].strip()
+model_arg = sys.argv[2].strip()
+base_url = sys.argv[3].strip()
+
+def split_model(value):
+    if "/" not in value:
+        return "", value
+    prefix, rest = value.split("/", 1)
+    return prefix.strip(), rest.strip()
+
+def normalize_provider(value, base_url, model):
+    low = (value or "").strip().lower().replace("_", "-")
+    if low in {"mimo", "xiaomi-mimo", "xiaomi-tokenplan", "xiaomi-token-plan"}:
+        return "xiaomi-token-plan" if "token-plan" in f"{base_url} {model}".lower() else "xiaomi"
+    if low in {"deepseek-api", "deepseek-chat"}:
+        return "deepseek"
+    return low
+
+def infer_provider(explicit, prefix, base_url, model):
+    text = f"{base_url} {prefix} {model}".lower()
+    explicit = normalize_provider(explicit, base_url, model)
+    prefix = normalize_provider(prefix, base_url, model)
+    if explicit:
+        return "xiaomi-token-plan" if explicit == "xiaomi" and "token-plan" in text else explicit
+    if prefix:
+        return "xiaomi-token-plan" if prefix == "xiaomi" and "token-plan" in text else prefix
+    if "xiaomimimo" in text or model.startswith(("mimo-", "mimo_")):
+        return "xiaomi-token-plan" if "token-plan" in text else "xiaomi"
+    if "deepseek" in text:
+        return "deepseek"
+    if "minimaxi" in text or "minimax" in text:
+        return "minimax"
+    if "moonshot" in text or "kimi" in text:
+        return "moonshot"
+    if "dashscope" in text or "qwen" in text or "aliyuncs" in text:
+        return "qwen"
+    host = urlparse(base_url).hostname or "openai-compatible"
+    return re.sub(r"[^a-z0-9-]+", "-", host.lower()).strip("-") or "openai-compatible"
+
+prefix, model = split_model(model_arg)
+provider = infer_provider(provider_arg, prefix, base_url, model)
 expected = f"{provider}/{model}"
 
 cfg = Path.home() / ".openclaw" / "openclaw.json"
@@ -705,7 +861,7 @@ if not any(isinstance(row, dict) and row.get("id") == model for row in rows):
 print(expected)
 PY
     then
-      printf '[PASS] openclaw.chat_model %s/%s\n' "${OPENCLAW_CHAT_PROVIDER:-}" "${OPENCLAW_CHAT_MODEL:-}"
+      printf '[PASS] openclaw.chat_model configured\n'
       pass=$((pass + 1))
     else
       printf '[FAIL] openclaw.chat_model config missing or invalid\n'
@@ -760,6 +916,7 @@ main() {
   prime_payload_cache
   sync_bundled_models
   run_agent_prepare_once
+  configure_miloco_model_config
   run_agent_finish_if_ready
   configure_runtime_ports
   start_runtime

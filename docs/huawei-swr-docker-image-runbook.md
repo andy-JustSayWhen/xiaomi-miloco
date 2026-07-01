@@ -65,19 +65,32 @@ HUAWEI_SWR_PASSWORD=<从SWR登录指令中取得>
 
 ## GitHub Actions 自动上传
 
-当前 NAS 镜像 workflow 是 `.github/workflows/nas-docker-image.yml`。如果它只推送 GHCR/Docker Hub，就按下面模式补 SWR 登录和 tag。
+当前 NAS 镜像 workflow 是 `.github/workflows/nas-docker-image.yml`。它默认推送 GHCR/Docker Hub；当仓库同时配置 `HUAWEI_SWR_*` Secrets 时，会把同一镜像额外推送到华为 SWR。
 
-登录：
+必须同时存在：
+
+```text
+HUAWEI_SWR_REGISTRY
+HUAWEI_SWR_NAMESPACE
+HUAWEI_SWR_REPOSITORY
+HUAWEI_SWR_USERNAME
+HUAWEI_SWR_PASSWORD
+```
+
+工作流会先解析 tag。如果 `HUAWEI_SWR_REGISTRY`、`HUAWEI_SWR_NAMESPACE`、`HUAWEI_SWR_REPOSITORY` 缺任意一个，`swr_enabled=false`，SWR 登录与推送都会跳过。
+
+SWR 登录步骤只在 `swr_enabled=true` 时执行：
 
 ```yaml
 - uses: docker/login-action@v3
+  if: steps.image_tags.outputs.swr_enabled == 'true'
   with:
     registry: ${{ secrets.HUAWEI_SWR_REGISTRY }}
     username: ${{ secrets.HUAWEI_SWR_USERNAME }}
     password: ${{ secrets.HUAWEI_SWR_PASSWORD }}
 ```
 
-在 `docker/build-push-action` 的 `tags:` 中追加：
+SWR tags 由 `Resolve image tags` 步骤追加到 `docker/build-push-action`：
 
 ```yaml
 ${{ secrets.HUAWEI_SWR_REGISTRY }}/${{ secrets.HUAWEI_SWR_NAMESPACE }}/${{ secrets.HUAWEI_SWR_REPOSITORY }}:${{ inputs.version || 'v0.5' }}
@@ -220,7 +233,7 @@ swr.cn-north-4.myhuaweicloud.com/easy-miloco/easy-miloco-nas:v0.5
 收到“更新 NAS 镜像”“上传到华为 SWR”“SWR 镜像管理”这类任务时：
 
 1. 先读 `docs/AGENT.md` 和本文。
-2. 检查 `.github/workflows/nas-docker-image.yml` 是否已经包含 SWR 登录和 SWR tags。
+2. 检查 `.github/workflows/nas-docker-image.yml` 是否保留可选 SWR 登录和 SWR tags。
 3. 检查 `nas/docker/compose.ugreen-template.yaml` 是否使用普通 SWR tag。
 4. 不读取、不打印、不提交任何 SWR 登录密码。
 5. 触发 Actions 或手动补推。

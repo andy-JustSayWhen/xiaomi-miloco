@@ -12,6 +12,19 @@
 | 完整一键 | `.env` 已有 `MILOCO_ACCOUNT_AUTH`、`OMNI_API_KEY`、`OMNI_BASE_URL`、`OMNI_MODEL` | 自动完成账号、模型、插件、服务启动和基础验收 |
 
 YAML 不能公开内置小米账号授权和模型 API Key；这些只能由用户或 Agent 写入本机 `.env`。
+模型配置和账号授权是两条独立链路：只填 `OMNI_API_KEY` / `OMNI_BASE_URL` / `OMNI_MODEL` 时，Miloco 面板也应显示模型已配置；缺小米账号授权只影响米家绑定和 FULL_READY。
+
+OpenClaw 聊天模型默认复用上面的 `OMNI_MODEL` / `OMNI_BASE_URL` / `OMNI_API_KEY`，所以普通用户只需要填写模型三项即可。
+
+只有当 OpenClaw 对话页要和 Miloco 感知模型使用不同模型时，才单独填写：
+
+```text
+OPENCLAW_CHAT_MODEL=<模型名>
+OPENCLAW_CHAT_BASE_URL=<OpenAI-compatible Base URL>
+OPENCLAW_CHAT_API_KEY=<API Key>
+```
+
+`OPENCLAW_CHAT_PROVIDER` 可留空，容器会按 URL 和模型名自动推断。只有排障或接入特殊 OpenClaw provider 时才手动填，例如 `deepseek`、`minimax`、`xiaomi-token-plan`。
 
 默认不在 NAS 上现场构建镜像。现场构建会拉 `node`、apt、npm、uv 等多条外网链路，实测在家庭 NAS 上很容易低速卡住。普通部署走在线镜像；只有维护者调试才设置 `EASY_MILOCO_BUILD=1`。
 
@@ -119,6 +132,7 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 ```
 
 补齐 `.env` 后，执行 `./manage.sh restart`。入口脚本有安装标记，不会在普通重启时无脑重复安装。
+如果只是补模型配置而没有小米账号授权，重启后 Miloco 面板应显示模型已配置，但 `FULL_READY` 仍会因为账号未绑定保持 `no`。
 
 `./manage.sh urls` 会输出 Miloco 面板和 OpenClaw 对话页；OpenClaw 直达地址会带 token。
 

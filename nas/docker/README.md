@@ -34,6 +34,9 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 如果 Docker socket 权限不足，`manage.sh` 会自动尝试 `sudo docker`，按提示输入 NAS 用户密码即可。
 
 如果 `.env` 里已经有 `MILOCO_ACCOUNT_AUTH`、`OMNI_API_KEY`、`OMNI_BASE_URL`、`OMNI_MODEL`，容器会自动跑完整安装并启动服务。
+模型配置和账号授权分开处理；只填 `OMNI_API_KEY`、`OMNI_BASE_URL`、`OMNI_MODEL` 时，Miloco 面板也会显示模型已配置，但小米账号仍需在面板里绑定。
+
+OpenClaw 聊天模型默认复用 `OMNI_API_KEY`、`OMNI_BASE_URL`、`OMNI_MODEL`。只有对话页要使用另一套模型时，才填写 `OPENCLAW_CHAT_MODEL`、`OPENCLAW_CHAT_BASE_URL`、`OPENCLAW_CHAT_API_KEY`；`OPENCLAW_CHAT_PROVIDER` 可以留空，容器会按 URL 和模型名自动推断。
 
 如果这些值为空，容器只完成基础安装和服务启动；补齐 `.env` 后执行：
 
