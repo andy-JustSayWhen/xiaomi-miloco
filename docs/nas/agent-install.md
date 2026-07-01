@@ -53,13 +53,13 @@ OMNI_MODEL=<模型名>
 如果镜像拉取卡住，停止当前 compose 进程并清理本轮测试产物，不要重复开多个构建。处理顺序：
 
 ```bash
-# 默认在线镜像
+# 国内 x86_64 NAS 推荐：华为 SWR
+EASY_MILOCO_IMAGE=swr.cn-north-4.myhuaweicloud.com/easy-miloco/easy-miloco-nas:v0.5 ./manage.sh start
+
+# Docker Hub 官方发布源
 EASY_MILOCO_IMAGE=docker.io/andywu114/easy-miloco-nas:v0.5 ./manage.sh start
 
-# v0.5 首包优先用 digest，避免 NAS 镜像源缓存旧 tag
-EASY_MILOCO_IMAGE=docker.1ms.run/andywu114/easy-miloco-nas:v0.5@sha256:c131a55b92718bcf693ecaf39dca8067ad2ee3c45b0e2a7c53a90fcd21efb166 ./manage.sh start
-
-# 国内 NAS 可用毫秒镜像 Docker Hub 通道
+# 毫秒镜像 Docker Hub 通道，当前链路不稳定，仅作备用
 EASY_MILOCO_IMAGE=docker.1ms.run/andywu114/easy-miloco-nas:v0.5 ./manage.sh start
 
 # 如果有可达镜像仓库或内网镜像

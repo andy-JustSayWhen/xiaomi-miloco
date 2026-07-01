@@ -23,7 +23,7 @@ cd nas/docker
 ./manage.sh start
 ```
 
-如果 NAS 镜像源缓存了旧的 `v0.5` tag，按 `docs/nas/docker-deploy.md` 里的当前 digest 固定镜像启动。
+国内 x86_64 NAS 优先按 `docs/nas/docker-deploy.md` 使用华为 SWR 普通 tag；面向普通用户的一键 YAML 不写 digest。
 
 维护者调试才使用：
 
