@@ -501,12 +501,21 @@ def normalize_api(value: str) -> str:
 
 def infer_provider(explicit: str, model_prefix: str, base_url: str, model_id: str) -> str:
     text = f"{base_url} {model_prefix} {model_id}".lower()
+    url_text = (base_url or "").lower()
     explicit = normalize_provider(explicit, base_url, model_id)
     prefix = normalize_provider(model_prefix, base_url, model_id)
     if explicit:
         if explicit == "xiaomi" and "token-plan" in text:
             return "xiaomi-token-plan"
         return explicit
+    if "xiaomimimo" in url_text or "token-plan" in url_text:
+        return "xiaomi-token-plan" if "token-plan" in url_text else "xiaomi"
+    if "sensenova" in url_text or "sensetime" in url_text:
+        return "sensenova"
+    if "minimaxi" in url_text or "minimax" in url_text:
+        return "minimax"
+    if "deepseek" in url_text:
+        return "deepseek"
     if prefix:
         if prefix == "xiaomi" and "token-plan" in text:
             return "xiaomi-token-plan"
@@ -943,10 +952,19 @@ def normalize_api(value):
 
 def infer_provider(explicit, prefix, base_url, model):
     text = f"{base_url} {prefix} {model}".lower()
+    url_text = (base_url or "").lower()
     explicit = normalize_provider(explicit, base_url, model)
     prefix = normalize_provider(prefix, base_url, model)
     if explicit:
         return "xiaomi-token-plan" if explicit == "xiaomi" and "token-plan" in text else explicit
+    if "xiaomimimo" in url_text or "token-plan" in url_text:
+        return "xiaomi-token-plan" if "token-plan" in url_text else "xiaomi"
+    if "sensenova" in url_text or "sensetime" in url_text:
+        return "sensenova"
+    if "minimaxi" in url_text or "minimax" in url_text:
+        return "minimax"
+    if "deepseek" in url_text:
+        return "deepseek"
     if prefix:
         return "xiaomi-token-plan" if prefix == "xiaomi" and "token-plan" in text else prefix
     if "xiaomimimo" in text or model.startswith(("mimo-", "mimo_")):
