@@ -158,9 +158,15 @@ OpenClaw 启动等待页复测：
 - 商汤科技/SenseNova：保留镜像，删除项目 `8.4s`，重建到 running `4.6s`；项目 running 后 Miloco `55.1s`、OpenClaw `107.9s` 可打开；日志 `primary=sensenova/deepseek-v4-flash`，发 `OK-SENSE-LATEST82` 约 `10.1s` 返回。
 - 结论：普通用户只填 `MODEL`、`BASE_URL`、`API_KEY` 可以覆盖这三家；`PROVIDER` 和 `API` 继续作为排障字段，不需要让小白理解计费类型、Token Plan 或 API 形状。
 
+最终发布标签确认：
+
+- 文档和模板注释提交 `c86e552` 触发 Actions run `28553762755`，成功耗时 `3m44s`；SWR `v0.5/latest` digest 更新为 `sha256:fd5d4c4c1381e8d69c19c774bc408b0dddefb90c4e4b790e13c777dba8f35b20`。
+- 虽然该提交只改文档和模板注释，仍删除 NAS 本地镜像后拉取最终 `latest` 复测：镜像出现 `84.5s`，项目 running `88.8s`；项目 running 后 Miloco `49.0s` 可打开，OpenClaw `106.7s` 可打开。
+- 商汤三字段 YAML 在最终 `latest` 上日志仍为 `primary=sensenova/deepseek-v4-flash`，发 `OK-SENSE-FINAL-C86` 约 `12.1s` 返回；截图保存在 ignored 的 `env/nas-audit/41-openclaw-sensetime-final-c86.png`。
+
 ## 当前结论
 
-- 首次部署真正耗时主要在 SWR 冷拉，本轮多次实测为 `84.6s`、`84.7s`、`84.9s`、`85.0s`、`87.0s`、`105.6s`、`118.1s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `4.6-6.8s`。
+- 首次部署真正耗时主要在 SWR 冷拉，本轮多次实测为 `84.5s`、`84.6s`、`84.7s`、`84.9s`、`85.0s`、`87.0s`、`105.6s`、`118.1s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `4.6-6.8s`。
 - 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 服务还有二阶段启动。最新镜像中 OpenClaw shell 仍常在 running 后约 `105-108s` 才可用；文档和 UI 提示都应明确“看到等待页就不要反复重部署，等 1-2 分钟自动刷新”。
 - OpenClaw provider 注释足够清楚的最低标准：只强调 `MODEL`、`BASE_URL`、`API_KEY` 三项必填；自动推断优先看 `BASE_URL` 域名；`PROVIDER` 和 `API` 是排障字段；`Off/Adaptive` 不是模型未配置。
 - 当前代码已修正 SenseNova 自动 API 形状、OpenClaw `/chat` 深链缺 token、以及商汤 `deepseek-v4-flash` 模型名误导 provider 推断的问题。旧镜像可用 workaround：商汤 YAML 显式写 `OPENCLAW_CHAT_PROVIDER: "sensenova"` 或 `OPENCLAW_CHAT_API: "openai-completions"`，OpenClaw 从根地址 `http://<NAS-IP>:18789/` 进入。
