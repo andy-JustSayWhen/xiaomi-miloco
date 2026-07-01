@@ -1005,8 +1005,33 @@ keep_alive() {
   done
 }
 
+link_root_state_dir() {
+  local name target root_path
+  [ "$HOME" = "/root" ] && return
+  mkdir -p /root
+
+  for name in .local .cache; do
+    target="$HOME/$name"
+    root_path="/root/$name"
+    mkdir -p "$target"
+
+    if [ -L "$root_path" ]; then
+      [ "$(readlink "$root_path")" = "$target" ] && continue
+      rm -f "$root_path"
+    elif [ -d "$root_path" ]; then
+      cp -a "$root_path"/. "$target"/ 2>/dev/null || true
+      rm -rf "$root_path"
+    elif [ -e "$root_path" ]; then
+      rm -rf "$root_path"
+    fi
+
+    ln -s "$target" "$root_path"
+  done
+}
+
 main() {
   mkdir -p "$STATE_DIR" "$MILOCO_HOME" "$HOME/.local/bin" "$HOME/.openclaw"
+  link_root_state_dir
   normalize_env
   download_runtime_files
   prime_payload_cache
