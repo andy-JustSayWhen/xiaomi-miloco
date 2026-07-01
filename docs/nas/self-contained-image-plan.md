@@ -26,11 +26,14 @@ Runtime startup must not require GitHub Release access.
 
 ## Design
 
-1. Docker build downloads the release zip once.
-2. Docker build extracts only the release `payload/` files into `/opt/easy-miloco/runtime`.
-3. Docker build stores the validation script in `/opt/easy-miloco/wsl-miloco-validate.sh`.
-4. Container startup copies the bundled payload into `/data/runtime` before deciding whether a download is needed.
-5. Runtime download is only a fallback for custom images, missing bundled payload, or explicit override.
+1. The NAS image workflow builds the current branch runtime payload with `scripts/build.sh`.
+2. The workflow copies `install.sh`, `manifest.json`, the `miloco-linux-x86_64-*.tar.gz` bundle, and loose perception model files into `nas/docker/.build-payload/`.
+3. Docker build copies `.build-payload/` into `/opt/easy-miloco/runtime`.
+4. Docker build stores the validation script in `/opt/easy-miloco/wsl-miloco-validate.sh`.
+5. Container startup copies the bundled payload into `/data/runtime` before deciding whether a download is needed.
+6. Runtime download is only a fallback for custom images, missing bundled payload, or explicit override.
+
+Local custom Docker builds that do not prepare `.build-payload/` still fall back to downloading and extracting the configured release zip at Docker build time.
 
 ## Acceptance
 
@@ -41,7 +44,7 @@ Runtime startup must not require GitHub Release access.
 
 ## Temporary architecture scope
 
-The current public `v0.5` release only ships a Windows zip containing the Linux x86_64 payload. Until a NAS/Linux release asset contains both `linux-x86_64` and `linux-aarch64` payloads, publish this self-contained NAS image as `linux/amd64` only. Do not publish an `arm64` tag that embeds the wrong runtime.
+The current public `v0.5` user-facing image tag is still `linux/amd64` only. Until arm64 NAS runtime validation is complete, do not publish an `arm64` tag.
 
 ## Follow-up cleanup
 

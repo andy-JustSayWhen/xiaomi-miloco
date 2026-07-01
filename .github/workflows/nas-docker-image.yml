@@ -7,10 +7,19 @@ on:
         description: "Image version tag, for example v0.5"
         required: true
         default: "v0.5"
+      payload_version:
+        description: "Runtime payload version. Leave empty to use today's CalVer date."
+        required: false
+        default: ""
   push:
     branches: [NAS]
     paths:
+      - "backend/**"
+      - "cli/**"
       - "nas/docker/**"
+      - "plugins/openclaw/**"
+      - "scripts/**"
+      - "web/**"
       - ".github/workflows/nas-docker-image.yml"
 
 permissions:
@@ -26,6 +35,44 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: |
+            backend/uv.lock
+            cli/uv.lock
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: |
+            web/pnpm-lock.yaml
+            plugins/openclaw/pnpm-lock.yaml
+
+      - name: Build current branch runtime payload
+        id: payload
+        env:
+          REQUESTED_PAYLOAD_VERSION: ${{ inputs.payload_version }}
+        run: |
+          set -euo pipefail
+          payload_version="${REQUESTED_PAYLOAD_VERSION}"
+          if [ -z "${payload_version}" ]; then
+            payload_version="$(date -u '+%Y.%-m.%-d')"
+          fi
+          echo "payload_version=${payload_version}" >> "${GITHUB_OUTPUT}"
+          bash scripts/build.sh --version "${payload_version}"
+          rm -rf nas/docker/.build-payload
+          mkdir -p nas/docker/.build-payload/models
+          cp dist/install.sh dist/manifest.json nas/docker/.build-payload/
+          cp "dist/miloco-linux-x86_64-${payload_version}.tar.gz" nas/docker/.build-payload/
+          cp backend/miloco/src/miloco/perception/models/* nas/docker/.build-payload/models/
+          ls -lh nas/docker/.build-payload
 
       - uses: docker/setup-qemu-action@v3
 
