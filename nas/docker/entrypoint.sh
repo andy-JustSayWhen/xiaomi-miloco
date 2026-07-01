@@ -426,13 +426,12 @@ PY
 
 configure_openclaw_chat_model() {
   local provider="${OPENCLAW_CHAT_PROVIDER:-}"
-  local model="${OPENCLAW_CHAT_MODEL:-${OMNI_MODEL:-}}"
-  local base_url="${OPENCLAW_CHAT_BASE_URL:-${OMNI_BASE_URL:-}}"
-  local api_key="${OPENCLAW_CHAT_API_KEY:-${OMNI_API_KEY:-}}"
+  local model="${OPENCLAW_CHAT_MODEL:-}"
+  local base_url="${OPENCLAW_CHAT_BASE_URL:-}"
+  local api_key="${OPENCLAW_CHAT_API_KEY:-}"
   local explicit_chat_env="${OPENCLAW_CHAT_PROVIDER:-}${OPENCLAW_CHAT_MODEL:-}${OPENCLAW_CHAT_BASE_URL:-}${OPENCLAW_CHAT_API_KEY:-}"
-  local explicit_omni_env="${OMNI_BASE_URL:-}${OMNI_API_KEY:-}"
 
-  if [ -z "$explicit_chat_env$explicit_omni_env" ]; then
+  if [ -z "$explicit_chat_env" ]; then
     log "No OpenClaw chat model env supplied; keeping existing OpenClaw agent model config if present."
     return
   fi
@@ -788,11 +787,11 @@ validate_runtime() {
     fail=$((fail + 1))
   fi
 
-  if [ -n "${OPENCLAW_CHAT_PROVIDER:-}" ] || [ -n "${OPENCLAW_CHAT_MODEL:-}" ] || [ -n "${OPENCLAW_CHAT_BASE_URL:-}" ] || [ -n "${OPENCLAW_CHAT_API_KEY:-}" ] || [ -n "${OMNI_BASE_URL:-}" ] || [ -n "${OMNI_API_KEY:-}" ]; then
-    if is_placeholder_value "${OPENCLAW_CHAT_API_KEY:-${OMNI_API_KEY:-}}"; then
+  if [ -n "${OPENCLAW_CHAT_PROVIDER:-}" ] || [ -n "${OPENCLAW_CHAT_MODEL:-}" ] || [ -n "${OPENCLAW_CHAT_BASE_URL:-}" ] || [ -n "${OPENCLAW_CHAT_API_KEY:-}" ]; then
+    if is_placeholder_value "${OPENCLAW_CHAT_API_KEY:-}"; then
       printf '[FAIL] openclaw.chat_model OPENCLAW_CHAT_API_KEY is missing or placeholder\n'
       fail=$((fail + 1))
-    elif python3 - "${OPENCLAW_CHAT_PROVIDER:-}" "${OPENCLAW_CHAT_MODEL:-${OMNI_MODEL:-}}" "${OPENCLAW_CHAT_BASE_URL:-${OMNI_BASE_URL:-}}" <<'PY'
+    elif python3 - "${OPENCLAW_CHAT_PROVIDER:-}" "${OPENCLAW_CHAT_MODEL:-}" "${OPENCLAW_CHAT_BASE_URL:-}" <<'PY'
 import json
 import re
 import sys

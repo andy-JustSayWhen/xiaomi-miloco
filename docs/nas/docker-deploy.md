@@ -14,9 +14,7 @@
 YAML 不能公开内置小米账号授权和模型 API Key；这些只能由用户或 Agent 写入本机 `.env`。
 模型配置和账号授权是两条独立链路：只填 `OMNI_API_KEY` / `OMNI_BASE_URL` / `OMNI_MODEL` 时，Miloco 面板也应显示模型已配置；缺小米账号授权只影响米家绑定和 FULL_READY。
 
-OpenClaw 聊天模型默认复用上面的 `OMNI_MODEL` / `OMNI_BASE_URL` / `OMNI_API_KEY`，所以普通用户只需要填写模型三项即可。
-
-只有当 OpenClaw 对话页要和 Miloco 感知模型使用不同模型时，才单独填写：
+OpenClaw 聊天模型必须单独填写，不会复用上面的 `OMNI_MODEL` / `OMNI_BASE_URL` / `OMNI_API_KEY`：
 
 ```text
 OPENCLAW_CHAT_MODEL=<模型名>

@@ -45,9 +45,7 @@ OMNI_MODEL=<模型名>
 
 模型配置和账号授权分开处理。用户只提供模型三项时，也要写入 `.env` 并重启容器；此时 Miloco 面板应显示模型已配置，只是小米账号未绑定，不能报告 FULL_READY。
 
-OpenClaw 聊天模型默认复用 `OMNI_MODEL` / `OMNI_BASE_URL` / `OMNI_API_KEY`，所以普通用户不需要再填第二套模型信息。
-
-只有当 OpenClaw 对话页要和 Miloco 感知模型使用不同模型时，才单独写三项，provider 仍然留空：
+OpenClaw 聊天模型必须单独写三项，不会复用 `OMNI_MODEL` / `OMNI_BASE_URL` / `OMNI_API_KEY`，provider 仍然可以留空：
 
 ```text
 OPENCLAW_CHAT_MODEL=<聊天模型名>

@@ -32,10 +32,10 @@ services:
       OMNI_BASE_URL: "https://token-plan-sgp.xiaomimimo.com/v1"  ## 注意保留双引号
       OMNI_API_KEY: "填你的 API Key"  ## 注意保留双引号
 
-      # OpenClaw 聊天模型配置。普通用户下面三项留空即可，容器会复用上面的 OMNI_MODEL/OMNI_BASE_URL/OMNI_API_KEY。
-      OPENCLAW_CHAT_MODEL: ""  ## 需要和感知模型分开时才填；注意保留双引号
-      OPENCLAW_CHAT_BASE_URL: ""  ## 需要和感知模型分开时才填；注意保留双引号
-      OPENCLAW_CHAT_API_KEY: ""  ## 需要和感知模型分开时才填；注意保留双引号
+      # OpenClaw 聊天模型配置。用于 OpenClaw 对话页，必须单独填写，不会复用上面的 Miloco 感知模型。
+      OPENCLAW_CHAT_MODEL: "mimo-v2.5-pro"  ## 注意保留双引号
+      OPENCLAW_CHAT_BASE_URL: "https://token-plan-sgp.xiaomimimo.com/v1"  ## 注意保留双引号
+      OPENCLAW_CHAT_API_KEY: "填你的 API Key"  ## 注意保留双引号
       OPENCLAW_CHAT_PROVIDER: ""  ## 可留空自动推断；排障时才手动填，比如"deepseek"、"minimax"、"xiaomi-token-plan"
 
     volumes:
