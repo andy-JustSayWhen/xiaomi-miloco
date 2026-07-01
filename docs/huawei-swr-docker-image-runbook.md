@@ -65,7 +65,7 @@ HUAWEI_SWR_PASSWORD=<从SWR登录指令中取得>
 
 ## GitHub Actions 自动上传
 
-当前 NAS 镜像 workflow 是 `.github/workflows/nas-docker-image.yml`。它默认推送 GHCR/Docker Hub；当仓库同时配置 `HUAWEI_SWR_*` Secrets 时，会把同一镜像额外推送到华为 SWR。
+当前 NAS 镜像 workflow 是 `.github/workflows/nas-docker-image.yml`。它默认推送 GHCR/Docker Hub；当仓库同时配置 `HUAWEI_SWR_*` Secrets 时，会额外构建并推送华为 SWR。
 
 必须同时存在：
 
@@ -90,11 +90,21 @@ SWR 登录步骤只在 `swr_enabled=true` 时执行：
     password: ${{ secrets.HUAWEI_SWR_PASSWORD }}
 ```
 
-SWR tags 由 `Resolve image tags` 步骤追加到 `docker/build-push-action`：
+SWR 不走 `docker/build-push-action` 的多 registry tag 推送。华为 SWR 对 buildx 默认生成的 attestation / manifest-list 兼容性较差，可能报：
+
+```text
+Invalid image, fail to parse 'manifest.json'
+```
+
+当前做法是 GHCR/Docker Hub 继续使用 `docker/build-push-action`，SWR 单独使用普通 Docker image push：
 
 ```yaml
-${{ secrets.HUAWEI_SWR_REGISTRY }}/${{ secrets.HUAWEI_SWR_NAMESPACE }}/${{ secrets.HUAWEI_SWR_REPOSITORY }}:${{ inputs.version || 'v0.5' }}
-${{ secrets.HUAWEI_SWR_REGISTRY }}/${{ secrets.HUAWEI_SWR_NAMESPACE }}/${{ secrets.HUAWEI_SWR_REPOSITORY }}:latest
+- name: Build and push SWR
+  if: steps.image_tags.outputs.swr_enabled == 'true'
+  run: |
+    docker build --platform linux/amd64 ...
+    docker push "${SWR_IMAGE}:${VERSION}"
+    docker push "${SWR_IMAGE}:latest"
 ```
 
 触发方式：
@@ -237,7 +247,7 @@ swr.cn-north-4.myhuaweicloud.com/easy-miloco/easy-miloco-nas:v0.5
 3. 检查 `nas/docker/compose.ugreen-template.yaml` 是否使用普通 SWR tag。
 4. 不读取、不打印、不提交任何 SWR 登录密码。
 5. 触发 Actions 或手动补推。
-6. 验证 `docker manifest inspect` 和至少一次 `docker pull`。
+6. 验证 Actions 日志中 SWR `v0.5` 和 `latest` 都出现 `digest:`，并至少做一次 NAS 或 Linux 机器冷 `docker pull`。
 7. 如 tag 更新，同步更新 NAS 文档和模板。
 8. 报告最终镜像地址、验证方式和拉取耗时。
 

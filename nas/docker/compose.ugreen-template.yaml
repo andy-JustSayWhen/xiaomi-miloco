@@ -34,7 +34,9 @@ services:
 
       # OpenClaw 聊天模型配置。只用于 OpenClaw 对话页；不会复用上面的 OMNI_*。
       # 普通用户通常只需要改 MODEL、BASE_URL、API_KEY 这 3 行，PROVIDER 和 API 留空会自动推断。
-      # 如果从 CC Switch 复制配置：ANTHROPIC_MODEL 填到 MODEL，ANTHROPIC_BASE_URL 填到 BASE_URL，ANTHROPIC_AUTH_TOKEN 填到 API_KEY。
+      # PROVIDER 不是账号类型、计费类型或 Token Plan 类型；普通用户不要填，只有自动推断失败时才排障手填。
+      # 如果从 CC Switch 复制配置：ANTHROPIC_MODEL 填到 MODEL，ANTHROPIC_BASE_URL 原样填到 BASE_URL，ANTHROPIC_AUTH_TOKEN 填到 API_KEY。
+      # BASE_URL 不需要自己补 /v1 或 /anthropic；从服务商控制台/CC Switch 看到什么就先原样复制。
       # 如果换供应商后重新部署，OpenClaw 旧会话可能仍显示旧模型；请点“+ 新会话”检查新默认模型。
       # 常见示例：
       # - 小米 Token Plan：MODEL="mimo-v2.5-pro"，BASE_URL="https://token-plan-sgp.xiaomimimo.com/v1"，PROVIDER 可留空或填 "xiaomi-token-plan"

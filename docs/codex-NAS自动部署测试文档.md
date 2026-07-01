@@ -29,6 +29,16 @@
 
 时间：2026-07-02
 
+### SWR 镜像发布
+
+1. `ef47c4e` 的自动构建只推到了 GHCR/Docker Hub；Actions 日志显示 `HUAWEI_SWR_*` secrets 为空，SWR 被跳过。
+2. 已从华为 SWR 控制台长期登录指令拆出 `HUAWEI_SWR_REGISTRY`、`HUAWEI_SWR_NAMESPACE`、`HUAWEI_SWR_REPOSITORY`、`HUAWEI_SWR_USERNAME`、`HUAWEI_SWR_PASSWORD`，保存到 ignored 的 `env/huawei-swr.env`，并写入 GitHub Actions Secrets。
+3. 首次重新触发 run `28544387096` 失败：SWR 拒绝 buildx 默认 manifest，报 `Invalid image, fail to parse 'manifest.json'`。
+4. 修复 workflow：GHCR/Docker Hub 继续用 `docker/build-push-action`，SWR 单独用普通 `docker build --platform linux/amd64` 和 `docker push`。
+5. 修复后 run `28544550660` 成功，整轮耗时 `3m2s`；SWR 步骤中 `v0.5` 和 `latest` 都返回 digest，确认镜像已推到华为 SWR。
+
+### UGREEN 冷拉部署
+
 1. Docker > 项目 > 创建。
 2. 项目名称填写 `miloco`。
 3. 存放路径选择 `共享文件夹/docker/miloco`；该路径在创建页可直接选中。

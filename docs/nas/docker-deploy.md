@@ -23,6 +23,8 @@ OPENCLAW_CHAT_API_KEY=<API Key>
 ```
 
 `OPENCLAW_CHAT_PROVIDER` 可留空，容器会按 URL 和模型名自动推断。只有排障或接入特殊 OpenClaw provider 时才手动填，例如 `deepseek`、`minimax`、`xiaomi-token-plan`。
+它不是账号类型、计费类型或 Token Plan 类型；普通用户不需要理解或填写它。
+从 CC Switch 复制时，把 `ANTHROPIC_MODEL`、`ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN` 分别填到 `OPENCLAW_CHAT_MODEL`、`OPENCLAW_CHAT_BASE_URL`、`OPENCLAW_CHAT_API_KEY`，Base URL 原样复制，不要自行补 `/v1` 或 `/anthropic`。
 
 默认不在 NAS 上现场构建镜像。现场构建会拉 `node`、apt、npm、uv 等多条外网链路，实测在家庭 NAS 上很容易低速卡住。普通部署走在线镜像；只有维护者调试才设置 `EASY_MILOCO_BUILD=1`。
 
