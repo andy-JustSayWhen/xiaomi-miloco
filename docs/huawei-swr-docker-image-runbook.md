@@ -77,7 +77,7 @@ HUAWEI_SWR_USERNAME
 HUAWEI_SWR_PASSWORD
 ```
 
-工作流会先解析 tag。如果 `HUAWEI_SWR_REGISTRY`、`HUAWEI_SWR_NAMESPACE`、`HUAWEI_SWR_REPOSITORY` 缺任意一个，`swr_enabled=false`，SWR 登录与推送都会跳过。
+工作流会先解析 tag。如果 `HUAWEI_SWR_REGISTRY`、`HUAWEI_SWR_NAMESPACE`、`HUAWEI_SWR_REPOSITORY`、`HUAWEI_SWR_USERNAME`、`HUAWEI_SWR_PASSWORD` 缺任意一个，`swr_enabled=false`，SWR 登录与推送都会跳过。
 
 SWR 登录步骤只在 `swr_enabled=true` 时执行：
 

@@ -50,6 +50,8 @@ jobs:
           HUAWEI_SWR_REGISTRY: ${{ secrets.HUAWEI_SWR_REGISTRY }}
           HUAWEI_SWR_NAMESPACE: ${{ secrets.HUAWEI_SWR_NAMESPACE }}
           HUAWEI_SWR_REPOSITORY: ${{ secrets.HUAWEI_SWR_REPOSITORY }}
+          HUAWEI_SWR_USERNAME: ${{ secrets.HUAWEI_SWR_USERNAME }}
+          HUAWEI_SWR_PASSWORD: ${{ secrets.HUAWEI_SWR_PASSWORD }}
         run: |
           swr_enabled=false
           {
@@ -58,7 +60,7 @@ jobs:
             echo "${GHCR_IMAGE}:latest"
             echo "${DOCKERHUB_IMAGE}:${VERSION}"
             echo "${DOCKERHUB_IMAGE}:latest"
-            if [ -n "${HUAWEI_SWR_REGISTRY}" ] && [ -n "${HUAWEI_SWR_NAMESPACE}" ] && [ -n "${HUAWEI_SWR_REPOSITORY}" ]; then
+            if [ -n "${HUAWEI_SWR_REGISTRY}" ] && [ -n "${HUAWEI_SWR_NAMESPACE}" ] && [ -n "${HUAWEI_SWR_REPOSITORY}" ] && [ -n "${HUAWEI_SWR_USERNAME}" ] && [ -n "${HUAWEI_SWR_PASSWORD}" ]; then
               echo "${HUAWEI_SWR_REGISTRY}/${HUAWEI_SWR_NAMESPACE}/${HUAWEI_SWR_REPOSITORY}:${VERSION}"
               echo "${HUAWEI_SWR_REGISTRY}/${HUAWEI_SWR_NAMESPACE}/${HUAWEI_SWR_REPOSITORY}:latest"
               swr_enabled=true
