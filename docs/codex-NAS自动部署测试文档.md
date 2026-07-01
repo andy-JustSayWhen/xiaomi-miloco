@@ -106,6 +106,14 @@ NAS 只换 YAML、不拉新镜像的结果：
 - 直接打开 `http://<NAS-IP>:18789/chat?session=main` 不再进入网关认证页，浏览器地址带 `easy_miloco_token=1`，页面显示 `deepseek-v4-flash · Off` 并进入聊天态。
 - 发送 `请只回复：OK-CHAT-FIX`，约 `20.9s` 返回，确认商汤自动推断和深链修复在新镜像中同时生效。
 
+启动耗时优化尝试：
+
+- `ba776f1` 尝试把 uv tool/bin/cache 默认固定到 `/data`；Actions run `28549046329` 成功，耗时 `2m50s`。
+- `f1187f3` 改为强制 NAS 默认 XDG/uv 路径到 `/data`；Actions run `28549465172` 成功，耗时 `2m44s`。
+- `d653957` 进一步把 `/root/.local`、`/root/.cache` 软链到 `/data`；Actions run `28549950434` 成功，耗时 `2m42s`，SWR `v0.5/latest` digest 为 `sha256:889fc6222e4d68874f2955a3338b41aaa6b348f4b43d9c921c230037bf16415f`。
+- 但 NAS 实测没有证明该优化生效：`d653957` 冷拉镜像出现 `105.6s`、project running `110.9s`、端口可用 `204.5s`；随后不删镜像/不删数据 warm redeploy，project running `4.6s`、端口可用 `102.7s`。
+- warm redeploy 日志仍出现 `agent prepare marker exists but miloco-cli is missing; rerunning prepare for this container.`，且 Python 路径仍显示 `/root/.local/share/uv/tools/miloco/bin/python`。因此“running 后还要等约 1-2 分钟”仍未解决，只能作为已知 UX 提示保留；后续若继续优化，需要能直接检查容器内 `/root/.local` 与 `/data/.local` 的真实文件系统状态。
+
 本轮代码侧处理：
 
 - `OPENCLAW_CHAT_*` 与 `OMNI_*` 完全分离，不复用。
@@ -117,6 +125,6 @@ NAS 只换 YAML、不拉新镜像的结果：
 ## 当前结论
 
 - 首次部署真正耗时主要在 SWR 冷拉，本轮三次实测为 `85.0s`、`87.0s` 和 `118.1s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `5-7s`。
-- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 端口还要 `22-109s` 才恢复；最新深链修复镜像从项目 running 到两个端口可访问约 `93.7s`。文档和 UI 提示都应明确“等 1-2 分钟再刷新”。
+- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 端口还要 `22-109s` 才恢复；最新实测从 project running 到两个端口可访问约 `93.6s`。文档和 UI 提示都应明确“等 1-2 分钟再刷新”。
 - OpenClaw provider 注释足够清楚的最低标准：只强调 `MODEL`、`BASE_URL`、`API_KEY` 三项必填；`PROVIDER` 和 `API` 是排障字段；`Off/Adaptive` 不是模型未配置。
 - 当前代码已修正 SenseNova 自动 API 形状，并已修正 OpenClaw `/chat` 深链缺 token 的问题。旧镜像可用 workaround：商汤 YAML 显式写 `OPENCLAW_CHAT_API: "openai-completions"`，OpenClaw 从根地址 `http://<NAS-IP>:18789/` 进入。
