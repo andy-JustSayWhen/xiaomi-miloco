@@ -38,16 +38,17 @@ services:
       # 如果从 CC Switch 复制配置：ANTHROPIC_MODEL 填到 MODEL，ANTHROPIC_BASE_URL 原样填到 BASE_URL，ANTHROPIC_AUTH_TOKEN 填到 API_KEY。
       # BASE_URL 不需要自己补 /v1 或 /anthropic；从服务商控制台/CC Switch 看到什么就先原样复制。
       # 如果换供应商后重新部署，OpenClaw 旧会话可能仍显示旧模型；请点“+ 新会话”检查新默认模型。
+      # OpenClaw 模型栏里的 Off/Adaptive 是思考/推理模式状态，不是“模型关闭”或“未配置”。
       # 常见示例：
       # - 小米 Token Plan：MODEL="mimo-v2.5-pro"，BASE_URL="https://token-plan-sgp.xiaomimimo.com/v1"，PROVIDER 可留空或填 "xiaomi-token-plan"
       # - DeepSeek：MODEL 按控制台/CC Switch 填，BASE_URL 可填 "https://api.deepseek.com/anthropic"，PROVIDER 可留空或填 "deepseek"
       # - MiniMax：MODEL 常见为 "MiniMax-M3"，BASE_URL 可填 "https://api.minimaxi.com/anthropic"，PROVIDER 可留空或填 "minimax"
-      # - 商汤日日新/SenseNova：MODEL 按控制台/CC Switch 填，BASE_URL 可填 "https://token.sensenova.cn/v1"，PROVIDER 可留空或填 "sensenova"
+      # - 商汤日日新/SenseNova：MODEL 按控制台/CC Switch 填，BASE_URL 可填 "https://token.sensenova.cn/v1"，PROVIDER 可留空或填 "sensenova"，API 会自动走 openai-completions
       OPENCLAW_CHAT_MODEL: "mimo-v2.5-pro"  ## 模型名，照服务商控制台或 CC Switch 的模型名填写，保留双引号
       OPENCLAW_CHAT_BASE_URL: "https://token-plan-sgp.xiaomimimo.com/v1"  ## API 地址，保留双引号
       OPENCLAW_CHAT_API_KEY: "填你的 API Key"  ## API Key，保留双引号
       OPENCLAW_CHAT_PROVIDER: ""  ## 可留空自动推断；排障时才手动填，比如 "deepseek"、"minimax"、"sensenova"、"xiaomi-token-plan"
-      OPENCLAW_CHAT_API: ""  ## 可留空自动推断；排障时才手动填 "openai-completions" 或 "anthropic-messages"
+      OPENCLAW_CHAT_API: ""  ## 可留空自动推断；排障时才手动填 "openai-completions"、"anthropic-messages" 或 "openai-responses"
 
     volumes:
       - </volume1/docker/miloco>:/data  ## 容器数据路径，把<>内的路径，连同符号<>都替换掉，改为你的真实路径。右侧 :/data 不要改

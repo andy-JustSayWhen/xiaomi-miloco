@@ -527,11 +527,11 @@ def infer_api(explicit: str, provider_id: str, base_url: str) -> str:
         return api
     parsed = urlparse(base_url)
     text = f"{provider_id} {parsed.netloc} {parsed.path}".lower()
+    if provider_id == "sensenova":
+        return "openai-completions"
     if "anthropic" in text:
         return "anthropic-messages"
     if provider_id == "minimax" and "minimax" in text:
-        return "anthropic-messages"
-    if provider_id == "sensenova" and "sensenova" in text:
         return "anthropic-messages"
     return "openai-completions"
 
@@ -900,11 +900,11 @@ def infer_api(explicit, provider, base_url):
         return api
     parsed = urlparse(base_url)
     text = f"{provider} {parsed.netloc} {parsed.path}".lower()
+    if provider == "sensenova":
+        return "openai-completions"
     if "anthropic" in text:
         return "anthropic-messages"
     if provider == "minimax" and "minimax" in text:
-        return "anthropic-messages"
-    if provider == "sensenova" and "sensenova" in text:
         return "anthropic-messages"
     return "openai-completions"
 

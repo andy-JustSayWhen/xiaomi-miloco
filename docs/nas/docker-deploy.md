@@ -25,6 +25,8 @@ OPENCLAW_CHAT_API_KEY=<API Key>
 `OPENCLAW_CHAT_PROVIDER` 可留空，容器会按 URL 和模型名自动推断。只有排障或接入特殊 OpenClaw provider 时才手动填，例如 `deepseek`、`minimax`、`xiaomi-token-plan`。
 它不是账号类型、计费类型或 Token Plan 类型；普通用户不需要理解或填写它。
 从 CC Switch 复制时，把 `ANTHROPIC_MODEL`、`ANTHROPIC_BASE_URL`、`ANTHROPIC_AUTH_TOKEN` 分别填到 `OPENCLAW_CHAT_MODEL`、`OPENCLAW_CHAT_BASE_URL`、`OPENCLAW_CHAT_API_KEY`，Base URL 原样复制，不要自行补 `/v1` 或 `/anthropic`。
+`OPENCLAW_CHAT_API` 也是排障字段，普通用户留空。DeepSeek、MiniMax、商汤日日新/SenseNova 会自动按 URL/provider 选择请求形状；SenseNova 的 `https://token.sensenova.cn/v1` 默认走 `openai-completions`。
+OpenClaw 模型栏里模型名后面的 `Off` / `Adaptive` 是思考/推理模式状态，不是“模型关闭”或“未配置”。
 
 默认不在 NAS 上现场构建镜像。现场构建会拉 `node`、apt、npm、uv 等多条外网链路，实测在家庭 NAS 上很容易低速卡住。普通部署走在线镜像；只有维护者调试才设置 `EASY_MILOCO_BUILD=1`。
 
@@ -60,6 +62,8 @@ cd nas/docker
 
 - Miloco 面板：`http://<NAS-IP>:1810/`
 - OpenClaw 对话：`http://<NAS-IP>:18789/`
+
+Docker 项目显示 running 后，容器里的 Web 服务可能还需要几十秒完成二阶段启动；如果刚点开 `1810` 或 `18789` 出现连接拒绝，等 1-2 分钟再刷新。
 
 ## 网络和快捷访问
 

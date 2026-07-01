@@ -52,9 +52,12 @@ OPENCLAW_CHAT_MODEL=<聊天模型名>
 OPENCLAW_CHAT_BASE_URL=<OpenAI-compatible Base URL>
 OPENCLAW_CHAT_API_KEY=<API Key>
 OPENCLAW_CHAT_PROVIDER=
+OPENCLAW_CHAT_API=
 ```
 
 容器会按 URL/模型名自动推断 provider。只有排障或明确接入特殊 OpenClaw provider 时，才手动填 `OPENCLAW_CHAT_PROVIDER`，例如 `deepseek`、`minimax`、`xiaomi-token-plan`。
+`OPENCLAW_CHAT_API` 同样只在排障时填写。正常情况下 DeepSeek、MiniMax、商汤日日新/SenseNova 都能自动推断；SenseNova 的 `https://token.sensenova.cn/v1` 会走 `openai-completions`。
+OpenClaw 模型栏里模型名后面的 `Off` / `Adaptive` 是思考/推理模式状态，不是“模型关闭”或“未配置”。
 
 启动：
 
@@ -91,8 +94,9 @@ EASY_MILOCO_BUILD=1 ./manage.sh start
 ```
 
 `./manage.sh urls` 必须作为交付地址来源；裸 `18789` 是公开代理入口，应自动跳转到带 token 的 OpenClaw 对话页，避免让用户猜登录凭证。
+Docker 项目显示 running 后，`1810` / `18789` 可能还需要 1-2 分钟恢复访问；这段时间看到连接拒绝不等于部署失败。
 
-如果 `docker compose pull` 成功但日志仍出现旧的 `WSL Miloco validation`、`OpenClaw 直达: http://172...` 或模型缺失，说明 NAS 镜像源命中了旧 tag 缓存。立即切换到上面的 digest 镜像，不要继续重复拉裸 `v0.5` tag。
+如果 `docker compose pull` 成功但日志仍出现旧的 `WSL Miloco validation`、`OpenClaw 直达: http://172...` 或模型缺失，说明 NAS 镜像源命中了旧 tag 缓存。优先切到华为 SWR 固定版本 tag 或等待维护者发布新 tag，不要反复重复拉同一个旧 tag。
 
 容器列表中应看到容器名 `miloco`；快速访问里应出现两个端口：
 

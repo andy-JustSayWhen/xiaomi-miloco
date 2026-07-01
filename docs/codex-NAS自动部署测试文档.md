@@ -16,14 +16,10 @@
 
 时间：2026-07-02
 
-1. 文件管理器打开 `共享文件夹 > docker`。
-2. 当前列表共 11 项，未发现 `miloco` 目录，判定数据目录已不存在。
-3. Docker > 项目页发现旧项目名为 `miloco-test`，不是 `miloco`。
-4. `miloco-test` 处于运行中，先停止，等待状态变为未运行。
-5. 通过更多操作删除 `miloco-test`，确认框中勾选“同时删除关联的镜像”。
-6. 删除后项目页只剩 `firefox`、`moodist`、`metube`，旧项目消失。
-7. Docker > 容器页未发现 `miloco` 或 `easy-miloco` 相关容器。
-8. Docker > 镜像 > 本地镜像中搜索 `miloco`，结果为空，确认旧镜像已清除。
+1. Docker 项目中存在旧 `miloco` 项目。
+2. 使用 UGREEN Docker 项目接口删除旧项目，首次清理时使用 `delImages=true`，确认本地 `easy-miloco-nas` 镜像已消失。
+3. 删除 Docker 项目后，`/volume1/docker/miloco` 目录仍可能保留旧 `docker-compose.yaml`；这会让后续测试误以为配置已更新。
+4. 使用文件管理接口删除 `/volume1/docker/miloco`，再检查 `HasYAMLFile` 为空，确认旧 Compose 文件已清除。
 
 ## 本轮部署记录
 
@@ -39,24 +35,20 @@
 
 ### UGREEN 冷拉部署
 
-1. Docker > 项目 > 创建。
-2. 项目名称填写 `miloco`。
-3. 存放路径选择 `共享文件夹/docker/miloco`；该路径在创建页可直接选中。
-4. Compose 内容不要依赖普通 `pbcopy`；本轮 `pbcopy` 在 Codex 环境里没有写入图形剪贴板，导致第一次粘贴成了聊天内容。
-5. 改用 AppleScript 设置 macOS 图形剪贴板后再粘贴，确认 Compose 前几行是 `services:`、`miloco:` 和 SWR 镜像。
-6. 部署日志显示镜像大小约 `395.9 MB`。
-7. 拉取日志一开始很快到 `384.8 MB / 395.9 MB`，但尾部卡住了一段时间，用户视角容易误判为失败。
-8. NAS 部署日志最终显示：
-   - 镜像拉取：`82.7s`
-   - 网络创建：`0.3s`
-   - 容器创建：`0.5s`
-9. 本地从点击“立即部署”到确认回到项目页的端到端耗时约 `150s`。
-10. 回到 Docker > 项目页后，`miloco` 显示运行中，`1/1`。
+1. 使用当前 `env/ugreen-compose.yaml` 从空目录创建 `miloco` 项目。
+2. 镜像源：`swr.cn-north-4.myhuaweicloud.com/easy-miloco/easy-miloco-nas:v0.5`。
+3. 从创建请求发出到镜像出现在 NAS 本地镜像列表：`87.0s`。
+4. 从创建请求发出到项目显示 running 且 `1/1`：`92.4s`。
+5. 本轮总耗时：`92.5s`；其中冷拉约占 `87.0s`，拉完到项目 running 约 `5.4s`。
+6. 项目 running 后，`1810` / `18789` 并不一定立刻可访问；首次访问曾出现 `ERR_CONNECTION_REFUSED`，稍后端口恢复。
+7. Miloco 面板可打开，显示米家未连接和家里暂无摄像头；未见模型“未配置”占位。
+8. OpenClaw 自动打开聊天页，模型栏显示 `mimo-v2.5-pro · Off`；发送“请用一句话回复：部署测试。”后约 `11.8s` 完成回复。
 
 ## UI 操作注意
 
 - 项目运行中时，“删除”菜单项不可用，需要先点“停止”。
 - 删除项目弹窗默认不删除镜像；为了测真实首次拉取耗时，必须勾选“同时删除关联的镜像”。
+- 删除项目不会自动删除 `/volume1/docker/miloco` 目录；从零测试前必须额外删目录，否则会残留旧 YAML。
 - Docker 镜像页默认落在“镜像仓库”，确认本地残留要切到“本地镜像”。
 - 搜索框过滤不是瞬时的，输入后要等列表变为空或出现匹配项。
 - Compose 粘贴前必须确认系统剪贴板内容；错误粘贴时编辑器会显示 `Incorrect type. Expected "Compose Specification".`
@@ -65,6 +57,9 @@
 - 复用旧项目路径时，UGREEN 可能提示路径已存在；需要确认“导入该配置/覆盖”后再部署，否则按钮状态和实际 Compose 内容容易不同步。
 - OpenClaw 请打开根地址 `http://<NAS-IP>:18789/`。直接打开历史里的 `/chat?session=main` 深链可能缺少当前 token，出现“认证不匹配”或“无法连接”。
 - OpenClaw 会话会记住旧模型；换供应商重新部署后，应点“+ 新会话”确认新默认模型，不要只看旧 `main` 会话底部模型栏。
+- OpenClaw 模型栏里的 `Off` / `Adaptive` 是思考/推理模式状态，不是“模型关闭”或“未配置”。
+- UGREEN 显示 Docker 项目 running 后，容器内部服务可能还有二阶段启动；本轮多次观察到 `1810` / `18789` 在 `66.5s`、`78.6s`、`82.6s`、`82.7s` 后才全部恢复。
+- OpenClaw 新会话按钮点击后可能仍出现 `GatewayRequestError: unknown parent session: agent:main:main` 的历史提示，但新对话仍可继续发送；普通用户会被这个英文错误干扰。
 
 ## LLM 供应商切换测试
 
@@ -74,33 +69,28 @@
 
 本机直连探测结果：
 
-- DeepSeek：`https://api.deepseek.com/anthropic/v1/messages` 返回 200，模型 `deepseek-v4-flash` 可用。
-- MiniMax：`https://api.minimaxi.com/anthropic/v1/messages` 返回 200，模型 `MiniMax-M3` 可用。
-- 商汤科技/SenseNova：`https://token.sensenova.cn/v1/messages` 返回 200，模型 `deepseek-v4-flash` 可用。
+- DeepSeek：`https://api.deepseek.com/anthropic` 对应模型 `deepseek-v4-flash`，OpenClaw 走 Anthropic messages 形状可用。
+- MiniMax：`https://api.minimaxi.com/anthropic` 对应模型 `MiniMax-M3`，OpenClaw 走 Anthropic messages 形状可用。
+- 商汤科技/SenseNova：`https://token.sensenova.cn/v1` 对应模型 `deepseek-v4-flash`；`/v1/messages` 用 `Authorization: Bearer` 可用，但 `x-api-key` 返回 401；`/v1/chat/completions` 可用。
 
 NAS 只换 YAML、不拉新镜像的结果：
 
-- DeepSeek：UGREEN 部署日志无 Pull，只有网络和容器创建，Docker 创建阶段约 `0.3s`；OpenClaw 前端显示 `deepseek-v4-flash`，但对话失败，提示 provider 找不到该模型。本机直连同一组配置成功，因此判断为当前镜像里的 OpenClaw provider/API 形状处理不足，需要新 entrypoint 支持 `OPENCLAW_CHAT_API=anthropic-messages`。
-- MiniMax：UGREEN 部署日志无 Pull，网络创建 `0.2s`，容器创建 `0.1s`，Docker 创建阶段约 `0.3s`；点击部署到确认完成约 `16s`。OpenClaw 打开根地址后显示 `MiniMax-M3 · Adaptive`，提示 `请只回复：OK-MINIMAX`，返回 `OK-MINIMAX`，前端感知耗时约 `2.3s`。
-- 商汤科技/SenseNova：UGREEN 部署日志无 Pull，网络创建 `0.2s`，容器创建 `0.1s`，Docker 创建阶段约 `0.3s`；点击部署到确认完成约 `77s`，主要耗时在 UI 等待和确认。之后打开旧 `main` 会话仍显示上一轮 `MiniMax-M3`，并且删除/重建时 UGREEN 菜单坐标极不稳定；本轮未得到可信的前端新会话回复结果。直连 API 已确认可用，Compose 侧应显式填 `OPENCLAW_CHAT_API: "anthropic-messages"`。
+- DeepSeek：保留镜像，删除项目 `9.3s`，重建到 running `5.2s`；端口 `66.5s` 后全部恢复。OpenClaw 显示 `deepseek-v4-flash · Off`，发送 `请只回复：OK-DEEPSEEK`，约 `13.9s` 返回 `OK-DEEPSEEK`。
+- MiniMax：保留镜像，删除项目 `7.3s`，重建到 running `4.7s`；端口 `78.6s` 后全部恢复。OpenClaw 显示 `MiniMax-M3 · Adaptive`，发送 `请只回复：OK-MINIMAX`，约 `19.5s` 返回 `OK-MINIMAX`。
+- 商汤科技/SenseNova，自动推断旧逻辑：保留镜像，重建到 running `7.0s`；端口 `82.6s` 后全部恢复。OpenClaw 显示 `deepseek-v4-flash · Off`，但请求约 `107s` 后失败，页面显示 `LLM request failed`。
+- 商汤科技/SenseNova，显式 `OPENCLAW_CHAT_API="openai-completions"`：保留镜像，重建到 running `5.2s`；端口 `82.7s` 后全部恢复。OpenClaw 发送 `请只回复：OK-SENSE`，约 `12.8s` 返回 `OK-SENSE`。
 
 本轮代码侧处理：
 
 - `OPENCLAW_CHAT_*` 与 `OMNI_*` 完全分离，不复用。
 - 用户只需要提供模型名、Base URL、API Key；Provider 和 API 形状可自动推断。
 - 增加 `OPENCLAW_CHAT_API` 作为排障字段，支持 `openai-completions`、`anthropic-messages`、`openai-responses`。
-- DeepSeek/MiniMax/SenseNova 的 `/anthropic` 或 SenseNova URL 会自动走 `anthropic-messages`。
+- DeepSeek/MiniMax 的 `/anthropic` URL 自动走 `anthropic-messages`。
+- SenseNova 的 `https://token.sensenova.cn/v1` 自动走 `openai-completions`，避免 Anthropic adapter 使用 `x-api-key` 导致 401。
 
-## 下一步测试项
+## 当前结论
 
-- 从 Docker > 项目创建新 Compose 项目。
-- 粘贴由模板和 `env/nas-test.env` 生成的本机 Compose 内容。
-- 从点击创建/部署开始计时，到项目显示运行中并可打开 WebUI 为止。
-- 部署完成后打开：
-  - Miloco 面板：`http://<NAS-IP>:1810/`
-  - OpenClaw：`http://<NAS-IP>:18789/`
-- 以小白用户视角检查：
-  - 首屏是否能直接知道下一步该做什么。
-  - Miloco 模型配置是否显示已配置或给出明确错误。
-  - OpenClaw 是否能直接打开并正常回复。
-  - 慢响应、空白页、占位符、报错文案是否会让用户卡住。
+- 首次部署真正耗时主要在 SWR 冷拉，约 `87s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `5-7s`。
+- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 端口还要 `60-85s` 才恢复；文档和 UI 提示都应明确“等 1-2 分钟再刷新”。
+- OpenClaw provider 注释足够清楚的最低标准：只强调 `MODEL`、`BASE_URL`、`API_KEY` 三项必填；`PROVIDER` 和 `API` 是排障字段；`Off/Adaptive` 不是模型未配置。
+- 当前代码已修正 SenseNova 自动 API 形状。当前已部署的旧镜像可用 workaround：在 YAML 中显式写 `OPENCLAW_CHAT_API: "openai-completions"`。
