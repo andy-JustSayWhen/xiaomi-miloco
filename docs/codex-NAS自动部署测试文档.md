@@ -65,7 +65,7 @@
 - UGREEN 的部署弹窗会显示进度，但尾部可能长时间不刷新；不要在 1 分钟内贸然取消。
 - UGREEN 从本地文件导入 YAML 偶发超时或沿用上一份内容；切换供应商测试时，更稳的方式是导入后检查编辑器里的 `OPENCLAW_CHAT_*` 行，必要时直接在编辑器内覆盖 YAML。
 - 复用旧项目路径时，UGREEN 可能提示路径已存在；需要确认“导入该配置/覆盖”后再部署，否则按钮状态和实际 Compose 内容容易不同步。
-- 旧镜像里 OpenClaw 请打开根地址 `http://<NAS-IP>:18789/`；直接打开历史里的 `/chat?session=main` 深链可能缺少当前 token，出现“认证不匹配”或“无法连接”。当前源码已补 `/chat` 深链自动加 token，发布新镜像后应复测。
+- 旧镜像里 OpenClaw 请打开根地址 `http://<NAS-IP>:18789/`；直接打开历史里的 `/chat?session=main` 深链可能缺少当前 token，出现“认证不匹配”或“无法连接”。`a537e3f` 新镜像已复测：裸 `/chat?session=main` 会自动跳到带 `easy_miloco_token=1` 的聊天页。
 - OpenClaw 会话会记住旧模型；换供应商重新部署后，应点“+ 新会话”确认新默认模型，不要只看旧 `main` 会话底部模型栏。
 - OpenClaw 模型栏里的 `Off` / `Adaptive` 是思考/推理模式状态，不是“模型关闭”或“未配置”。
 - UGREEN 显示 Docker 项目 running 后，容器内部服务可能还有二阶段启动；本轮多次观察到 `1810` / `18789` 在 `66.5s`、`78.6s`、`82.6s`、`82.7s` 后才全部恢复。
@@ -99,6 +99,13 @@ NAS 只换 YAML、不拉新镜像的结果：
 - Chrome 本机扩展偶发对 `192.168.31.225:18789` 新标签报 `ERR_BLOCKED_BY_CLIENT`；重开同一地址可恢复，这不是 NAS 服务失败。
 - 复测时直接打开 `/chat?session=main` 仍进入网关认证页，根地址 `/` 能自动带 token。已在源码修复代理逻辑：`/` 和裸 `/chat` 都会跳到带 `easy_miloco_token=1#token=...` 的地址，避免用户从历史记录进入认证页。
 
+`a537e3f` 深链修复新镜像复测：
+
+- GitHub Actions run `28548463398` 成功，耗时 `2m51s`，重新发布 GHCR / Docker Hub / 华为 SWR。
+- 强制删除旧项目和本地镜像后，用商汤 YAML 从 SWR 冷拉新镜像：镜像出现 `85.0s`，项目 running `89.6s`，两个端口都可访问 `183.3s`。
+- 直接打开 `http://<NAS-IP>:18789/chat?session=main` 不再进入网关认证页，浏览器地址带 `easy_miloco_token=1`，页面显示 `deepseek-v4-flash · Off` 并进入聊天态。
+- 发送 `请只回复：OK-CHAT-FIX`，约 `20.9s` 返回，确认商汤自动推断和深链修复在新镜像中同时生效。
+
 本轮代码侧处理：
 
 - `OPENCLAW_CHAT_*` 与 `OMNI_*` 完全分离，不复用。
@@ -109,7 +116,7 @@ NAS 只换 YAML、不拉新镜像的结果：
 
 ## 当前结论
 
-- 首次部署真正耗时主要在 SWR 冷拉，本轮两次实测为 `87.0s` 和 `118.1s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `5-7s`。
-- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 端口还要 `22-109s` 才恢复；文档和 UI 提示都应明确“等 1-2 分钟再刷新”。
+- 首次部署真正耗时主要在 SWR 冷拉，本轮三次实测为 `85.0s`、`87.0s` 和 `118.1s`；后续只换 YAML 不拉镜像时，Docker 项目重建本身约 `5-7s`。
+- 小白用户最容易卡住的不是镜像拉取，而是项目 running 后 Web 端口还要 `22-109s` 才恢复；最新深链修复镜像从项目 running 到两个端口可访问约 `93.7s`。文档和 UI 提示都应明确“等 1-2 分钟再刷新”。
 - OpenClaw provider 注释足够清楚的最低标准：只强调 `MODEL`、`BASE_URL`、`API_KEY` 三项必填；`PROVIDER` 和 `API` 是排障字段；`Off/Adaptive` 不是模型未配置。
 - 当前代码已修正 SenseNova 自动 API 形状，并已修正 OpenClaw `/chat` 深链缺 token 的问题。旧镜像可用 workaround：商汤 YAML 显式写 `OPENCLAW_CHAT_API: "openai-completions"`，OpenClaw 从根地址 `http://<NAS-IP>:18789/` 进入。
